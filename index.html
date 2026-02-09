@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CRM Plomberie BTP</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-icon">≈</span>
+          <div>
+            <h1>PlombiCRM</h1>
+            <p>BTP • Plomberie</p>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" data-target="dashboard">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Tableau de bord</span>
+          </button>
+          <button class="nav-item" data-target="clients">
+            <span class="nav-icon">👥</span>
+            <span class="nav-label">Clients</span>
+          </button>
+          <button class="nav-item" data-target="devis">
+            <span class="nav-icon">🧾</span>
+            <span class="nav-label">Devis</span>
+          </button>
+          <button class="nav-item" data-target="projets">
+            <span class="nav-icon">🛠️</span>
+            <span class="nav-label">Suivi projets</span>
+          </button>
+          <button class="nav-item" data-target="rapports">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Rapports</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-actions">
+            <span id="current-date"></span>
+            <button id="logout" class="ghost">Déconnexion</button>
+            <div class="avatar">MB</div>
+          </div>
+        </header>
+
+        <section id="dashboard" class="panel active">
+          <div class="panel-header">
+            <div>
+              <h2>Bonjour 👋</h2>
+              <p>Voici les indicateurs clés du mois.</p>
+            </div>
+            <button id="reset-data" class="ghost">Réinitialiser les données</button>
+          </div>
+          <div class="cards" id="kpi-cards"></div>
+          <div class="grid">
+            <div class="card">
+              <h3>Suivi des projets</h3>
+              <div id="project-progress"></div>
+            </div>
+            <div class="card">
+              <h3>Notifications</h3>
+              <ul id="notifications" class="list"></ul>
+            </div>
+            <div class="card">
+              <h3>Devis récents</h3>
+              <ul id="recent-quotes" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="clients" class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Gestion des clients</h2>
+              <p>Ajoutez, classez et suivez l'historique des interventions.</p>
+            </div>
+            <div class="search">
+              <input id="clients-search" type="search" placeholder="Rechercher un client" />
+            </div>
+          </div>
+          <div class="split">
+            <div class="card">
+              <h3>Nouveau client</h3>
+              <form id="client-form" class="form">
+                <label>
+                  Nom complet
+                  <input name="name" required />
+                </label>
+                <label>
+                  Adresse
+                  <input name="address" required />
+                </label>
+                <label>
+                  Téléphone
+                  <input name="phone" required />
+                </label>
+                <label>
+                  Email
+                  <input name="email" type="email" placeholder="client@exemple.fr" />
+                </label>
+                <label>
+                  Classification
+                  <select name="segment">
+                    <option value="Nouveau">Nouveau</option>
+                    <option value="Régulier">Régulier</option>
+                    <option value="VIP">VIP</option>
+                  </select>
+                </label>
+                <button type="submit">Ajouter le client</button>
+              </form>
+            </div>
+            <div class="card">
+              <h3>Base clients</h3>
+              <div id="clients-table" class="client-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="devis" class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Devis automatisés</h2>
+              <p>Générez des devis personnalisés avec la bibliothèque de tarifs.</p>
+            </div>
+          </div>
+          <div class="split">
+            <div class="card">
+              <h3>Créer un devis</h3>
+              <form id="quote-form" class="form">
+                <label>
+                  Client
+                  <input
+                    id="quote-client-search"
+                    list="clients-datalist"
+                    placeholder="Rechercher un client..."
+                    autocomplete="off"
+                  />
+                  <input type="hidden" name="clientId" id="quote-client" />
+                  <datalist id="clients-datalist"></datalist>
+                </label>
+                <label>
+                  Service
+                  <select name="serviceId" id="quote-service"></select>
+                </label>
+                <div class="materials-field">
+                  <div class="materials-header">
+                    <div>
+                      <span>Matériaux</span>
+                      <p class="muted">Ajoutez plusieurs matériaux si besoin.</p>
+                    </div>
+                    <button type="button" id="add-material" class="ghost small add-material-btn">+ Ajouter</button>
+                  </div>
+                  <div id="materials-list" class="materials-list"></div>
+                </div>
+                <label>
+                  Heures de main-d'œuvre
+                  <input
+                    name="hours"
+                    type="text"
+                    inputmode="decimal"
+                    required
+                  />
+                </label>
+                <label>
+                  Remise (%)
+                  <input name="discount" type="number" min="0" max="30" value="0" />
+                </label>
+                <button type="submit">Générer le devis</button>
+              </form>
+              <div id="quote-preview" class="quote-preview hidden"></div>
+            </div>
+            <div class="card">
+              <h3>Historique des devis</h3>
+              <ul id="quotes-list" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="projets" class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Suivi des projets</h2>
+              <p>Gardez une vue claire sur l'avancement et les échéances.</p>
+            </div>
+          </div>
+          <div class="split">
+            <div class="card">
+              <h3>Nouveau chantier</h3>
+              <form id="project-form" class="form">
+                <label>
+                  Nom du chantier
+                  <input name="name" required />
+                </label>
+                <label>
+                  Client
+                  <input
+                    id="project-client-search"
+                    list="project-clients-datalist"
+                    placeholder="Rechercher un client..."
+                    autocomplete="off"
+                  />
+                  <input type="hidden" name="clientId" id="project-client" />
+                  <datalist id="project-clients-datalist"></datalist>
+                </label>
+                <label>
+                  Statut
+                  <select name="status">
+                    <option value="Planifié">Planifié</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                </label>
+                <label>
+                  Responsable
+                  <input name="responsible" placeholder="Nom du responsable" />
+                </label>
+                <label>
+                  Commentaire
+                  <input name="comment" placeholder="Infos utiles du chantier" />
+                </label>
+                <label>
+                  Échéance
+                  <input name="dueDate" type="date" required />
+                </label>
+                <button type="submit">Créer le chantier</button>
+              </form>
+            </div>
+            <div class="card">
+              <div class="project-filters">
+                <div>
+                  <strong>Vue chantier</strong>
+                  <p class="muted">Mise à jour rapide par statut et échéance.</p>
+                </div>
+                <div class="project-actions">
+                  <button class="ghost active" id="projects-sort-due" data-sort="due">Échéance</button>
+                  <button class="ghost" id="projects-sort-progress" data-sort="progress">Avancement</button>
+                </div>
+              </div>
+              <div id="projects-list" class="project-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="rapports" class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Rapports &amp; analyses</h2>
+              <p>Suivez la performance des devis, ventes et satisfaction.</p>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <h3>Taux de conversion</h3>
+              <div class="metric" id="conversion-rate"></div>
+              <div class="ring" id="conversion-ring"></div>
+              <p class="muted">Devis convertis en contrats</p>
+            </div>
+            <div class="card">
+              <h3>Tendances de vente</h3>
+              <div id="sales-chart" class="bar-chart"></div>
+              <ul id="sales-trends" class="list"></ul>
+            </div>
+            <div class="card">
+              <h3>Services les plus demandés</h3>
+              <ul id="top-services" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+
+      </main>
+    </div>
+
+    <div id="auth-modal" class="auth-modal">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h2>Connexion</h2>
+          <p class="muted">Accès réservé avec identifiant unique.</p>
+        </div>
+        <form id="login-form" class="form">
+          <label>
+            Identifiant
+            <input name="email" required />
+          </label>
+          <label>
+            Mot de passe
+            <input name="password" type="password" required />
+          </label>
+          <button type="submit">Se connecter</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
