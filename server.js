@@ -318,6 +318,19 @@ const computeQuote = (service, materialsTotal, hours, laborRate, discount) => {
   return Math.round(base - base * (discount / 100));
 };
 
+const ensureSettings = async (userId) => {
+  let settings = await db.get(`SELECT * FROM settings WHERE user_id = ?`, [userId]);
+  if (!settings) {
+    await db.run(
+      `INSERT INTO settings (user_id, labor_rate, satisfaction_score, satisfaction_responses)
+       VALUES (?, ?, ?, ?)`,
+      [userId, 65, 0, 0]
+    );
+    settings = await db.get(`SELECT * FROM settings WHERE user_id = ?`, [userId]);
+  }
+  return settings;
+};
+
 const formatCurrency = (value) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" })
     .format(value)
@@ -511,7 +524,7 @@ app.get("/api/bootstrap", auth, async (req, res) => {
   const integrations = (await db.all(`SELECT * FROM integrations WHERE user_id = ?`, [userId])).map(
     mapIntegration
   );
-  const settings = await db.get(`SELECT * FROM settings WHERE user_id = ?`, [userId]);
+  const settings = await ensureSettings(userId);
 
   res.json({
     user: { ...user, initials: toInitials(user.name) },
@@ -565,16 +578,26 @@ app.post("/api/quotes", auth, async (req, res) => {
   if (!clientId || !serviceId || !hours) {
     return res.status(400).json({ message: "Devis incomplet." });
   }
+  const clientExists = await db.get(`SELECT id FROM clients WHERE id = ? AND user_id = ?`, [
+    clientId,
+    req.user.id,
+  ]);
+  if (!clientExists) {
+    return res.status(400).json({ message: "Client introuvable." });
+  }
   const service = await db.get(`SELECT * FROM services WHERE id = ? AND user_id = ?`, [
     serviceId,
     req.user.id,
   ]);
+  if (!service) {
+    return res.status(400).json({ message: "Service introuvable." });
+  }
   const resolvedMaterialId = materialId || (await ensureCustomMaterial(req.user.id));
   const material = await db.get(`SELECT * FROM materials WHERE id = ? AND user_id = ?`, [
     resolvedMaterialId,
     req.user.id,
   ]);
-  const settings = await db.get(`SELECT * FROM settings WHERE user_id = ?`, [req.user.id]);
+  const settings = await ensureSettings(req.user.id);
   const materialsValue = Number.isFinite(Number(materialsTotal))
     ? Number(materialsTotal)
     : Number(material.price || 0);
@@ -702,6 +725,13 @@ app.post("/api/projects", auth, async (req, res) => {
   const { name, clientId, status, dueDate, responsible, comment } = req.body || {};
   if (!name || !clientId || !dueDate) {
     return res.status(400).json({ message: "Champs projet incomplets." });
+  }
+  const clientExists = await db.get(`SELECT id FROM clients WHERE id = ? AND user_id = ?`, [
+    clientId,
+    req.user.id,
+  ]);
+  if (!clientExists) {
+    return res.status(400).json({ message: "Client introuvable." });
   }
   const projectStatus = status || "Planifié";
   const progress = progressForStatus(projectStatus, 0);
