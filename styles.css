@@ -326,6 +326,22 @@ body {
   gap: 12px;
 }
 
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.inline-form input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f9fbff;
+  font-size: 12px;
+}
+
 .materials-list {
   display: grid;
   gap: 10px;

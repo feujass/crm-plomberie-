@@ -546,6 +546,19 @@ app.post("/api/clients", auth, async (req, res) => {
   res.json({ client: mapClient(client) });
 });
 
+app.post("/api/services", auth, async (req, res) => {
+  const { name, basePrice } = req.body || {};
+  if (!name || !Number.isFinite(Number(basePrice))) {
+    return res.status(400).json({ message: "Service invalide." });
+  }
+  const result = await db.run(
+    `INSERT INTO services (user_id, name, base_price) VALUES (?, ?, ?)`,
+    [req.user.id, name, Number(basePrice)]
+  );
+  const service = await db.get(`SELECT * FROM services WHERE id = ?`, [result.lastID]);
+  res.json({ service: mapService(service) });
+});
+
 app.post("/api/quotes", auth, async (req, res) => {
   const { clientId, serviceId, materialId, hours, discount, sendEmail, materials, materialsTotal } =
     req.body || {};

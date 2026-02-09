@@ -17,6 +17,9 @@ const elements = {
   projectClientSearch: document.getElementById("project-client-search"),
   projectClientsDatalist: document.getElementById("project-clients-datalist"),
   quoteService: document.getElementById("quote-service"),
+  serviceName: document.getElementById("service-name"),
+  servicePrice: document.getElementById("service-price"),
+  addService: document.getElementById("add-service"),
   materialsList: document.getElementById("materials-list"),
   addMaterial: document.getElementById("add-material"),
   quotesList: document.getElementById("quotes-list"),
@@ -223,9 +226,13 @@ const renderSelectOptions = () => {
   elements.projectClientsDatalist.innerHTML = data.clients
     .map((client) => `<option value="${client.name}"></option>`)
     .join("");
-  elements.quoteService.innerHTML = data.services
-    .map((service) => `<option value="${service.id}">${service.name}</option>`)
-    .join("");
+  if (data.services.length === 0) {
+    elements.quoteService.innerHTML = `<option value="">Aucun service. Ajoutez-en un.</option>`;
+  } else {
+    elements.quoteService.innerHTML = data.services
+      .map((service) => `<option value="${service.id}">${service.name}</option>`)
+      .join("");
+  }
 };
 
 const computeQuote = (quote) => {
@@ -664,6 +671,10 @@ elements.quoteForm.addEventListener("submit", (event) => {
     alert("Veuillez sélectionner un client valide.");
     return;
   }
+  if (!formData.get("serviceId")) {
+    alert("Veuillez sélectionner un service.");
+    return;
+  }
   const parsedHours = parseHours(formData.get("hours"));
   if (!parsedHours) {
     alert("Veuillez saisir une durée valide (ex: 1,30 • 1h30 • 45min).");
@@ -870,6 +881,29 @@ elements.logout.addEventListener("click", () => {
 if (elements.addMaterial) {
   elements.addMaterial.addEventListener("click", () => {
     elements.materialsList.appendChild(createMaterialRow());
+  });
+}
+
+if (elements.addService) {
+  elements.addService.addEventListener("click", async () => {
+    const name = elements.serviceName.value.trim();
+    const price = Number(elements.servicePrice.value);
+    if (!name || !Number.isFinite(price)) {
+      alert("Renseignez un nom de service et un prix valide.");
+      return;
+    }
+    try {
+      const payload = await apiFetch("/services", {
+        method: "POST",
+        body: JSON.stringify({ name, basePrice: price }),
+      });
+      data.services.unshift(payload.service);
+      renderSelectOptions();
+      elements.serviceName.value = "";
+      elements.servicePrice.value = "";
+    } catch (error) {
+      alert(error.message);
+    }
   });
 }
 
