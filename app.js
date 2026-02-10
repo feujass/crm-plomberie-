@@ -29,6 +29,8 @@ const elements = {
   projectsSortProgress: document.getElementById("projects-sort-progress"),
   projectsSortLegacy: document.getElementById("projects-sort"),
   projectsSortActions: document.querySelector(".project-actions"),
+  googleCalendarStatus: document.getElementById("google-calendar-status"),
+  googleCalendarConnect: document.getElementById("google-calendar-connect"),
   notifications: document.getElementById("notifications"),
   recentQuotes: document.getElementById("recent-quotes"),
   conversionRate: document.getElementById("conversion-rate"),
@@ -456,7 +458,7 @@ const renderProjects = () => {
             <span>Suivi client</span>
             <strong>${project.progress >= 70 ? "OK" : "À relancer"}</strong>
             <button class="ghost small" data-action="sync-calendar" data-id="${project.id}">
-              Synchroniser avec mon calendrier
+              Synchroniser avec Google Calendar
             </button>
           </div>
         </div>
@@ -613,11 +615,29 @@ const renderAll = () => {
   ensureMaterialRow();
 };
 
+const renderGoogleCalendarStatus = async () => {
+  if (!elements.googleCalendarStatus || !elements.googleCalendarConnect) return;
+  try {
+    const payload = await apiFetch("/google/status");
+    const connected = Boolean(payload.connected);
+    elements.googleCalendarStatus.textContent = connected
+      ? "Google Calendar connecté."
+      : "Google Calendar non connecté.";
+    elements.googleCalendarConnect.textContent = connected
+      ? "Reconnecter Google Calendar"
+      : "Synchroniser avec Google Calendar";
+  } catch (error) {
+    elements.googleCalendarStatus.textContent = "Google Calendar non connecté.";
+    elements.googleCalendarConnect.textContent = "Synchroniser avec Google Calendar";
+  }
+};
+
 const bootstrap = async () => {
   const payload = await apiFetch("/bootstrap");
   data = payload.data;
   setUser(payload.user);
   renderAll();
+  await renderGoogleCalendarStatus();
   if (elements.quoteClientSearch) {
     elements.quoteClientSearch.value = data.clients[0]?.name || "";
     elements.quoteClient.value = data.clients[0]?.id || "";
@@ -784,8 +804,8 @@ elements.projectsList.addEventListener("click", async (event) => {
     const payload = await apiFetch(`/projects/${projectId}/sync-calendar`, { method: "POST" });
     alert(
       payload.url
-        ? `Synchronisé. L'événement existe sur iCloud.\n${payload.url}`
-        : "Chantier synchronisé avec Calendrier Apple."
+        ? `Synchronisé. L'événement Google Calendar est prêt.\n${payload.url}`
+        : "Chantier synchronisé avec Google Calendar."
     );
   } catch (error) {
     alert(error.message);
@@ -872,6 +892,16 @@ elements.loginForm.addEventListener("submit", async (event) => {
   }
 });
 
+if (elements.googleCalendarConnect) {
+  elements.googleCalendarConnect.addEventListener("click", () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      alert("Veuillez vous connecter pour synchroniser Google Calendar.");
+      return;
+    }
+    window.location.href = `${window.location.origin}/auth/google?token=${encodeURIComponent(token)}`;
+  });
+}
 
 elements.logout.addEventListener("click", () => {
   localStorage.removeItem(TOKEN_KEY);

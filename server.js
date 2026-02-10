@@ -8,12 +8,16 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
 const crypto = require("crypto");
+const { google } = require("googleapis");
 const { initDb, ensureSingleUser, resetUserData, cleanupDemoDataOnce } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "";
 const QUOTES_DIR = path.join(__dirname, "public", "quotes");
 const CALDAV_URL = process.env.ICLOUD_CALDAV_URL || "";
 const CALDAV_CALENDAR_URL = process.env.ICLOUD_CALDAV_CALENDAR_URL || "";
@@ -56,6 +60,26 @@ const auth = (req, res, next) => {
   } catch (error) {
     res.status(401).json({ message: "Session expirée. Veuillez vous reconnecter." });
   }
+};
+
+const getUserFromToken = (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
+
+const getGoogleRedirectUri = () => {
+  if (GOOGLE_REDIRECT_URI) return GOOGLE_REDIRECT_URI;
+  return `${BASE_URL}/auth/google/callback`;
+};
+
+const getGoogleOAuthClient = () => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error("Google Calendar: identifiants non configurés.");
+  }
+  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, getGoogleRedirectUri());
 };
 
 const toInitials = (name) =>
@@ -305,6 +329,86 @@ const createCalDavEvent = async ({ project, client }) => {
   return { ok: true, url: eventUrl };
 };
 
+const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
+
+const getGoogleCalendarClient = async (userId) => {
+  const settings = await ensureSettings(userId);
+  if (!settings.google_refresh_token) {
+    return { ok: false, message: "Google Calendar non connecté." };
+  }
+  const oauthClient = getGoogleOAuthClient();
+  oauthClient.setCredentials({ refresh_token: settings.google_refresh_token });
+  return {
+    ok: true,
+    calendar: google.calendar({ version: "v3", auth: oauthClient }),
+    calendarId: settings.google_calendar_id || "primary",
+  };
+};
+
+const createGoogleCalendarEvent = async ({ userId, project, client }) => {
+  let calendarPayload;
+  try {
+    calendarPayload = await getGoogleCalendarClient(userId);
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+  if (!calendarPayload.ok) {
+    return { ok: false, message: calendarPayload.message };
+  }
+  const { calendar, calendarId } = calendarPayload;
+  const startDate = `${project.due_date}T08:00:00`;
+  const endDate = `${project.due_date}T09:00:00`;
+  const description = [
+    `Client: ${client?.name || ""}`,
+    `Statut: ${project.status}`,
+    project.responsible ? `Responsable: ${project.responsible}` : "",
+    project.comment ? `Commentaire: ${project.comment}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const eventBody = {
+    summary: `Chantier - ${project.name}`,
+    description,
+    location: "Chantier",
+    start: { dateTime: startDate, timeZone: "Europe/Paris" },
+    end: { dateTime: endDate, timeZone: "Europe/Paris" },
+  };
+
+  let event;
+  if (project.google_event_id) {
+    try {
+      const response = await calendar.events.update({
+        calendarId,
+        eventId: project.google_event_id,
+        requestBody: eventBody,
+      });
+      event = response.data;
+    } catch (error) {
+      if (error?.code !== 404) {
+        return { ok: false, message: "Google Calendar: impossible de mettre à jour l'événement." };
+      }
+    }
+  }
+
+  if (!event) {
+    const response = await calendar.events.insert({
+      calendarId,
+      requestBody: eventBody,
+    });
+    event = response.data;
+  }
+
+  if (event?.id) {
+    await db.run(`UPDATE projects SET google_event_id = ? WHERE id = ? AND user_id = ?`, [
+      event.id,
+      project.id,
+      userId,
+    ]);
+  }
+
+  return { ok: true, url: event?.htmlLink || "" };
+};
+
 const addNotification = async (userId, label, type) => {
   await db.run(`INSERT INTO notifications (user_id, label, type) VALUES (?, ?, ?)`, [
     userId,
@@ -505,6 +609,70 @@ app.post("/api/auth/login", async (req, res) => {
   const ok = await bcrypt.compare(password || "", user.password_hash);
   if (!ok) return res.status(401).json({ message: "Identifiants invalides." });
   res.json({ token: signToken(user) });
+});
+
+app.get("/auth/google", async (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).send("Token manquant.");
+  const user = getUserFromToken(token);
+  if (!user) return res.status(401).send("Session invalide.");
+  let oauthClient;
+  try {
+    oauthClient = getGoogleOAuthClient();
+  } catch (error) {
+    return res.status(400).send(error.message);
+  }
+  const authUrl = oauthClient.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    scope: GOOGLE_SCOPES,
+    state: token,
+  });
+  res.redirect(authUrl);
+});
+
+app.get("/auth/google/callback", async (req, res) => {
+  const code = req.query.code;
+  const state = req.query.state;
+  if (!code || !state) return res.status(400).send("Autorisation invalide.");
+  const user = getUserFromToken(state);
+  if (!user) return res.status(401).send("Session invalide.");
+  let oauthClient;
+  try {
+    oauthClient = getGoogleOAuthClient();
+  } catch (error) {
+    return res.status(400).send(error.message);
+  }
+  try {
+    const { tokens } = await oauthClient.getToken(code);
+    const settings = await ensureSettings(user.id);
+    const refreshToken = tokens.refresh_token || settings.google_refresh_token;
+    if (!refreshToken) {
+      return res
+        .status(400)
+        .send("Autorisation incomplète. Relancez la connexion Google Calendar.");
+    }
+    await db.run(
+      `UPDATE settings SET google_refresh_token = ?, google_calendar_id = ? WHERE user_id = ?`,
+      [refreshToken, settings.google_calendar_id || "primary", user.id]
+    );
+    res.redirect(`${BASE_URL}/?google=connected`);
+  } catch (error) {
+    res.status(400).send("Impossible de finaliser la connexion Google Calendar.");
+  }
+});
+
+app.get("/api/google/status", auth, async (req, res) => {
+  const settings = await ensureSettings(req.user.id);
+  res.json({
+    connected: Boolean(settings.google_refresh_token),
+    configured: Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
+  });
+});
+
+app.post("/api/google/disconnect", auth, async (req, res) => {
+  await db.run(`UPDATE settings SET google_refresh_token = NULL WHERE user_id = ?`, [req.user.id]);
+  res.json({ ok: true });
 });
 
 app.get("/api/bootstrap", auth, async (req, res) => {
@@ -747,9 +915,9 @@ app.post("/api/projects", auth, async (req, res) => {
   );
   const project = await db.get(`SELECT * FROM projects WHERE id = ?`, [result.lastID]);
   const client = await db.get(`SELECT * FROM clients WHERE id = ?`, [project.client_id]);
-  const caldavResult = await createCalDavEvent({ project, client });
-  if (caldavResult && !caldavResult.ok) {
-    console.warn(caldavResult.message);
+  const googleResult = await createGoogleCalendarEvent({ userId: req.user.id, project, client });
+  if (googleResult && !googleResult.ok) {
+    console.warn(googleResult.message);
   }
   res.json({ project: mapProject(project) });
 });
@@ -1036,14 +1204,11 @@ app.post("/api/projects/:id/sync-calendar", auth, async (req, res) => {
     project.client_id,
     req.user.id,
   ]);
-  const caldavResult = await createCalDavEvent({ project, client });
-  if (caldavResult && !caldavResult.ok) {
-    return res.status(400).json({ message: caldavResult.message });
+  const googleResult = await createGoogleCalendarEvent({ userId: req.user.id, project, client });
+  if (googleResult && !googleResult.ok) {
+    return res.status(400).json({ message: googleResult.message });
   }
-  if (!caldavResult?.url) {
-    return res.status(400).json({ message: "CalDAV: aucune URL retournée." });
-  }
-  res.json({ ok: true, url: caldavResult.url });
+  res.json({ ok: true, url: googleResult.url });
 });
 
 app.patch("/api/integrations/:id", auth, async (req, res) => {

@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS projects (
   due_date TEXT NOT NULL,
   responsible TEXT,
   comment TEXT,
+  google_event_id TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 );
@@ -96,6 +97,8 @@ CREATE TABLE IF NOT EXISTS settings (
   labor_rate REAL NOT NULL,
   satisfaction_score REAL NOT NULL,
   satisfaction_responses INTEGER NOT NULL,
+  google_refresh_token TEXT,
+  google_calendar_id TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

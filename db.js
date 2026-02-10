@@ -36,6 +36,9 @@ const initDb = async () => {
   if (!projectNames.includes("comment")) {
     await db.exec(`ALTER TABLE projects ADD COLUMN comment TEXT`);
   }
+  if (!projectNames.includes("google_event_id")) {
+    await db.exec(`ALTER TABLE projects ADD COLUMN google_event_id TEXT`);
+  }
   const quoteColumns = await db.all(`PRAGMA table_info(quotes)`);
   const quoteNames = quoteColumns.map((column) => column.name);
   if (!quoteNames.includes("accept_token")) {
@@ -49,6 +52,14 @@ const initDb = async () => {
   }
   if (!quoteNames.includes("signature_data")) {
     await db.exec(`ALTER TABLE quotes ADD COLUMN signature_data TEXT`);
+  }
+  const settingsColumns = await db.all(`PRAGMA table_info(settings)`);
+  const settingsNames = settingsColumns.map((column) => column.name);
+  if (!settingsNames.includes("google_refresh_token")) {
+    await db.exec(`ALTER TABLE settings ADD COLUMN google_refresh_token TEXT`);
+  }
+  if (!settingsNames.includes("google_calendar_id")) {
+    await db.exec(`ALTER TABLE settings ADD COLUMN google_calendar_id TEXT`);
   }
   return db;
 };

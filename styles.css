@@ -716,6 +716,19 @@ body {
   gap: 8px;
 }
 
+.calendar-connect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: #f9fafb;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
 .project-list {
   display: grid;
   gap: 12px;
