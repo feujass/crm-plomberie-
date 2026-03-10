@@ -374,7 +374,8 @@ const ensureInit = async () => {
   }
 };
 
-app.use(async (_req, _res, next) => {
+app.use(async (req, res, next) => {
+  if (req.path === "/api/health") return next();
   await ensureInit();
   next();
 });
