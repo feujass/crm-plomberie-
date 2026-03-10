@@ -367,7 +367,7 @@ const ensureInit = async () => {
   _initialized = true;
   try {
     const userId = await ensureSingleUser();
-    await cleanupDemoDataOnce(userId);
+    cleanupDemoDataOnce(userId).catch((err) => console.error("Cleanup error:", err.message));
   } catch (err) {
     console.error("Init error:", err.message);
     _initialized = false;
