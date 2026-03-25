@@ -89,7 +89,7 @@ const mapProject = (r) => ({
   id: r.id, name: r.name, clientId: r.client_id, status: r.status,
   progress: r.progress, dueDate: r.due_date, responsible: r.responsible || "",
   comment: r.comment || "",
-});
+
 const mapNotification = (r) => ({ id: r.id, label: r.label, type: r.type });
 const mapIntegration = (r) => ({
   id: r.id, name: r.name, description: r.description, enabled: Boolean(r.enabled),
@@ -152,8 +152,18 @@ const formatCurrency = (value) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" })
     .format(value).replace(/\u202F/g, " ").replace(/\u00A0/g, " ");
 
+const formatEuroPlain = (value) =>
+  new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+
 const formatDate = (value) =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(value));
+
+const escapeHtml = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
 const buildQuotePdf = async ({ quoteRef, client, company, items, totals, signature }) =>
   new Promise((resolve, reject) => {
@@ -295,7 +305,433 @@ const uploadPdf = async (filename, buffer) => {
   return data.publicUrl;
 };
 
+const getQuotePdfPublicUrl = (quoteRef) => {
+  const filename = `${quoteRef}.pdf`;
+  const { data } = db().storage.from(BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
+};
+
+const buildElectronicSignPageHtml = (p) => `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Signature du devis ${escapeHtml(p.quoteRef)}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f4f0;
+    color: #1a1a18;
+    min-height: 100vh;
+    padding: 32px 16px 64px;
+  }
+  .container { max-width: 600px; margin: 0 auto; }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .logo { font-size: 20px; font-weight: 600; color: #1a1a18; letter-spacing: -0.3px; }
+  .logo span { color: #3d3aba; }
+  .badge-ref {
+    background: #e8e8f8; color: #3d3aba;
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 20px;
+    letter-spacing: 0.03em;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e4e2db;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid #f0eeea;
+  }
+  .card-header h2 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .card-header p { font-size: 13px; color: #6b6960; }
+  .card-body { padding: 20px 24px; }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f4f0;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .label { color: #6b6960; }
+  .summary-row .value { font-weight: 500; }
+  .summary-row.total { border-bottom: none; padding-top: 12px; margin-top: 4px; border-top: 2px solid #f0eeea; }
+  .summary-row.total .label { font-weight: 600; font-size: 15px; color: #1a1a18; }
+  .summary-row.total .value { font-weight: 700; font-size: 18px; color: #1a1a18; }
+
+  .pdf-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f5f4f0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #3d3aba;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  .pdf-link:hover { background: #eeedf8; }
+  .pdf-icon {
+    width: 32px; height: 32px;
+    background: #3d3aba;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .pdf-icon svg { fill: #fff; }
+
+  .sig-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b6960;
+    margin-bottom: 8px;
+  }
+  .sig-input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #e4e2db;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    margin-bottom: 16px;
+    outline: none;
+    transition: border-color .15s;
+    background: #fff;
+  }
+  .sig-input:focus { border-color: #3d3aba; }
+
+  .canvas-wrap {
+    position: relative;
+    border: 1.5px solid #e4e2db;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fafaf8;
+    margin-bottom: 10px;
+    cursor: crosshair;
+    transition: border-color .15s;
+  }
+  .canvas-wrap:hover { border-color: #b0aee8; }
+  .canvas-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #b0ae9e;
+    pointer-events: none;
+    gap: 6px;
+  }
+  .canvas-placeholder.hidden { display: none; }
+  canvas { display: block; width: 100%; height: 180px; }
+
+  .clear-btn {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #6b6960;
+    cursor: pointer;
+    padding: 4px 0;
+    text-decoration: underline;
+  }
+  .clear-btn:hover { color: #1a1a18; }
+
+  .consent {
+    font-size: 12px;
+    color: #6b6960;
+    line-height: 1.5;
+    margin: 16px 0;
+    padding: 12px 14px;
+    background: #f5f4f0;
+    border-radius: 10px;
+  }
+  .consent strong { color: #1a1a18; }
+
+  .submit-btn {
+    width: 100%;
+    padding: 15px;
+    background: #3d3aba;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, opacity .15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .submit-btn:hover:not(:disabled) { background: #2e2b8a; }
+  .submit-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  .msg { margin-top: 16px; font-size: 14px; text-align: center; padding: 12px; border-radius: 10px; display: none; }
+  .msg.success { background: #e1f5ee; color: #085041; display: block; }
+  .msg.error { background: #fcebeb; color: #791f1f; display: block; }
+
+  .success-screen {
+    display: none;
+    text-align: center;
+    padding: 40px 24px;
+  }
+  .success-screen.show { display: block; }
+  .success-icon {
+    width: 64px; height: 64px;
+    background: #1D9E75;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .success-icon svg { stroke: #fff; }
+  .success-screen h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .success-screen p { font-size: 14px; color: #6b6960; line-height: 1.6; }
+
+  .form-area.hidden { display: none; }
+
+  .signed-banner {
+    display: none;
+    background: #e1f5ee;
+    border: 1px solid #9FE1CB;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #085041;
+    font-weight: 500;
+    align-items: center;
+    gap: 10px;
+  }
+  .signed-banner.show { display: flex; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">Plombi<span>CRM</span></div>
+    <div class="badge-ref">${escapeHtml(p.quoteRef)}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>Devis pour ${escapeHtml(p.clientName)}</h2>
+      <p>Émis le ${escapeHtml(p.quoteDate)} · ${escapeHtml(p.serviceName)}</p>
+    </div>
+    <div class="card-body">
+      <div class="summary-row">
+        <span class="label">Prestation</span>
+        <span class="value">${escapeHtml(p.serviceAmount)} €</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Matériaux</span>
+        <span class="value">${escapeHtml(p.materialsAmount)} €</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Main-d'œuvre</span>
+        <span class="value">${escapeHtml(p.laborAmount)} €</span>
+      </div>
+      ${p.discountRowHtml}
+      <div class="summary-row total">
+        <span class="label">Total TTC</span>
+        <span class="value">${escapeHtml(p.totalAmount)} €</span>
+      </div>
+      <a class="pdf-link" href="${escapeHtml(p.pdfUrl)}" target="_blank" rel="noopener noreferrer">
+        <div class="pdf-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 2a1 1 0 011-1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2zm5 0v3h3M6 9h4M6 11h2"/></svg>
+        </div>
+        Consulter le devis complet en PDF
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>Signature électronique</h2>
+      <p>Signez ci-dessous pour accepter le devis</p>
+    </div>
+    <div class="card-body">
+
+      <div class="signed-banner" id="signed-banner">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Ce devis a déjà été signé et accepté.
+      </div>
+
+      <div class="form-area" id="form-area">
+        <div class="sig-label">Nom et prénom *</div>
+        <input class="sig-input" id="signerName" type="text" placeholder="Jean Dupont" autocomplete="name"/>
+
+        <div class="sig-label">Signature *</div>
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas id="sig" width="1040" height="360"></canvas>
+          <div class="canvas-placeholder" id="placeholder">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            Signez ici avec votre doigt ou votre souris
+          </div>
+        </div>
+        <button type="button" class="clear-btn" id="clear">Effacer la signature</button>
+
+        <div class="consent">
+          En validant, vous acceptez le devis <strong>${escapeHtml(p.quoteRef)}</strong> pour un montant de <strong>${escapeHtml(p.totalAmount)} €</strong> et reconnaissez avoir pris connaissance des conditions associées.
+        </div>
+
+        <button type="button" class="submit-btn" id="submit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Accepter et signer le devis
+        </button>
+
+        <p class="msg" id="msg"></p>
+      </div>
+
+      <div class="success-screen" id="success-screen">
+        <div class="success-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h3>Devis accepté !</h3>
+        <p>Votre signature a bien été enregistrée.<br>${escapeHtml(p.clientName)}, merci de votre confiance.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <p style="text-align:center;font-size:11px;color:#b0ae9e;margin-top:12px">Propulsé par PlombiCRM · Signature sécurisée</p>
+</div>
+
+<script>
+const SUBMIT_DEFAULT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Accepter et signer le devis';
+const canvas = document.getElementById('sig');
+const ctx = canvas.getContext('2d');
+ctx.lineWidth = 2.5;
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+ctx.strokeStyle = '#1a1a18';
+let drawing = false;
+let hasSig = false;
+
+const getPos = e => {
+  const r = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / r.width;
+  const scaleY = canvas.height / r.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - r.left) * scaleX, y: (src.clientY - r.top) * scaleY };
+};
+
+const start = e => {
+  drawing = true;
+  hasSig = true;
+  document.getElementById('placeholder').classList.add('hidden');
+  const pt = getPos(e);
+  ctx.beginPath();
+  ctx.moveTo(pt.x, pt.y);
+};
+const move = e => {
+  if (!drawing) return;
+  e.preventDefault();
+  const pt = getPos(e);
+  ctx.lineTo(pt.x, pt.y);
+  ctx.stroke();
+};
+const end = () => { drawing = false; };
+
+canvas.addEventListener('mousedown', start);
+canvas.addEventListener('mousemove', move);
+canvas.addEventListener('mouseup', end);
+canvas.addEventListener('mouseleave', end);
+canvas.addEventListener('touchstart', start, { passive: true });
+canvas.addEventListener('touchmove', move, { passive: false });
+canvas.addEventListener('touchend', end);
+
+document.getElementById('clear').onclick = () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hasSig = false;
+  document.getElementById('placeholder').classList.remove('hidden');
+};
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg ' + type;
+}
+
+document.getElementById('submit').onclick = async () => {
+  const signerName = document.getElementById('signerName').value.trim();
+  if (!signerName) {
+    showMsg('Veuillez entrer votre nom et prénom.', 'error');
+    document.getElementById('signerName').focus();
+    return;
+  }
+  if (!hasSig) {
+    showMsg('Veuillez apposer votre signature dans le cadre.', 'error');
+    return;
+  }
+  const btn = document.getElementById('submit');
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Enregistrement…';
+  const dataUrl = canvas.toDataURL('image/png');
+  try {
+    const r = await fetch(window.location.pathname, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signerName, signature: dataUrl })
+    });
+    let payload = {};
+    try { payload = await r.json(); } catch (e) {}
+    if (r.ok) {
+      if (payload.alreadySigned) {
+        document.getElementById('signed-banner').classList.add('show');
+        document.getElementById('form-area').classList.add('hidden');
+      } else {
+        document.getElementById('form-area').classList.add('hidden');
+        document.getElementById('success-screen').classList.add('show');
+      }
+    } else {
+      showMsg(payload.message || "Erreur lors de l'enregistrement. Réessayez.", 'error');
+      btn.disabled = false;
+      btn.innerHTML = SUBMIT_DEFAULT;
+    }
+  } catch (err) {
+    showMsg('Connexion impossible. Vérifiez votre réseau et réessayez.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = SUBMIT_DEFAULT;
+  }
+};
+
+(async () => {
+  try {
+    const r = await fetch(window.location.pathname + '?status=1');
+    if (r.ok) {
+      const p = await r.json();
+      if (p.alreadySigned) {
+        document.getElementById('signed-banner').classList.add('show');
+        document.getElementById('form-area').classList.add('hidden');
+      }
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>`;
+
 // ── Google Calendar ──
+
 
 const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
 
@@ -367,7 +803,8 @@ const ensureInit = async () => {
   _initialized = true;
   try {
     const userId = await ensureSingleUser();
-    cleanupDemoDataOnce(userId).catch((err) => console.error("Cleanup error:", err.message));
+    await cleanupDemoDataOnce(userId);
+
   } catch (err) {
     console.error("Init error:", err.message);
     _initialized = false;
@@ -655,34 +1092,68 @@ app.get("/public/accept/:token", async (req, res) => {
 
 app.get("/public/sign/:token", async (req, res) => {
   const { data: quote } = await db().from("quotes").select("*").eq("accept_token", req.params.token).maybeSingle();
-  if (!quote) return res.status(404).send("Lien invalide.");
-  res.send(`<html>
-    <head><meta charset="UTF-8"/><title>Signature électronique</title>
-    <style>body{font-family:Arial,sans-serif;padding:24px}canvas{border:1px solid #ddd;border-radius:8px;width:100%;max-width:520px;height:200px}.row{margin-bottom:12px}button{padding:8px 12px;margin-right:8px}</style></head>
-    <body><h2>Signature électronique</h2>
-    <div class="row"><label>Nom et prénom</label><br/><input id="signerName" type="text" style="padding:8px;width:100%;max-width:520px;"/></div>
-    <div class="row"><canvas id="sig" width="520" height="200"></canvas></div>
-    <div class="row"><button id="clear">Effacer</button><button id="submit">Valider la signature</button></div>
-    <p id="msg"></p>
-    <script>
-      const canvas=document.getElementById('sig'),ctx=canvas.getContext('2d');ctx.lineWidth=2;ctx.lineCap='round';let drawing=false;
-      const getPos=e=>{const r=canvas.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}};
-      const start=e=>{drawing=true;const p=getPos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
-      const move=e=>{if(!drawing)return;const p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};
-      const end=()=>{drawing=false};
-      canvas.addEventListener('mousedown',start);canvas.addEventListener('mousemove',move);canvas.addEventListener('mouseup',end);canvas.addEventListener('mouseleave',end);
-      canvas.addEventListener('touchstart',start,{passive:true});canvas.addEventListener('touchmove',move,{passive:true});canvas.addEventListener('touchend',end);
-      document.getElementById('clear').onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height)};
-      document.getElementById('submit').onclick=async()=>{
-        const signerName=document.getElementById('signerName').value.trim();
-        const dataUrl=canvas.toDataURL('image/png');
-        document.getElementById('submit').disabled=true;
-        const r=await fetch('/public/sign/${req.params.token}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signerName,signature:dataUrl})});
-        const msg=document.getElementById('msg');
-        if(r.ok){const p=await r.json();msg.textContent=p.alreadySigned?'Ce devis est déjà signé.':'Signature enregistrée, devis accepté.';}
-        else{msg.textContent='Erreur, signature non enregistrée.';document.getElementById('submit').disabled=false;}
-      };
-    </script></body></html>`);
+  if (!quote) {
+    if (req.query.status === "1") return res.status(404).json({ alreadySigned: false });
+    return res.status(404).send("Lien invalide.");
+  }
+  if (req.query.status === "1") {
+    return res.json({ alreadySigned: Boolean(quote.signature_data) });
+  }
+
+  const [{ data: client }, { data: service }, { data: settings }] = await Promise.all([
+    db().from("clients").select("*").eq("id", quote.client_id).maybeSingle(),
+    db().from("services").select("*").eq("id", quote.service_id).maybeSingle(),
+    db().from("settings").select("*").eq("user_id", quote.user_id).maybeSingle(),
+  ]);
+
+  if (!service || !settings) {
+    return res.status(500).send("Devis incomplet : impossible d'afficher la page.");
+  }
+
+  const quoteRef = `DV-${String(quote.id).padStart(5, "0")}`;
+  const items = buildItemsForQuote(service, quote.hours, settings, Number(quote.materials_total || 0));
+  const subtotal = items.reduce((a, i) => a + (i.total || 0), 0);
+  const discountRate = Number(quote.discount || 0);
+  const discountAmountNum = subtotal * (discountRate / 100);
+  const subtotalAfterDiscount = subtotal - discountAmountNum;
+  const taxRate = 10;
+  const tax = subtotalAfterDiscount * (taxRate / 100);
+  const totalTtc = subtotalAfterDiscount + tax;
+
+  const serviceAmount = service.base_price;
+  const materialsAmount = Number(quote.materials_total || 0);
+  const laborAmount = settings.labor_rate * Number(quote.hours);
+
+  const discountRowHtml =
+    discountRate > 0
+      ? `<div class="summary-row">
+        <span class="label">Remise (${escapeHtml(String(discountRate))}%)</span>
+        <span class="value">- ${escapeHtml(formatEuroPlain(discountAmountNum))} €</span>
+      </div>`
+      : "";
+
+  let pdfUrl;
+  try {
+    pdfUrl = getQuotePdfPublicUrl(quoteRef);
+  } catch {
+    pdfUrl = "";
+  }
+
+  const html = buildElectronicSignPageHtml({
+    quoteRef,
+    clientName: client?.name || "Client",
+    quoteDate: formatDate(quote.sent_at || new Date().toISOString()),
+    serviceName: service.name,
+    serviceAmount: formatEuroPlain(serviceAmount),
+    materialsAmount: formatEuroPlain(materialsAmount),
+    laborAmount: formatEuroPlain(laborAmount),
+    totalAmount: formatEuroPlain(totalTtc),
+    discountRowHtml,
+    pdfUrl,
+  });
+
+  res.type("html").send(html);
+
 });
 
 app.post("/public/sign/:token", async (req, res) => {
