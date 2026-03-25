@@ -7,6 +7,7 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "src": "/auth/(.*)", "dest": "/api/index.js" },
+    { "src": "/public/(sign|accept)/(.*)", "dest": "/api/index.js" },
     { "src": "/", "dest": "/public/index.html" },
     { "src": "/index.html", "dest": "/public/index.html" },
     { "src": "/styles.css", "dest": "/public/styles.css" },
@@ -14,4 +15,3 @@
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
-
