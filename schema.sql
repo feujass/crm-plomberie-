@@ -1,108 +1,112 @@
-PRAGMA foreign_keys = ON;
+-- PlombiCRM – Supabase PostgreSQL schema
+-- Run this in the Supabase SQL Editor to create all tables.
 
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS clients (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   address TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT,
   segment TEXT NOT NULL,
-  last_project TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  last_project TEXT
 );
 
 CREATE TABLE IF NOT EXISTS services (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  base_price REAL NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  base_price DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS materials (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  price REAL NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  price DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS quotes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  client_id INTEGER NOT NULL,
-  service_id INTEGER NOT NULL,
-  material_id INTEGER NOT NULL,
-  hours INTEGER NOT NULL,
-  discount REAL NOT NULL,
-  amount REAL NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  service_id BIGINT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  material_id BIGINT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  hours DOUBLE PRECISION NOT NULL,
+  discount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  amount DOUBLE PRECISION NOT NULL,
   status TEXT NOT NULL,
   sent_at TEXT NOT NULL,
-  ack INTEGER NOT NULL DEFAULT 0,
+  ack BOOLEAN NOT NULL DEFAULT FALSE,
   materials_desc TEXT,
-  materials_total REAL,
+  materials_total DOUBLE PRECISION,
   accept_token TEXT,
   accepted_at TEXT,
   signature_name TEXT,
-  signature_data TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
-  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
-  FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+  signature_data TEXT
 );
 
 CREATE TABLE IF NOT EXISTS projects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  client_id INTEGER NOT NULL,
   status TEXT NOT NULL,
-  progress INTEGER NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
   due_date TEXT NOT NULL,
   responsible TEXT,
   comment TEXT,
-  google_event_id TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+  google_event_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
-  type TEXT NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  type TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS integrations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT NOT NULL,
-  enabled INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  enabled BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS settings (
-  user_id INTEGER PRIMARY KEY,
-  labor_rate REAL NOT NULL,
-  satisfaction_score REAL NOT NULL,
-  satisfaction_responses INTEGER NOT NULL,
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  labor_rate DOUBLE PRECISION NOT NULL DEFAULT 65,
+  satisfaction_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+  satisfaction_responses INTEGER NOT NULL DEFAULT 0,
   google_refresh_token TEXT,
-  google_calendar_id TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  google_calendar_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- Disable RLS on all tables (single-user CRM, backend uses service_role key)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE meta ENABLE ROW LEVEL SECURITY;
+
+-- Allow full access via service_role key (bypasses RLS automatically)
+-- No row-level policies needed since we use service_role key from backend
