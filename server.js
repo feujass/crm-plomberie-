@@ -524,6 +524,7 @@ const buildElectronicSignPageHtml = (p) => `<!DOCTYPE html>
 </style>
 </head>
 <body>
+<!-- plombicrm-sign-ui-v2 -->
 <div class="container">
 
   <div class="header">
@@ -1154,6 +1155,11 @@ app.get("/public/sign/:token", async (req, res) => {
     pdfUrl,
   });
 
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    "X-PlombiCRM-Sign-Page": "v2",
+  });
   res.type("html").send(html);
 });
 
