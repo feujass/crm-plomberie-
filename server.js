@@ -89,7 +89,7 @@ const mapProject = (r) => ({
   id: r.id, name: r.name, clientId: r.client_id, status: r.status,
   progress: r.progress, dueDate: r.due_date, responsible: r.responsible || "",
   comment: r.comment || "",
-
+});
 const mapNotification = (r) => ({ id: r.id, label: r.label, type: r.type });
 const mapIntegration = (r) => ({
   id: r.id, name: r.name, description: r.description, enabled: Boolean(r.enabled),
@@ -732,7 +732,6 @@ document.getElementById('submit').onclick = async () => {
 
 // ── Google Calendar ──
 
-
 const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
 
 const getGoogleCalendarClient = async (userId) => {
@@ -803,23 +802,26 @@ const ensureInit = async () => {
   _initialized = true;
   try {
     const userId = await ensureSingleUser();
-    await cleanupDemoDataOnce(userId);
-
+    cleanupDemoDataOnce(userId).catch((err) => console.error("Cleanup error:", err.message));
   } catch (err) {
     console.error("Init error:", err.message);
     _initialized = false;
   }
 };
 
+const isHealthCheck = (req) => req.path === "/api/health" || req.path === "/health";
+
 app.use(async (req, res, next) => {
-  if (req.path === "/api/health") return next();
+  if (isHealthCheck(req)) return next();
   await ensureInit();
   next();
 });
 
 // ── Routes ──
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+const healthHandler = (_req, res) => res.json({ ok: true });
+app.get("/api/health", healthHandler);
+app.get("/health", healthHandler);
 
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body || {};
@@ -1153,7 +1155,6 @@ app.get("/public/sign/:token", async (req, res) => {
   });
 
   res.type("html").send(html);
-
 });
 
 app.post("/public/sign/:token", async (req, res) => {
