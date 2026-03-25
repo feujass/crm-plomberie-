@@ -89,7 +89,7 @@ const mapProject = (r) => ({
   id: r.id, name: r.name, clientId: r.client_id, status: r.status,
   progress: r.progress, dueDate: r.due_date, responsible: r.responsible || "",
   comment: r.comment || "",
-});
+
 const mapNotification = (r) => ({ id: r.id, label: r.label, type: r.type });
 const mapIntegration = (r) => ({
   id: r.id, name: r.name, description: r.description, enabled: Boolean(r.enabled),
@@ -732,6 +732,7 @@ document.getElementById('submit').onclick = async () => {
 
 // ── Google Calendar ──
 
+
 const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
 
 const getGoogleCalendarClient = async (userId) => {
@@ -803,6 +804,7 @@ const ensureInit = async () => {
   try {
     const userId = await ensureSingleUser();
     await cleanupDemoDataOnce(userId);
+
   } catch (err) {
     console.error("Init error:", err.message);
     _initialized = false;
@@ -1151,6 +1153,7 @@ app.get("/public/sign/:token", async (req, res) => {
   });
 
   res.type("html").send(html);
+
 });
 
 app.post("/public/sign/:token", async (req, res) => {
