@@ -1037,15 +1037,32 @@ app.post("/api/quotes", auth, async (req, res) => {
           totals: { subtotal, tax, total, taxRate, date: sentAt, discount: discountRate, discountAmount },
         });
 
-        const downloadUrl = await uploadPdf(`${quoteRef}.pdf`, pdfBuffer);
+        await uploadPdf(`${quoteRef}.pdf`, pdfBuffer);
         await db().from("quotes").update({ accept_token: acceptToken }).eq("id", quote.id);
 
         const signUrl = `${BASE_URL}/api/sign/${acceptToken}`;
+        const montantTtc = new Intl.NumberFormat("fr-FR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(total);
+        const subject = `Devis n°${quoteRef} - ${service.name}`;
+        const text =
+          `Bonjour ${client.name},\n\n` +
+          `— Référence devis : ${quoteRef}\n` +
+          `— Montant total estimé : ${montantTtc} € TTC\n\n` +
+          `✍️ Signature électronique : ${signUrl}\n\n` +
+          `Passé un délai de 30 jours, ce devis sera considéré comme caduc.\n\n` +
+          `Restant à votre disposition pour tout renseignement complémentaire,\n\n` +
+          `Cordialement,\n\n` +
+          `${COMPANY_INFO.name}\n` +
+          `${COMPANY_INFO.address}\n` +
+          `${COMPANY_INFO.phone}\n` +
+          `${COMPANY_INFO.email}`;
         await transporter.sendMail({
           from: process.env.SMTP_FROM || "PlombiCRM <no-reply@plombicrm.fr>",
           to: client.email,
-          subject: "Votre devis plomberie BTP",
-          text: `Bonjour ${client.name},\n\nVoici votre devis pour ${service.name}. Total estimé : ${amount} €.\n\nTélécharger le devis : ${downloadUrl}\n\nSigner électroniquement : ${signUrl}\n\nMerci,\nPlombiCRM`,
+          subject,
+          text,
         });
         emailSent = true;
       } catch (emailErr) {
