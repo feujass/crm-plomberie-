@@ -103,11 +103,41 @@ const mapQuote = (r) => ({
   hours: r.hours, discount: r.discount, amount: r.amount, status: r.status,
   sentAt: r.sent_at, ack: Boolean(r.ack), materialsDesc: r.materials_desc || "",
   materialsTotal: r.materials_total || 0, acceptedAt: r.accepted_at || null,
+  quoteRef: `DV-${String(r.id).padStart(5, "0")}`,
 });
+
+const ETAPES_METIER = [
+  "terrassement", "maconnerie", "plomberie", "electricite", "finitions", "reception_client",
+];
+
+const progressFromEtape = (etape) => {
+  const i = ETAPES_METIER.indexOf(etape);
+  if (i < 0) return 0;
+  return Math.round((i / (ETAPES_METIER.length - 1)) * 100);
+};
+
+const parseProjectPhotoUrls = (raw) => {
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
 const mapProject = (r) => ({
   id: r.id, name: r.name, clientId: r.client_id, status: r.status,
   progress: r.progress, dueDate: r.due_date, responsible: r.responsible || "",
   comment: r.comment || "",
+  siteAddress: r.site_address ?? "",
+  chantierType: r.chantier_type ?? "plomberie",
+  quoteId: r.quote_id != null ? r.quote_id : null,
+  budgetEstime: Number(r.budget_estime ?? 0),
+  heuresPrevues: Number(r.heures_prevues ?? 0),
+  heuresPassees: Number(r.heures_passees ?? 0),
+  etapeMetier: r.etape_metier ?? "terrassement",
+  photoUrls: parseProjectPhotoUrls(r.photo_urls),
+  aRelancer: Boolean(r.a_relancer),
 });
 const mapNotification = (r) => ({ id: r.id, label: r.label, type: r.type });
 const mapIntegration = (r) => ({
@@ -777,6 +807,7 @@ const createGoogleCalendarEvent = async ({ userId, project, client }) => {
   }
   if (!calendarPayload.ok) return { ok: false, message: calendarPayload.message };
   const { calendar, calendarId } = calendarPayload;
+  const site = project.site_address?.trim();
   const eventBody = {
     summary: `Chantier - ${project.name}`,
     description: [
@@ -785,7 +816,7 @@ const createGoogleCalendarEvent = async ({ userId, project, client }) => {
       project.responsible ? `Responsable: ${project.responsible}` : "",
       project.comment ? `Commentaire: ${project.comment}` : "",
     ].filter(Boolean).join("\n"),
-    location: "Chantier",
+    location: site || "Chantier",
     start: { dateTime: `${project.due_date}T08:00:00`, timeZone: "Europe/Paris" },
     end: { dateTime: `${project.due_date}T09:00:00`, timeZone: "Europe/Paris" },
   };
@@ -1076,21 +1107,47 @@ app.post("/api/quotes", auth, async (req, res) => {
 });
 
 app.post("/api/projects", auth, async (req, res) => {
-  const { name, clientId, status, dueDate, responsible, comment } = req.body || {};
+  const b = req.body || {};
+  const {
+    name, clientId, status, dueDate, responsible, comment,
+    siteAddress, chantierType, quoteId, budgetEstime, heuresPrevues, heuresPassees,
+    etapeMetier, photoUrls, aRelancer,
+  } = b;
   if (!name || !clientId || !dueDate) {
     return res.status(400).json({ message: "Champs projet incomplets." });
   }
   const { data: clientExists } = await db().from("clients").select("id").eq("id", clientId).eq("user_id", req.user.id).maybeSingle();
   if (!clientExists) return res.status(400).json({ message: "Client introuvable." });
 
+  let quote_id = null;
+  if (quoteId != null && quoteId !== "") {
+    const { data: q } = await db().from("quotes").select("id").eq("id", quoteId).eq("user_id", req.user.id).maybeSingle();
+    if (!q) return res.status(400).json({ message: "Devis introuvable." });
+    quote_id = q.id;
+  }
+
+  const etape = typeof etapeMetier === "string" && ETAPES_METIER.includes(etapeMetier) ? etapeMetier : "terrassement";
   const projectStatus = status || "Planifié";
-  const progress = progressForStatus(projectStatus, 0);
-  const { data: project, error } = await db().from("projects")
-    .insert({
-      user_id: req.user.id, name, client_id: clientId, status: projectStatus,
-      progress, due_date: dueDate, responsible: responsible || "", comment: comment || "",
-    })
-    .select("*").single();
+  const progress = progressFromEtape(etape);
+  const photosJson = Array.isArray(photoUrls)
+    ? JSON.stringify(photoUrls.filter((u) => typeof u === "string"))
+    : "[]";
+
+  const row = {
+    user_id: req.user.id, name, client_id: clientId, status: projectStatus,
+    progress, due_date: dueDate, responsible: responsible || "", comment: comment || "",
+    site_address: typeof siteAddress === "string" ? siteAddress : "",
+    chantier_type: typeof chantierType === "string" ? chantierType : "plomberie",
+    quote_id,
+    budget_estime: Number.isFinite(Number(budgetEstime)) ? Number(budgetEstime) : 0,
+    heures_prevues: Number.isFinite(Number(heuresPrevues)) ? Number(heuresPrevues) : 0,
+    heures_passees: Number.isFinite(Number(heuresPassees)) ? Number(heuresPassees) : 0,
+    etape_metier: etape,
+    photo_urls: photosJson,
+    a_relancer: Boolean(aRelancer),
+  };
+
+  const { data: project, error } = await db().from("projects").insert(row).select("*").single();
   if (error) return res.status(500).json({ message: error.message });
 
   await addNotification(req.user.id, `Nouveau chantier : ${name} (${projectStatus})`, notificationTypeForStatus(projectStatus));
@@ -1271,21 +1328,71 @@ app.patch("/api/projects/:id", auth, async (req, res) => {
   const { data: current } = await db().from("projects").select("*").eq("id", projectId).eq("user_id", req.user.id).maybeSingle();
   if (!current) return res.status(404).json({ message: "Projet introuvable." });
 
-  const hasStatus = typeof req.body.status === "string" && req.body.status.trim() !== "";
-  const progressRaw = req.body.progress ?? current.progress;
-  const parsedProgress = Number(progressRaw);
-  const progress = Number.isFinite(parsedProgress) ? Math.max(0, Math.min(100, parsedProgress)) : Number(current.progress || 0);
+  const body = req.body || {};
+  const updates = {};
+
+  if (typeof body.siteAddress === "string") updates.site_address = body.siteAddress;
+  if (typeof body.chantierType === "string") updates.chantier_type = body.chantierType;
+  if (body.quoteId !== undefined) {
+    if (body.quoteId === null || body.quoteId === "") {
+      updates.quote_id = null;
+    } else {
+      const { data: q } = await db().from("quotes").select("id").eq("id", body.quoteId).eq("user_id", req.user.id).maybeSingle();
+      if (!q) return res.status(400).json({ message: "Devis introuvable." });
+      updates.quote_id = q.id;
+    }
+  }
+  if (body.budgetEstime !== undefined && Number.isFinite(Number(body.budgetEstime))) {
+    updates.budget_estime = Number(body.budgetEstime);
+  }
+  if (body.heuresPrevues !== undefined && Number.isFinite(Number(body.heuresPrevues))) {
+    updates.heures_prevues = Number(body.heuresPrevues);
+  }
+  if (body.heuresPassees !== undefined && Number.isFinite(Number(body.heuresPassees))) {
+    updates.heures_passees = Number(body.heuresPassees);
+  }
+  if (body.aRelancer !== undefined) updates.a_relancer = Boolean(body.aRelancer);
+  if (Array.isArray(body.photoUrls)) {
+    updates.photo_urls = JSON.stringify(body.photoUrls.filter((u) => typeof u === "string"));
+  }
+
+  if (typeof body.etapeMetier === "string" && ETAPES_METIER.includes(body.etapeMetier)) {
+    updates.etape_metier = body.etapeMetier;
+    updates.progress = progressFromEtape(body.etapeMetier);
+  }
+
+  const hasStatus = typeof body.status === "string" && body.status.trim() !== "";
   let status = current.status;
-  if (hasStatus) status = req.body.status;
-  else if (progress >= 100) status = "Terminé";
-  const finalProgress = hasStatus ? progressForStatus(status, progress) : progress;
-  const responsible = typeof req.body.responsible === "string" ? req.body.responsible : current.responsible;
-  const comment = typeof req.body.comment === "string" ? req.body.comment : current.comment;
+  if (hasStatus) status = body.status;
 
-  await db().from("projects").update({ progress: finalProgress, status, responsible, comment })
-    .eq("id", projectId).eq("user_id", req.user.id);
+  if (hasStatus) {
+    updates.status = status;
+    if (status === "Terminé") {
+      updates.progress = 100;
+      updates.etape_metier = "reception_client";
+    } else if (body.etapeMetier === undefined && !("progress" in updates)) {
+      updates.progress = progressForStatus(status, Number(current.progress || 0));
+    }
+  }
 
-  if (status !== current.status) {
+  if (typeof body.responsible === "string") updates.responsible = body.responsible;
+  if (typeof body.comment === "string") updates.comment = body.comment;
+
+  if (body.progress !== undefined && body.etapeMetier === undefined && !hasStatus) {
+    const parsedProgress = Number(body.progress);
+    if (Number.isFinite(parsedProgress)) {
+      updates.progress = Math.max(0, Math.min(100, parsedProgress));
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    const { data: project } = await db().from("projects").select("*").eq("id", projectId).single();
+    return res.json({ project: mapProject(project) });
+  }
+
+  await db().from("projects").update(updates).eq("id", projectId).eq("user_id", req.user.id);
+
+  if (hasStatus && status !== current.status) {
     await addNotification(req.user.id, `Statut modifié : ${current.name} → ${status}`, notificationTypeForStatus(status));
   }
 

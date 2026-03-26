@@ -845,3 +845,261 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* —— Suivi chantiers (React) —— */
+.alertes-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.alerte-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.alerte-chip:hover {
+  background: var(--primary-soft);
+  border-color: rgba(86, 98, 246, 0.35);
+}
+
+.alerte-chip.warning {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.alerte-chip.danger {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.stepper-metier {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.stepper-metier--compact {
+  gap: 4px;
+}
+
+.stepper-pill {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.stepper-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.stepper-pill.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.stepper-pill.done {
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
+}
+
+.chantier-form .stepper-metier {
+  margin-bottom: 4px;
+}
+
+.project-card-react {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.project-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-right: 0;
+}
+
+.badge-a-relancer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: #fff;
+  animation: pulse-relance 2.4s ease-in-out infinite;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+@keyframes pulse-relance {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.92;
+  }
+}
+
+.btn-cal-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.btn-cal-icon:hover:not(:disabled) {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.btn-cal-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.link-devis-ref {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-devis-ref:hover {
+  text-decoration: underline;
+}
+
+.photos-chantier {
+  display: grid;
+  gap: 8px;
+}
+
+.photos-chantier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.photo-slot {
+  aspect-ratio: 4/3;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  font-size: 22px;
+  color: var(--muted);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.photo-slot:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.photo-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-add-photo {
+  margin-top: 4px;
+}
+
+.rentabilite-bloc {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rentabilite-bloc strong {
+  color: var(--text);
+}
+
+.rentabilite-bar {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.rentabilite-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease, background 0.25s ease;
+}
+
+.rentabilite-bar.ok span {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+.rentabilite-bar.warn span {
+  background: linear-gradient(90deg, #f59e0b, #fb923c);
+}
+
+.project-card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.project-row-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-google {
+  max-width: 480px;
+}
