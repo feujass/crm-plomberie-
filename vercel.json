@@ -6,6 +6,7 @@
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/sign/(.*)", "dest": "/api/index.js" },
     { "src": "/auth/(.*)", "dest": "/api/index.js" },
     { "src": "/public/(sign|accept)/(.*)", "dest": "/api/index.js" },
     { "src": "/", "dest": "/public/index.html" },
