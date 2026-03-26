@@ -64,7 +64,16 @@ CREATE TABLE IF NOT EXISTS projects (
   due_date TEXT NOT NULL,
   responsible TEXT,
   comment TEXT,
-  google_event_id TEXT
+  google_event_id TEXT,
+  site_address TEXT NOT NULL DEFAULT '',
+  chantier_type TEXT NOT NULL DEFAULT 'plomberie',
+  quote_id BIGINT REFERENCES quotes(id) ON DELETE SET NULL,
+  budget_estime DOUBLE PRECISION NOT NULL DEFAULT 0,
+  heures_prevues DOUBLE PRECISION NOT NULL DEFAULT 0,
+  heures_passees DOUBLE PRECISION NOT NULL DEFAULT 0,
+  etape_metier TEXT NOT NULL DEFAULT 'terrassement',
+  photo_urls TEXT NOT NULL DEFAULT '[]',
+  a_relancer BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
