@@ -1017,7 +1017,7 @@ app.post("/api/quotes", auth, async (req, res) => {
         const downloadUrl = await uploadPdf(`${quoteRef}.pdf`, pdfBuffer);
         await db().from("quotes").update({ accept_token: acceptToken }).eq("id", quote.id);
 
-        const signUrl = `${BASE_URL}/public/sign/${acceptToken}`;
+        const signUrl = `${BASE_URL}/api/sign/${acceptToken}`;
         await transporter.sendMail({
           from: process.env.SMTP_FROM || "PlombiCRM <no-reply@plombicrm.fr>",
           to: client.email,
@@ -1093,7 +1093,9 @@ app.get("/public/accept/:token", async (req, res) => {
   res.send(`<html><body style="font-family:Arial,sans-serif;padding:40px;"><h2>Devis accepté</h2><p>Merci, votre devis est maintenant marqué comme accepté.</p></body></html>`);
 });
 
-app.get("/public/sign/:token", async (req, res) => {
+// Signature sous /api/sign/ : sur Vercel, /public/* peut être servi par le build statique
+// sans jamais atteindre Express ; /api/* est toujours routé vers la fonction Node.
+const handleElectronicSignGet = async (req, res) => {
   const { data: quote } = await db().from("quotes").select("*").eq("accept_token", req.params.token).maybeSingle();
   if (!quote) {
     if (req.query.status === "1") return res.status(404).json({ alreadySigned: false });
@@ -1161,9 +1163,9 @@ app.get("/public/sign/:token", async (req, res) => {
     "X-PlombiCRM-Sign-Page": "v2",
   });
   res.type("html").send(html);
-});
+};
 
-app.post("/public/sign/:token", async (req, res) => {
+const handleElectronicSignPost = async (req, res) => {
   const { signerName, signature } = req.body || {};
   const { data: quote } = await db().from("quotes").select("*").eq("accept_token", req.params.token).maybeSingle();
   if (!quote) return res.status(404).json({ message: "Lien invalide." });
@@ -1211,7 +1213,16 @@ app.post("/public/sign/:token", async (req, res) => {
     }
   }
   res.json({ ok: true });
+};
+
+app.get("/public/sign/:token", (req, res) => {
+  const token = req.params.token;
+  const search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(302, `/api/sign/${encodeURIComponent(token)}${search}`);
 });
+app.get("/api/sign/:token", handleElectronicSignGet);
+app.post("/public/sign/:token", handleElectronicSignPost);
+app.post("/api/sign/:token", handleElectronicSignPost);
 
 app.patch("/api/projects/:id", auth, async (req, res) => {
   const projectId = req.params.id;
