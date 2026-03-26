@@ -36,7 +36,9 @@ const ensureSingleUser = async () => {
   return created.id;
 };
 
+/** Désactivé par défaut : en prod il effaçait devis / clients / projets au premier chargement. Activer une seule fois avec RUN_DEMO_CLEANUP_ONCE=true sur une base de démo vide. */
 const cleanupDemoDataOnce = async (userId) => {
+  if (process.env.RUN_DEMO_CLEANUP_ONCE !== "true") return;
   const supabase = getSupabase();
   const { data: existing } = await supabase
     .from("meta")
