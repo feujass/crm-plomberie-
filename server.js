@@ -13,7 +13,13 @@ const { getSupabase, ensureSingleUser, cleanupDemoDataOnce, resetUserData } = re
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+/** Liens email / OAuth : si BASE_URL est une vieille URL Vercel (preview), les mails pointent vers le mauvais déploiement. */
+const BASE_URL = (() => {
+  const explicit = process.env.BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return `http://localhost:${PORT}`;
+})();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "";
