@@ -812,8 +812,12 @@ const ensureInit = async () => {
 
 const isHealthCheck = (req) => req.path === "/api/health" || req.path === "/health";
 
+/** Vercel envoie souvent /sign/:token au lieu de /api/sign/:token vers la fonction Node */
+const isElectronicSignPath = (req) =>
+  req.path.startsWith("/api/sign/") || req.path.startsWith("/sign/");
+
 app.use(async (req, res, next) => {
-  if (isHealthCheck(req)) return next();
+  if (isHealthCheck(req) || isElectronicSignPath(req)) return next();
   await ensureInit();
   next();
 });
@@ -1221,8 +1225,10 @@ app.get("/public/sign/:token", (req, res) => {
   res.redirect(302, `/api/sign/${encodeURIComponent(token)}${search}`);
 });
 app.get("/api/sign/:token", handleElectronicSignGet);
+app.get("/sign/:token", handleElectronicSignGet);
 app.post("/public/sign/:token", handleElectronicSignPost);
 app.post("/api/sign/:token", handleElectronicSignPost);
+app.post("/sign/:token", handleElectronicSignPost);
 
 app.patch("/api/projects/:id", auth, async (req, res) => {
   const projectId = req.params.id;
