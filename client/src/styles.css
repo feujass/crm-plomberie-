@@ -1048,6 +1048,49 @@ body {
   object-fit: cover;
 }
 
+.photo-slot--filled {
+  position: relative;
+  border-style: solid;
+  border-color: var(--border);
+  cursor: default;
+  padding: 0;
+}
+
+.photo-slot--filled:hover {
+  border-color: rgba(86, 98, 246, 0.45);
+}
+
+.photo-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.15s ease, transform 0.15s ease;
+  padding: 0;
+}
+
+.photo-remove:hover:not(:disabled) {
+  background: var(--danger);
+  transform: scale(1.05);
+}
+
+.photo-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-add-photo {
   margin-top: 4px;
 }
