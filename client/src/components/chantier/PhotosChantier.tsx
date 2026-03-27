@@ -9,8 +9,6 @@ type Props = {
 /** Fichier brut max avant compression (on réduit ensuite en JPEG). */
 const MAX_INPUT_BYTES = 12 * 1024 * 1024;
 
-const SLOT_COUNT = 3;
-
 export function PhotosChantier({ photoUrls, onChange }: Props) {
   const reactId = useId();
   const inputId = `chantier-photos-${reactId.replace(/:/g, "")}`;
@@ -54,6 +52,18 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
     }
   };
 
+  const removeAt = async (index: number) => {
+    if (!photoUrls[index]) return;
+    setBusy(true);
+    try {
+      await Promise.resolve(onChange(photoUrls.filter((_, i) => i !== index)));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="photos-chantier">
       <input
@@ -73,24 +83,30 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
       <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
         {busy
           ? "Enregistrement en cours…"
-          : "Choisissez une image : bouton ci-dessous ou case « + ». Les photos sont compressées avant envoi."}
+          : "Case « + » ou bouton pour ajouter. Survol d’une photo : ✕ pour supprimer."}
       </p>
       <div className="photos-chantier-grid">
-        {Array.from({ length: SLOT_COUNT }, (_, index) => {
-          const url = photoUrls[index];
-          if (url) {
-            return (
-              <div key={index} className="photo-slot" role="img" aria-label="Aperçu">
-                <img src={url} alt="" />
-              </div>
-            );
-          }
-          return (
-            <label key={index} htmlFor={inputId} className="photo-slot photo-slot--pick" title="Choisir une photo">
-              ＋
-            </label>
-          );
-        })}
+        {photoUrls.map((url, index) => (
+          <div key={`${index}-${url.slice(0, 48)}`} className="photo-slot photo-slot--filled" role="group" aria-label="Photo chantier">
+            <img src={url} alt="" />
+            <button
+              type="button"
+              className="photo-remove"
+              disabled={busy}
+              title="Supprimer cette photo"
+              aria-label="Supprimer cette photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                void removeAt(index);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <label htmlFor={inputId} className="photo-slot photo-slot--pick" title="Ajouter une photo">
+          ＋
+        </label>
       </div>
       <label htmlFor={inputId} className={`ghost small btn-add-photo${busy ? " muted" : ""}`} style={{ cursor: busy ? "wait" : "pointer" }}>
         + Ajouter photo
