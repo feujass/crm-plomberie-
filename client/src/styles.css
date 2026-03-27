@@ -1117,6 +1117,12 @@ body {
   justify-content: center;
 }
 
+.photo-slot--pick-disabled {
+  opacity: 0.55;
+  cursor: wait;
+  pointer-events: none;
+}
+
 .rentabilite-bloc {
   padding: 10px 12px;
   border-radius: 12px;

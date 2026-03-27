@@ -6,8 +6,9 @@ type Props = {
   onChange: (urls: string[]) => Promise<void> | void;
 };
 
-/** Fichier brut max avant compression (on réduit ensuite en JPEG). */
+/** Fichier brut max avant compression (ensuite conversion JPEG redimensionnée). */
 const MAX_INPUT_BYTES = 12 * 1024 * 1024;
+const MAX_INPUT_LABEL = "12 Mo";
 
 export function PhotosChantier({ photoUrls, onChange }: Props) {
   const reactId = useId();
@@ -25,7 +26,7 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
     }
     const tooBig = files.find((f) => f.size > MAX_INPUT_BYTES);
     if (tooBig) {
-      alert(`« ${tooBig.name} » est trop lourd (max 12 Mo avant compression).`);
+      alert(`« ${tooBig.name} » est trop lourd (max ${MAX_INPUT_LABEL} par fichier avant compression).`);
       return;
     }
 
@@ -71,6 +72,7 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
         type="file"
         accept="image/*"
         multiple
+        disabled={busy}
         className="photos-file-input-native"
         onChange={(e) => {
           void processFiles(e.target.files);
@@ -80,10 +82,16 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
       <span className="muted" style={{ fontWeight: 600 }}>
         Photos de chantier
       </span>
-      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        {busy
-          ? "Enregistrement en cours…"
-          : "Case « + » ou bouton pour ajouter. Survol d’une photo : ✕ pour supprimer."}
+      <p className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.45 }}>
+        {busy ? (
+          "Enregistrement en cours…"
+        ) : (
+          <>
+            Cliquez sur la case « + » pour choisir une ou plusieurs images (JPEG, PNG, WebP…). Taille max.{" "}
+            <strong>{MAX_INPUT_LABEL}</strong> par fichier sur votre appareil ; elles sont ensuite compressées
+            automatiquement. Le bouton <strong>×</strong> sur une photo la supprime.
+          </>
+        )}
       </p>
       <div className="photos-chantier-grid">
         {photoUrls.map((url, index) => (
@@ -104,13 +112,15 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
             </button>
           </div>
         ))}
-        <label htmlFor={inputId} className="photo-slot photo-slot--pick" title="Ajouter une photo">
+        <label
+          htmlFor={inputId}
+          className={`photo-slot photo-slot--pick${busy ? " photo-slot--pick-disabled" : ""}`}
+          title={busy ? "Patientez…" : `Ajouter une photo (max. ${MAX_INPUT_LABEL} par fichier)`}
+          aria-disabled={busy}
+        >
           ＋
         </label>
       </div>
-      <label htmlFor={inputId} className={`ghost small btn-add-photo${busy ? " muted" : ""}`} style={{ cursor: busy ? "wait" : "pointer" }}>
-        + Ajouter photo
-      </label>
     </div>
   );
 }
