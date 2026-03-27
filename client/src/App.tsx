@@ -521,6 +521,7 @@ export default function App() {
                 );
               } catch (e) {
                 alert(e instanceof Error ? e.message : "Impossible d’enregistrer les modifications.");
+                throw e;
               }
             }}
             onSyncCalendar={async (id) => {
