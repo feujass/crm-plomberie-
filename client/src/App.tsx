@@ -510,14 +510,18 @@ export default function App() {
               setData((d) => (d ? { ...d, projects: [proj, ...d.projects] } : d));
             }}
             onPatchProject={async (id, body) => {
-              const res = await apiFetch<{ project: Record<string, unknown> }>(`/projects/${id}`, {
-                method: "PATCH",
-                body: JSON.stringify(body),
-              });
-              const proj = normalizeProject(res.project);
-              setData((d) =>
-                d ? { ...d, projects: d.projects.map((p) => (idsMatch(p.id, id) ? proj : p)) } : d
-              );
+              try {
+                const res = await apiFetch<{ project: Record<string, unknown> }>(`/projects/${id}`, {
+                  method: "PATCH",
+                  body: JSON.stringify(body),
+                });
+                const proj = normalizeProject(res.project);
+                setData((d) =>
+                  d ? { ...d, projects: d.projects.map((p) => (idsMatch(p.id, id) ? proj : p)) } : d
+                );
+              } catch (e) {
+                alert(e instanceof Error ? e.message : "Impossible d’enregistrer les modifications.");
+              }
             }}
             onSyncCalendar={async (id) => {
               return apiFetch<{ ok: boolean; url?: string }>(`/projects/${id}/sync-calendar`, { method: "POST" });
