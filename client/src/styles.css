@@ -1052,16 +1052,26 @@ body {
   margin-top: 4px;
 }
 
-.photos-file-input {
-  position: absolute;
+.photos-file-input-native {
+  position: fixed;
+  left: 0;
+  top: 0;
   width: 1px;
   height: 1px;
+  margin: 0;
   padding: 0;
-  margin: -1px;
+  opacity: 0;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
   border: 0;
+  pointer-events: none;
+}
+
+.photo-slot--pick {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .rentabilite-bloc {

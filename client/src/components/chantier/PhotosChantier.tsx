@@ -1,60 +1,69 @@
-import { useRef } from "react";
+import { useId, useState } from "react";
+import { fileToCompressedDataUrl } from "../../utils/imageCompress";
 
 type Props = {
   photoUrls: string[];
-  onChange: (urls: string[]) => void;
+  onChange: (urls: string[]) => Promise<void> | void;
 };
 
-/** Taille max par image (data URL stockée en base — rester raisonnable). */
-const MAX_BYTES = 1.5 * 1024 * 1024;
+/** Fichier brut max avant compression (on réduit ensuite en JPEG). */
+const MAX_INPUT_BYTES = 12 * 1024 * 1024;
 
 const SLOT_COUNT = 3;
 
 export function PhotosChantier({ photoUrls, onChange }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const reactId = useId();
+  const inputId = `chantier-photos-${reactId.replace(/:/g, "")}`;
+  const [busy, setBusy] = useState(false);
 
-  const openPicker = () => inputRef.current?.click();
-
-  const appendImagesFromFiles = (fileList: FileList | null) => {
+  const processFiles = async (fileList: FileList | null) => {
     if (!fileList?.length) return;
-    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
+    const files = Array.from(fileList).filter(
+      (f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)
+    );
     if (files.length === 0) {
       alert("Choisissez un fichier image (JPEG, PNG, WebP…).");
       return;
     }
-    const tooBig = files.find((f) => f.size > MAX_BYTES);
+    const tooBig = files.find((f) => f.size > MAX_INPUT_BYTES);
     if (tooBig) {
-      alert(`« ${tooBig.name} » dépasse 1,5 Mo. Compressez l’image ou choisissez un fichier plus léger.`);
+      alert(`« ${tooBig.name} » est trop lourd (max 12 Mo avant compression).`);
       return;
     }
 
-    const readers = files.map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result as string);
-          r.onerror = () => reject(new Error("read"));
-          r.readAsDataURL(file);
-        })
-    );
-
-    void Promise.all(readers)
-      .then((dataUrls) => onChange([...photoUrls, ...dataUrls]))
-      .catch(() => alert("Impossible de lire une des images."));
+    setBusy(true);
+    let dataUrls: string[] = [];
+    try {
+      for (const file of files) {
+        dataUrls.push(await fileToCompressedDataUrl(file));
+      }
+    } catch (e) {
+      console.error(e);
+      alert(
+        "Impossible de lire ou de réduire cette image. Essayez une photo JPEG ou PNG, ou une autre image."
+      );
+      setBusy(false);
+      return;
+    }
+    try {
+      await Promise.resolve(onChange([...photoUrls, ...dataUrls]));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="photos-chantier">
       <input
-        ref={inputRef}
+        id={inputId}
         type="file"
         accept="image/*"
         multiple
-        className="photos-file-input"
-        aria-hidden
-        tabIndex={-1}
+        className="photos-file-input-native"
         onChange={(e) => {
-          appendImagesFromFiles(e.target.files);
+          void processFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -62,29 +71,30 @@ export function PhotosChantier({ photoUrls, onChange }: Props) {
         Photos de chantier
       </span>
       <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        Cliquez sur une case vide ou sur « Ajouter photo » pour choisir une image sur votre appareil.
+        {busy
+          ? "Enregistrement en cours…"
+          : "Choisissez une image : bouton ci-dessous ou case « + ». Les photos sont compressées avant envoi."}
       </p>
       <div className="photos-chantier-grid">
         {Array.from({ length: SLOT_COUNT }, (_, index) => {
           const url = photoUrls[index];
+          if (url) {
+            return (
+              <div key={index} className="photo-slot" role="img" aria-label="Aperçu">
+                <img src={url} alt="" />
+              </div>
+            );
+          }
           return (
-            <button
-              key={index}
-              type="button"
-              className="photo-slot"
-              onClick={() => {
-                if (!url) openPicker();
-              }}
-              title={url ? "Aperçu photo" : "Choisir une photo"}
-            >
-              {url ? <img src={url} alt="" /> : "＋"}
-            </button>
+            <label key={index} htmlFor={inputId} className="photo-slot photo-slot--pick" title="Choisir une photo">
+              ＋
+            </label>
           );
         })}
       </div>
-      <button type="button" className="ghost small btn-add-photo" onClick={openPicker}>
+      <label htmlFor={inputId} className={`ghost small btn-add-photo${busy ? " muted" : ""}`} style={{ cursor: busy ? "wait" : "pointer" }}>
         + Ajouter photo
-      </button>
+      </label>
     </div>
   );
 }

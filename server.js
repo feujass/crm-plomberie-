@@ -31,7 +31,7 @@ const COMPANY_INFO = {
 };
 
 app.use(cors());
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "12mb" }));
 
 // Vercel peut livrer la requête avec un chemin qui ne matche pas nos routes /api/sign/:token ;
 // on normalise vers /api/sign/:token pour que les handlers et le static ne renvoient pas index.html.

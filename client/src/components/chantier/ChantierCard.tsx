@@ -74,7 +74,11 @@ export function ChantierCard({
           <span className="muted" style={{ fontWeight: 600 }}>
             Étapes métier
           </span>
-          <StepperMetier value={project.etapeMetier} onChange={patchEtape} compact />
+          <StepperMetier
+            value={project.etapeMetier}
+            onChange={(step) => void patchEtape(step).catch(() => null)}
+            compact
+          />
         </div>
 
         <div className="project-row-status">
@@ -83,7 +87,7 @@ export function ChantierCard({
             <select
               className="status-select"
               value={project.status}
-              onChange={(e) => void patchStatus(e.target.value)}
+              onChange={(e) => void patchStatus(e.target.value).catch(() => null)}
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -101,7 +105,7 @@ export function ChantierCard({
           heuresPassees={project.heuresPassees}
         />
 
-        <PhotosChantier photoUrls={project.photoUrls} onChange={(urls) => void patchPhotos(urls)} />
+        <PhotosChantier photoUrls={project.photoUrls} onChange={patchPhotos} />
       </div>
     </div>
   );
