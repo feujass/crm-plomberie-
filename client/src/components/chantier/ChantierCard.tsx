@@ -101,7 +101,7 @@ export function ChantierCard({
           heuresPassees={project.heuresPassees}
         />
 
-        <PhotosChantier photoUrls={project.photoUrls} onChange={(urls) => void patchPhotos(urls)} projectId={project.id} />
+        <PhotosChantier photoUrls={project.photoUrls} onChange={(urls) => void patchPhotos(urls)} />
       </div>
     </div>
   );
