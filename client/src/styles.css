@@ -1330,6 +1330,10 @@ body {
   background: linear-gradient(90deg, #f59e0b, #fb923c);
 }
 
+.rentabilite-bar.danger span {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
 .project-card-body {
   display: grid;
   gap: 12px;
