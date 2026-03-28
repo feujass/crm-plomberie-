@@ -2,7 +2,6 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
@@ -13,6 +12,9 @@ const { getSupabase, ensureSingleUser, cleanupDemoDataOnce, resetUserData } = re
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+/** Code d’accès à 4 chiffres (digicode). Personnalisation : variable d’environnement APP_ACCESS_PIN (exactement 4 chiffres). */
+const _pinFromEnv = String(process.env.APP_ACCESS_PIN || "1234").replace(/\D/g, "");
+const APP_ACCESS_PIN = _pinFromEnv.length === 4 ? _pinFromEnv : "1234";
 /** Liens email / OAuth : si BASE_URL est une vieille URL Vercel (preview), les mails pointent vers le mauvais déploiement. */
 const BASE_URL = (() => {
   const explicit = process.env.BASE_URL?.trim();
@@ -879,11 +881,17 @@ app.get("/api/health", healthHandler);
 app.get("/health", healthHandler);
 
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body || {};
-  const { data: user } = await db().from("users").select("*").eq("email", email).maybeSingle();
-  if (!user) return res.status(401).json({ message: "Identifiants invalides." });
-  const ok = await bcrypt.compare(password || "", user.password_hash);
-  if (!ok) return res.status(401).json({ message: "Identifiants invalides." });
+  const raw = req.body?.pin ?? req.body?.code ?? "";
+  const pin = String(raw).replace(/\D/g, "").slice(0, 4);
+  if (pin.length !== 4) {
+    return res.status(400).json({ message: "Code à 4 chiffres requis." });
+  }
+  const expected = APP_ACCESS_PIN.length === 4 ? APP_ACCESS_PIN : "1234";
+  if (pin !== expected) {
+    return res.status(401).json({ message: "Code incorrect." });
+  }
+  const { data: user } = await db().from("users").select("*").eq("email", "CRMplomberie").maybeSingle();
+  if (!user) return res.status(500).json({ message: "Compte applicatif introuvable." });
   res.json({ token: signToken(user) });
 });
 
