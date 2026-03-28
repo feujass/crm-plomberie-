@@ -171,10 +171,6 @@ body {
   display: none;
 }
 
-.logout-label-short {
-  display: none;
-}
-
 .auth-modal {
   position: fixed;
   inset: 0;
@@ -1339,6 +1335,21 @@ body {
   max-width: 480px;
 }
 
+.settings-compte {
+  max-width: 480px;
+  margin-top: 16px;
+}
+
+.settings-compte-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-logout-short {
+  display: none;
+}
+
 /* —— Mobile & tactile (smartphone) —— */
 .mobile-bottom-nav {
   display: none;
@@ -1399,18 +1410,12 @@ body {
     font-size: 11px;
   }
 
-  .logout-label-full {
+  .settings-logout-full {
     display: none;
   }
 
-  .logout-label-short {
+  .settings-logout-short {
     display: inline !important;
-  }
-
-  #logout.ghost {
-    padding: 10px 12px;
-    min-height: 44px;
-    touch-action: manipulation;
   }
 
   .avatar {
@@ -1620,6 +1625,156 @@ body {
 
   .bar-chart {
     height: 100px;
+  }
+
+  /* Chantiers (#projets) — éviter débordement horizontal, formulaire plus compact */
+  #projets {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  #projets .split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  #projets .card {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  #projets .form {
+    gap: 10px;
+  }
+
+  #projets .form label {
+    font-size: 13px;
+    gap: 4px;
+  }
+
+  #projets .form input,
+  #projets .form select,
+  #projets .form textarea {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  #projets .form button[type="submit"] {
+    min-height: 48px;
+    white-space: normal;
+    line-height: 1.25;
+    padding: 12px 14px;
+    word-break: break-word;
+  }
+
+  #projets .stepper-metier {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  #projets .stepper-pill {
+    padding: 8px 10px;
+    font-size: 11px;
+    min-height: 38px;
+  }
+
+  #projets .project-meta span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  #projets .rentabilite-bloc p,
+  #projets .rentabilite-bloc .muted {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  #projets .photos-chantier > p,
+  #projets .photos-chantier .muted {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  #projets .photos-chantier-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  #projets .project-card-react {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+    padding: 11px;
+  }
+
+  #projets .project-card-react:has(.badge-a-relancer) .project-card-head > div:first-child {
+    padding-right: 72px;
+  }
+
+  #projets .project-card-head {
+    flex-wrap: wrap;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  #projets .project-card-head > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  #projets .project-card-head h4 {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  #projets .badge-a-relancer {
+    font-size: 10px;
+    padding: 3px 8px;
+    top: 8px;
+    right: 8px;
+  }
+
+  #projets .btn-cal-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  #projets .project-row-status {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  #projets .project-row-status .status-select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  #projets .project-filters .muted {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  #projets .alertes-banner {
+    max-width: 100%;
+  }
+
+  #projets .alerte-chip {
+    max-width: 100%;
+    white-space: normal;
+    justify-content: flex-start;
+    text-align: left;
   }
 
   .list li {

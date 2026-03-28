@@ -247,12 +247,6 @@ export default function App() {
           <div className="topbar-actions">
             <span className="topbar-date-full">{renderDate()}</span>
             <span className="topbar-date-short">{renderDateShort()}</span>
-            <button type="button" id="logout" className="ghost ghost--touch" onClick={logout}>
-              <span className="logout-label-full">Déconnexion</span>
-              <span className="logout-label-short" aria-hidden>
-                Sortir
-              </span>
-            </button>
             <div className="avatar">{user?.initials ?? "—"}</div>
           </div>
         </header>
@@ -264,21 +258,6 @@ export default function App() {
                 <h2>Bonjour 👋</h2>
                 <p>Voici les indicateurs clés du mois.</p>
               </div>
-              <button
-                type="button"
-                id="reset-data"
-                className="ghost"
-                onClick={async () => {
-                  try {
-                    await apiFetch("/reset", { method: "POST" });
-                    await bootstrap();
-                  } catch (e) {
-                    alert(e instanceof Error ? e.message : "Erreur");
-                  }
-                }}
-              >
-                Réinitialiser les données
-              </button>
             </div>
             <div className="cards">
               {kpis.map((k) => (
@@ -564,6 +543,15 @@ export default function App() {
             googleConnected={googleConnected}
             googleConfigurable={googleConfigurable}
             onRefreshStatus={refreshGoogle}
+            onResetData={async () => {
+              try {
+                await apiFetch("/reset", { method: "POST" });
+                await bootstrap();
+              } catch (e) {
+                alert(e instanceof Error ? e.message : "Erreur");
+              }
+            }}
+            onLogout={logout}
           />
         ) : null}
       </main>
