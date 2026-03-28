@@ -139,8 +139,8 @@ export function ChantierForm({ clients, quotes, onSubmit }: Props) {
           onChange={(e) => setHeuresPrevues(e.target.value)}
         />
       </label>
-      <div>
-        <span className="muted" style={{ display: "block", marginBottom: 6 }}>
+      <div className="chantier-stepper-wrap">
+        <span className="muted chantier-stepper-label">
           Avancement métier
         </span>
         <StepperMetier value={etapeMetier} onChange={setEtapeMetier} />
