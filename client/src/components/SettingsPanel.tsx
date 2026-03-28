@@ -4,9 +4,17 @@ type Props = {
   googleConnected: boolean;
   googleConfigurable: boolean;
   onRefreshStatus: () => void;
+  onResetData: () => Promise<void>;
+  onLogout: () => void;
 };
 
-export function SettingsPanel({ googleConnected, googleConfigurable, onRefreshStatus }: Props) {
+export function SettingsPanel({
+  googleConnected,
+  googleConfigurable,
+  onRefreshStatus,
+  onResetData,
+  onLogout,
+}: Props) {
   const connectGoogle = () => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
@@ -51,6 +59,22 @@ export function SettingsPanel({ googleConnected, googleConfigurable, onRefreshSt
               Déconnecter
             </button>
           ) : null}
+        </div>
+      </div>
+
+      <div className="card settings-compte">
+        <h3>Compte et données</h3>
+        <p className="muted" style={{ marginBottom: 12 }}>
+          Réinitialisation : remet les données de démo. La déconnexion ferme la session sur cet appareil.
+        </p>
+        <div className="settings-compte-actions">
+          <button type="button" className="ghost danger" onClick={() => void onResetData()}>
+            Réinitialiser les données
+          </button>
+          <button type="button" className="ghost danger settings-logout-btn" onClick={onLogout}>
+            <span className="settings-logout-full">Déconnexion</span>
+            <span className="settings-logout-short">Sortir</span>
+          </button>
         </div>
       </div>
     </section>
