@@ -1088,6 +1088,17 @@ body {
   margin-bottom: 4px;
 }
 
+.chantier-stepper-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chantier-stepper-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
 .project-card-react {
   display: grid;
   gap: 14px;
@@ -1370,6 +1381,11 @@ body {
     overflow-x: hidden;
   }
 
+  .main:has(#projets) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
   .topbar {
     display: flex;
     flex-wrap: nowrap;
@@ -1627,56 +1643,116 @@ body {
     height: 100px;
   }
 
-  /* Chantiers (#projets) — éviter débordement horizontal, formulaire plus compact */
+  /* Chantiers (#projets) — densité mobile, pas de débordement (grille + stepper scroll) */
   #projets {
     max-width: 100%;
     min-width: 0;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  #projets .panel-header {
+    gap: 8px !important;
+    margin-bottom: 4px;
+  }
+
+  #projets .panel-header h2 {
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+
+  #projets .panel-header p {
+    font-size: 12px;
+    line-height: 1.35;
+    margin: 0;
   }
 
   #projets .split {
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    gap: 10px;
   }
 
   #projets .card {
     min-width: 0;
     max-width: 100%;
-    overflow-x: hidden;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  #projets .card h3 {
+    font-size: 15px;
+    margin-bottom: 8px;
+    line-height: 1.25;
+  }
+
+  /* Les items de grille ne doivent pas élargir la page (sinon stepper coupé, pas de scroll) */
+  #projets .chantier-form {
+    min-width: 0;
+  }
+
+  #projets .chantier-form > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   #projets .form {
-    gap: 10px;
+    gap: 8px;
   }
 
   #projets .form label {
-    font-size: 13px;
-    gap: 4px;
+    font-size: 12px;
+    gap: 3px;
+  }
+
+  #projets .chantier-stepper-label {
+    margin-bottom: 4px;
+    font-size: 12px;
   }
 
   #projets .form input,
   #projets .form select,
   #projets .form textarea {
-    min-height: 44px;
-    padding: 10px 12px;
+    min-height: 42px !important;
+    padding: 8px 10px !important;
+    line-height: 1.25;
   }
 
   #projets .form button[type="submit"] {
-    min-height: 48px;
+    min-height: 44px !important;
+    font-size: 16px;
     white-space: normal;
     line-height: 1.25;
-    padding: 12px 14px;
+    padding: 10px 12px;
     word-break: break-word;
   }
 
+  #projets .chantier-stepper-wrap {
+    overflow: hidden;
+  }
+
   #projets .stepper-metier {
+    display: flex;
+    width: 100%;
     max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    padding-bottom: 6px;
+    margin-bottom: 0;
+    gap: 6px;
+    scrollbar-width: thin;
   }
 
   #projets .stepper-pill {
-    padding: 8px 10px;
-    font-size: 11px;
-    min-height: 38px;
+    flex-shrink: 0;
+    padding: 6px 9px;
+    font-size: 10px;
+    min-height: 34px;
+    line-height: 1.2;
   }
 
   #projets .project-meta span {
@@ -1713,6 +1789,15 @@ body {
     min-width: 0;
     overflow-x: hidden;
     padding: 11px;
+  }
+
+  #projets .project-card-body {
+    min-width: 0;
+  }
+
+  #projets .project-card-body > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   #projets .project-card-react:has(.badge-a-relancer) .project-card-head > div:first-child {
