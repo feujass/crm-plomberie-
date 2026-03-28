@@ -1356,6 +1356,9 @@ app.patch("/api/projects/:id", auth, async (req, res) => {
   if (body.heuresPrevues !== undefined && Number.isFinite(Number(body.heuresPrevues))) {
     updates.heures_prevues = Number(body.heuresPrevues);
   }
+  if (body.hoursSpent !== undefined && Number.isFinite(Number(body.hoursSpent))) {
+    updates.heures_passees = Number(body.hoursSpent);
+  }
   if (body.heuresPassees !== undefined && Number.isFinite(Number(body.heuresPassees))) {
     updates.heures_passees = Number(body.heuresPassees);
   }

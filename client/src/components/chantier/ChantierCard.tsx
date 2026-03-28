@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { EtapeMetier, Project } from "../../types";
 import { formatDate } from "../../utils/format";
 import { PhotosChantier } from "./PhotosChantier";
@@ -25,6 +26,7 @@ export function ChantierCard({
   onSyncCalendar,
   onOpenDevis,
 }: Props) {
+  const [heuresAAjouter, setHeuresAAjouter] = useState("");
   const showRelancer = project.aRelancer || project.status === "Urgent";
 
   const patchEtape = async (etapeMetier: EtapeMetier) => {
@@ -37,6 +39,26 @@ export function ChantierCard({
 
   const patchPhotos = async (photoUrls: string[]) => {
     await onPatch(project.id, { photoUrls });
+  };
+
+  const handleAjouterHeures = async () => {
+    const raw = heuresAAjouter.trim().replace(",", ".");
+    if (raw === "") {
+      alert("Indiquez un nombre d’heures à ajouter.");
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      alert("Saisissez un nombre positif (ex. 1,5).");
+      return;
+    }
+    const newHoursSpent = project.heuresPassees + n;
+    try {
+      await onPatch(project.id, { hoursSpent: newHoursSpent });
+      setHeuresAAjouter("");
+    } catch {
+      /* alert déjà affiché par onPatchProject */
+    }
   };
 
   return (
@@ -105,6 +127,26 @@ export function ChantierCard({
           heuresPassees={project.heuresPassees}
         />
 
+        <div className="rentabilite-bloc">
+          <p style={{ marginBottom: 8 }}>
+            Heures passées : <strong>{formatHeuresCard(project.heuresPassees)}h</strong>
+          </p>
+          <div className="inline-form" style={{ alignItems: "stretch" }}>
+            <input
+              type="number"
+              min={0}
+              step={0.25}
+              inputMode="decimal"
+              placeholder="ex. 1,5"
+              value={heuresAAjouter}
+              onChange={(e) => setHeuresAAjouter(e.target.value)}
+            />
+            <button type="button" className="ghost" onClick={() => void handleAjouterHeures()}>
+              + Ajouter
+            </button>
+          </div>
+        </div>
+
         <PhotosChantier photoUrls={project.photoUrls} onChange={patchPhotos} />
       </div>
     </div>
@@ -117,4 +159,10 @@ function statusTagClass(status: string) {
   if (status === "Planifié") return "warning";
   if (status === "En cours") return "info";
   return "success";
+}
+
+function formatHeuresCard(n: number) {
+  if (!Number.isFinite(n)) return "0";
+  const r = Math.round(n * 100) / 100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/, "");
 }
