@@ -22,6 +22,15 @@ type BootstrapResponse = {
 
 const idsMatch = (a: unknown, b: unknown) => String(a) === String(b);
 
+const NAV_ITEMS: { id: PanelId; icon: string; label: string; short: string }[] = [
+  { id: "dashboard", icon: "🏠", label: "Tableau de bord", short: "Accueil" },
+  { id: "clients", icon: "👥", label: "Clients", short: "Clients" },
+  { id: "devis", icon: "🧾", label: "Devis", short: "Devis" },
+  { id: "projets", icon: "🛠️", label: "Suivi projets", short: "Chantiers" },
+  { id: "rapports", icon: "📊", label: "Rapports", short: "Stats" },
+  { id: "parametres", icon: "⚙️", label: "Paramètres", short: "Réglages" },
+];
+
 export default function App() {
   const [data, setData] = useState<BootstrapData | null>(null);
   const [user, setUser] = useState<BootstrapResponse["user"] | null>(null);
@@ -166,6 +175,13 @@ export default function App() {
       year: "numeric",
     }).format(new Date());
 
+  const renderDateShort = () =>
+    new Intl.DateTimeFormat("fr-FR", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }).format(new Date());
+
   if (!data && !authVisible) {
     return (
       <div className="main" style={{ padding: 40 }}>
@@ -197,20 +213,9 @@ export default function App() {
       })()
     : [];
 
-  const nav = (id: PanelId, icon: string, label: string) => (
-    <button
-      type="button"
-      className={`nav-item${panel === id ? " active" : ""}`}
-      onClick={() => setPanel(id)}
-    >
-      <span className="nav-icon">{icon}</span>
-      <span className="nav-label">{label}</span>
-    </button>
-  );
-
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="Navigation principale">
         <div className="brand">
           <span className="brand-icon">≈</span>
           <div>
@@ -219,21 +224,34 @@ export default function App() {
           </div>
         </div>
         <nav className="nav">
-          {nav("dashboard", "🏠", "Tableau de bord")}
-          {nav("clients", "👥", "Clients")}
-          {nav("devis", "🧾", "Devis")}
-          {nav("projets", "🛠️", "Suivi projets")}
-          {nav("rapports", "📊", "Rapports")}
-          {nav("parametres", "⚙️", "Paramètres")}
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`nav-item${panel === item.id ? " active" : ""}`}
+              onClick={() => setPanel(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </button>
+          ))}
         </nav>
       </aside>
 
       <main className="main">
         <header className="topbar">
+          <div className="topbar-brand-mobile" aria-hidden>
+            <span className="brand-icon brand-icon--small">≈</span>
+            <span className="topbar-brand-text">PlombiCRM</span>
+          </div>
           <div className="topbar-actions">
-            <span>{renderDate()}</span>
-            <button type="button" id="logout" className="ghost" onClick={logout}>
-              Déconnexion
+            <span className="topbar-date-full">{renderDate()}</span>
+            <span className="topbar-date-short">{renderDateShort()}</span>
+            <button type="button" id="logout" className="ghost ghost--touch" onClick={logout}>
+              <span className="logout-label-full">Déconnexion</span>
+              <span className="logout-label-short" aria-hidden>
+                Sortir
+              </span>
             </button>
             <div className="avatar">{user?.initials ?? "—"}</div>
           </div>
@@ -549,6 +567,24 @@ export default function App() {
           />
         ) : null}
       </main>
+
+      {!authVisible && data ? (
+        <nav className="mobile-bottom-nav" aria-label="Menu principal téléphone">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`mobile-bottom-nav-item${panel === item.id ? " active" : ""}`}
+              onClick={() => setPanel(item.id)}
+            >
+              <span className="mobile-bottom-nav-icon" aria-hidden>
+                {item.icon}
+              </span>
+              <span className="mobile-bottom-nav-label">{item.short}</span>
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       <div className={`auth-modal${authVisible ? " active" : ""}`}>
         <div className="auth-card auth-card--pin">
