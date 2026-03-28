@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PinLogin } from "./components/PinLogin";
 import { apiFetch, TOKEN_KEY } from "./api";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SuiviProjetsPanel } from "./components/chantier/SuiviProjetsPanel";
@@ -137,15 +138,18 @@ export default function App() {
     return data.quotes.filter((q) => String(q.id) === quoteFilterId);
   }, [data, quoteFilterId]);
 
-  const login = async (email: string, password: string) => {
-    const payload = await apiFetch<{ token: string }>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    localStorage.setItem(TOKEN_KEY, payload.token);
-    setAuthVisible(false);
-    await bootstrap();
-  };
+  const loginWithPin = useCallback(
+    async (pin: string) => {
+      const payload = await apiFetch<{ token: string }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ pin }),
+      });
+      localStorage.setItem(TOKEN_KEY, payload.token);
+      setAuthVisible(false);
+      await bootstrap();
+    },
+    [bootstrap]
+  );
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
@@ -547,33 +551,12 @@ export default function App() {
       </main>
 
       <div className={`auth-modal${authVisible ? " active" : ""}`}>
-        <div className="auth-card">
+        <div className="auth-card auth-card--pin">
           <div className="auth-header">
-            <h2>Connexion</h2>
-            <p className="muted">Accès réservé avec identifiant unique.</p>
+            <h2>Déverrouiller</h2>
+            <p className="muted">Code d’accès à 4 chiffres (comme sur iPhone).</p>
           </div>
-          <form
-            className="form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              try {
-                await login(String(fd.get("email")), String(fd.get("password")));
-              } catch (err) {
-                alert(err instanceof Error ? err.message : "Erreur");
-              }
-            }}
-          >
-            <label>
-              Identifiant
-              <input name="email" required />
-            </label>
-            <label>
-              Mot de passe
-              <input name="password" type="password" required />
-            </label>
-            <button type="submit">Se connecter</button>
-          </form>
+          <PinLogin onSuccess={loginWithPin} />
         </div>
       </div>
     </div>
