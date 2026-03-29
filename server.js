@@ -98,17 +98,23 @@ const toInitials = (name) =>
 const mapClient = (r) => ({
   id: r.id, name: r.name, address: r.address, phone: r.phone,
   email: r.email, segment: r.segment, lastProject: r.last_project || "Nouveau projet",
+  notes: r.notes ?? "",
+  notesUpdatedAt: r.notes_updated_at ?? null,
 });
 const mapService = (r) => ({ id: r.id, name: r.name, basePrice: r.base_price });
 const mapMaterial = (r) => ({ id: r.id, name: r.name, price: r.price });
-const mapQuote = (r) => ({
-  id: r.id, clientId: r.client_id, serviceId: r.service_id, materialId: r.material_id,
-  hours: r.hours, discount: r.discount, amount: r.amount, status: r.status,
-  sentAt: r.sent_at, ack: Boolean(r.ack), materialsDesc: r.materials_desc || "",
-  materialsTotal: r.materials_total || 0, acceptedAt: r.accepted_at || null,
-  relanceEnvoyeeAt: r.relance_envoyee_at || null,
-  quoteRef: `DV-${String(r.id).padStart(5, "0")}`,
-});
+const mapQuote = (r) => {
+  const quoteRef = `DV-${String(r.id).padStart(5, "0")}`;
+  return {
+    id: r.id, clientId: r.client_id, serviceId: r.service_id, materialId: r.material_id,
+    hours: r.hours, discount: r.discount, amount: r.amount, status: r.status,
+    sentAt: r.sent_at, ack: Boolean(r.ack), materialsDesc: r.materials_desc || "",
+    materialsTotal: r.materials_total || 0, acceptedAt: r.accepted_at || null,
+    relanceEnvoyeeAt: r.relance_envoyee_at || null,
+    quoteRef,
+    pdfPublicUrl: getQuotePdfPublicUrl(quoteRef),
+  };
+};
 
 const ETAPES_METIER = [
   "terrassement", "maconnerie", "plomberie", "electricite", "finitions", "reception_client",
@@ -990,6 +996,23 @@ app.post("/api/clients", auth, async (req, res) => {
     .select("*").single();
   if (error) return res.status(500).json({ message: error.message });
   res.json({ client: mapClient(client) });
+});
+
+app.patch("/api/clients/:id", auth, async (req, res) => {
+  const clientId = req.params.id;
+  const { notes } = req.body || {};
+  if (typeof notes !== "string") return res.status(400).json({ message: "Notes invalides." });
+  const { data: current } = await db().from("clients").select("id").eq("id", clientId).eq("user_id", req.user.id).maybeSingle();
+  if (!current) return res.status(404).json({ message: "Client introuvable." });
+  const now = new Date().toISOString();
+  const { error } = await db()
+    .from("clients")
+    .update({ notes, notes_updated_at: now })
+    .eq("id", clientId)
+    .eq("user_id", req.user.id);
+  if (error) return res.status(500).json({ message: error.message });
+  const { data: row } = await db().from("clients").select("*").eq("id", clientId).single();
+  res.json({ client: mapClient(row) });
 });
 
 app.post("/api/services", auth, async (req, res) => {

@@ -3,3 +3,7 @@ node_modules/
 data/
 .DS_Store
 .vercel
+
+# Build Vite (ne jamais versionner : les hash changent à chaque build → casse le déploiement Vercel)
+/public/index.html
+/public/assets/

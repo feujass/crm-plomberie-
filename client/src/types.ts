@@ -16,6 +16,8 @@ export interface Client {
   email: string | null;
   segment: string;
   lastProject: string;
+  notes: string;
+  notesUpdatedAt: string | null;
 }
 
 export interface Service {
@@ -41,6 +43,8 @@ export interface Quote {
   /** Horodatage de la seule relance e-mail automatique (signature), si envoyée. */
   relanceEnvoyeeAt: string | null;
   quoteRef: string;
+  /** URL publique du PDF dans le bucket Supabase (peut 404 si jamais généré). */
+  pdfPublicUrl: string;
 }
 
 export interface Project {
