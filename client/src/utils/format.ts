@@ -4,6 +4,9 @@ export const formatCurrency = (value: number) =>
 export const formatDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(value));
 
+export const formatDateTime = (value: string) =>
+  new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
 export const formatPhone = (value: string) => {
   if (!value) return "-";
   const trimmed = String(value).trim();

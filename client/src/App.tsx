@@ -4,6 +4,7 @@ import { apiFetch, TOKEN_KEY } from "./api";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SuiviProjetsPanel } from "./components/chantier/SuiviProjetsPanel";
 import { ETAPE_LABELS } from "./constants/chantier";
+import { ClientFicheDetail } from "./components/clients/ClientFicheDetail";
 import type { BootstrapData, Client, Quote, Service } from "./types";
 import { formatCurrency, formatDate, formatPhone } from "./utils/format";
 import { parseHours } from "./utils/hours";
@@ -40,6 +41,7 @@ export default function App() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleConfigurable, setGoogleConfigurable] = useState(false);
   const [clientsQuery, setClientsQuery] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialRow[]>([{ name: "", price: 0 }]);
   const [quotePreview, setQuotePreview] = useState<{
     clientId: string;
@@ -140,6 +142,29 @@ export default function App() {
         c.phone.toLowerCase().includes(v)
     );
   }, [data, clientsQuery]);
+
+  const clientFicheBundle = useMemo(() => {
+    if (!data || selectedClientId == null) return null;
+    const client = data.clients.find((c) => idsMatch(c.id, selectedClientId));
+    if (!client) return null;
+    const projects = data.projects
+      .filter((p) => idsMatch(p.clientId, client.id))
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+    const quotes = data.quotes
+      .filter((q) => idsMatch(q.clientId, client.id))
+      .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    return { client, projects, quotes };
+  }, [data, selectedClientId]);
+
+  const patchClientNotes = useCallback(async (clientId: number | string, notes: string) => {
+    const payload = await apiFetch<{ client: Client }>(`/clients/${clientId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes }),
+    });
+    setData((d) =>
+      d ? { ...d, clients: d.clients.map((c) => (idsMatch(c.id, clientId) ? payload.client : c)) } : d
+    );
+  }, []);
 
   const filteredQuotes = useMemo(() => {
     if (!data) return [];
@@ -383,32 +408,55 @@ export default function App() {
               <div className="card">
                 <h3>Base clients</h3>
                 <div className="client-grid">
-                  {filteredClients.map((client) => (
-                    <div key={String(client.id)} className="client-card">
-                      <div className="client-header">
-                        <div>
-                          <strong>{client.name}</strong>
-                          <p className="muted">{client.address}</p>
+                  {filteredClients.map((client) => {
+                    const selected = selectedClientId != null && idsMatch(selectedClientId, client.id);
+                    return (
+                      <button
+                        key={String(client.id)}
+                        type="button"
+                        className={`client-card client-card--selectable${selected ? " client-card--selected" : ""}`}
+                        onClick={() =>
+                          setSelectedClientId((prev) =>
+                            prev != null && idsMatch(prev, client.id) ? null : String(client.id)
+                          )
+                        }
+                      >
+                        <div className="client-header">
+                          <div>
+                            <strong>{client.name}</strong>
+                            <p className="muted">{client.address}</p>
+                          </div>
+                          <span className={`tag ${client.segment === "VIP" ? "danger" : "success"}`}>{client.segment}</span>
                         </div>
-                        <span className={`tag ${client.segment === "VIP" ? "danger" : "success"}`}>{client.segment}</span>
-                      </div>
-                      <div className="client-info">
-                        <div>
-                          <span className="muted">Dernier projet</span>
-                          <strong>{client.lastProject}</strong>
+                        <div className="client-info">
+                          <div>
+                            <span className="muted">Dernier projet</span>
+                            <strong>{client.lastProject}</strong>
+                          </div>
+                          <div>
+                            <span className="muted">Téléphone</span>
+                            <strong>{formatPhone(client.phone)}</strong>
+                          </div>
+                          <div>
+                            <span className="muted">Email</span>
+                            <strong>{client.email || "-"}</strong>
+                          </div>
                         </div>
-                        <div>
-                          <span className="muted">Téléphone</span>
-                          <strong>{formatPhone(client.phone)}</strong>
-                        </div>
-                        <div>
-                          <span className="muted">Email</span>
-                          <strong>{client.email || "-"}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                        <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                          {selected ? "Fiche ouverte — cliquer à nouveau pour fermer" : "Cliquer pour ouvrir la fiche"}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
+                {clientFicheBundle ? (
+                  <ClientFicheDetail
+                    client={clientFicheBundle.client}
+                    projects={clientFicheBundle.projects}
+                    quotes={clientFicheBundle.quotes}
+                    patchClientNotes={patchClientNotes}
+                  />
+                ) : null}
               </div>
             </div>
           </section>

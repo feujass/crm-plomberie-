@@ -679,6 +679,148 @@ body {
   font-size: 13px;
 }
 
+.client-card--selectable {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.client-card--selectable:hover {
+  border-color: rgba(86, 98, 246, 0.35);
+}
+
+.client-card--selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.client-fiche {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 18px;
+}
+
+.client-fiche-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.client-fiche-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.client-fiche-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  font-size: 12px;
+}
+
+.client-fiche-meta strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.client-fiche-section h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.client-fiche-hint {
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.client-fiche-empty {
+  font-size: 13px;
+  margin: 0;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+
+.client-fiche-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.client-fiche-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.client-fiche-table th,
+.client-fiche-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.client-fiche-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.client-fiche-table tr:last-child td {
+  border-bottom: none;
+}
+
+.client-fiche-notes {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f9fbff;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.client-fiche-notes:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.client-fiche-notes-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.client-fiche-saving {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.client-fiche-error {
+  color: var(--danger);
+  font-size: 12px;
+}
+
 .quote-item {
   display: grid;
   grid-template-columns: 1.2fr auto;
