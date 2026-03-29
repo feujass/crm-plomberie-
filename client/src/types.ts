@@ -38,6 +38,8 @@ export interface Quote {
   materialsDesc: string;
   materialsTotal: number;
   acceptedAt: string | null;
+  /** Horodatage de la seule relance e-mail automatique (signature), si envoyée. */
+  relanceEnvoyeeAt: string | null;
   quoteRef: string;
 }
 
