@@ -8,6 +8,7 @@ const PDFDocument = require("pdfkit");
 const crypto = require("crypto");
 const { google } = require("googleapis");
 const { getSupabase, ensureSingleUser, cleanupDemoDataOnce, resetUserData } = require("./db");
+const { authorizeCronRequest, executeDevisRelances } = require("./api/lib/devisRelancesJob");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1190,179 +1191,25 @@ app.patch("/api/quotes/:id/status", auth, async (req, res) => {
   res.json({ quote: mapQuote(quote) });
 });
 
-/** Devis « en attente de signature » : Envoyé (ou En attente avec lien) depuis plus de 2 j, sans relance déjà envoyée. */
-const quoteEligibleForRelanceDevis = (q) => {
-  if (!q || !["Envoyé", "En attente"].includes(q.status)) return false;
-  if (!q.accept_token) return false;
-  if (q.relance_envoyee_at) return false;
-  const sent = q.sent_at;
-  if (!sent) return false;
-  const raw = String(sent);
-  const sentTime = new Date(raw.length <= 10 ? `${raw}T12:00:00.000Z` : raw).getTime();
-  if (!Number.isFinite(sentTime)) return false;
-  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
-  return Date.now() - sentTime > twoDaysMs;
-};
-
-const buildDevisRelanceEmail = ({ quoteRef, montant, dateEnvoi, signUrl, clientName, company }) => {
-  const subject = `Votre devis ${quoteRef} est en attente de signature`;
-  const safeName = escapeHtml(clientName);
-  const safeRef = escapeHtml(quoteRef);
-  const safeDate = escapeHtml(dateEnvoi);
-  const safeMontant = escapeHtml(montant);
-  const href = signUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-  const text =
-    `Bonjour ${clientName},\n\n` +
-    `Nous nous permettons de vous recontacter concernant votre devis ${quoteRef}, transmis le ${dateEnvoi}, pour un montant de ${montant} TTC.\n\n` +
-    `Pour consulter le détail et signer électroniquement :\n${signUrl}\n\n` +
-    `Une question ? Répondez à ce message ou joignez-nous :\n` +
-    `${company.name} — ${company.phone} — ${company.email}\n${company.address}\n\n` +
-    `Bien cordialement,\nL’équipe ${company.name}`;
-  const html = `<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:Segoe UI,system-ui,sans-serif;line-height:1.6;color:#1f2937;max-width:560px;margin:0;padding:24px;">
-  <p>Bonjour ${safeName},</p>
-  <p>Nous faisions un petit rappel concernant votre devis <strong>${safeRef}</strong>, que nous vous avions envoyé le <strong>${safeDate}</strong>, pour un montant de <strong>${safeMontant}</strong> TTC.</p>
-  <p>Lorsque vous aurez un moment, vous pouvez consulter le détail et signer électroniquement :</p>
-  <p style="margin:28px 0;"><a href="${href}" style="display:inline-block;background:#5662f6;color:#fff;text-decoration:none;padding:12px 22px;border-radius:12px;font-weight:600;">Ouvrir mon devis et signer</a></p>
-  <p style="font-size:14px;color:#64748b;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><span style="word-break:break-all;">${href}</span></p>
-  <p>Une question ? Répondez à cet e-mail ou contactez-nous :<br>
-  <strong>${escapeHtml(company.name)}</strong> — ${escapeHtml(company.phone)} — <a href="mailto:${escapeHtml(company.email)}">${escapeHtml(company.email)}</a><br>
-  ${escapeHtml(company.address)}</p>
-  <p style="margin-top:28px;">Bien cordialement,<br>L’équipe ${escapeHtml(company.name)}</p>
-</body>
-</html>`;
-  return { subject, text, html };
-};
-
 const cronRelancesAuth = (req, res, next) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    console.error("[relances/devis] CRON_SECRET manquant — exécution refusée.");
-    return res.status(503).json({ ok: false, sent: 0, errors: [{ detail: "CRON_SECRET non configuré sur le serveur." }] });
-  }
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
-  if (token !== secret) {
-    console.warn("[relances/devis] Requête refusée (Authorization Bearer invalide ou absent).");
-    return res.status(401).json({ ok: false, sent: 0, errors: [{ detail: "Non autorisé." }] });
-  }
+  const denied = authorizeCronRequest(req);
+  if (denied) return res.status(denied.status).json(denied.body);
   next();
 };
 
 const handleRelancesDevis = async (req, res) => {
-  console.log("[relances/devis] Démarrage…");
-  if (!transporter) {
-    console.error("[relances/devis] Aucun transporteur SMTP (SMTP_HOST / SMTP_USER / SMTP_PASS).");
-    return res.status(503).json({
-      ok: false,
-      sent: 0,
-      errors: [{ detail: "Envoi e-mail impossible : SMTP non configuré." }],
-    });
+  try {
+    const dryRun = Boolean(req.body?.dryRun);
+    const out = await executeDevisRelances({ dryRun });
+    const status =
+      out.errors?.[0]?.detail?.includes("SMTP") || out.errors?.[0]?.detail?.includes("CRON_SECRET")
+        ? 503
+        : 200;
+    res.status(status).json(out);
+  } catch (e) {
+    console.error("[relances/devis] Fatal :", e);
+    res.status(500).json({ ok: false, sent: 0, errors: [{ detail: e instanceof Error ? e.message : String(e) }] });
   }
-
-  const { data: candidates, error } = await db()
-    .from("quotes")
-    .select("*")
-    .in("status", ["Envoyé", "En attente"])
-    .is("relance_envoyee_at", null)
-    .not("accept_token", "is", null);
-
-  if (error) {
-    console.error("[relances/devis] Lecture Supabase :", error.message);
-    return res.status(500).json({ ok: false, sent: 0, errors: [{ detail: error.message }] });
-  }
-
-  const list = (candidates || []).filter(quoteEligibleForRelanceDevis);
-  console.log(`[relances/devis] Éligibles après filtre 2 j : ${list.length} / ${(candidates || []).length} candidats.`);
-
-  const errors = [];
-  let sent = 0;
-
-  for (const quote of list) {
-    const quoteId = quote.id;
-    try {
-      const { data: current } = await db().from("quotes").select("*").eq("id", quoteId).single();
-      if (!quoteEligibleForRelanceDevis(current)) {
-        console.log(`[relances/devis] #${quoteId} ignoré (relu : plus éligible).`);
-        continue;
-      }
-
-      const { data: client } = await db()
-        .from("clients")
-        .select("*")
-        .eq("id", current.client_id)
-        .eq("user_id", current.user_id)
-        .maybeSingle();
-
-      const emailTo = client?.email?.trim();
-      if (!emailTo) {
-        const msg = "Client sans adresse e-mail";
-        errors.push({ quoteId, detail: msg });
-        console.warn(`[relances/devis] #${quoteId} : ${msg}`);
-        continue;
-      }
-
-      const quoteRef = `DV-${String(current.id).padStart(5, "0")}`;
-      const signUrl = `${BASE_URL}/api/sign/${current.accept_token}`;
-      const montant = formatCurrency(Number(current.amount));
-      const dateEnvoi = formatDate(current.sent_at || new Date().toISOString());
-      const { subject, text, html } = buildDevisRelanceEmail({
-        quoteRef,
-        montant,
-        dateEnvoi,
-        signUrl,
-        clientName: client.name || "Madame, Monsieur",
-        company: COMPANY_INFO,
-      });
-
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || "PlombiCRM <no-reply@plombicrm.fr>",
-        to: emailTo,
-        subject,
-        text,
-        html,
-      });
-
-      const nowIso = new Date().toISOString();
-      const { data: updatedRows, error: upErr } = await db()
-        .from("quotes")
-        .update({ relance_envoyee_at: nowIso })
-        .eq("id", quoteId)
-        .in("status", ["Envoyé", "En attente"])
-        .is("relance_envoyee_at", null)
-        .select("id");
-
-      if (upErr) {
-        errors.push({ quoteId, detail: upErr.message });
-        console.error(`[relances/devis] #${quoteId} envoi OK mais BDD :`, upErr.message);
-        continue;
-      }
-      if (!updatedRows?.length) {
-        const msg = "Aucune mise à jour (le devis a peut‑être été signé ou refusé entre‑temps)";
-        errors.push({ quoteId, detail: msg });
-        console.warn(`[relances/devis] #${quoteId} : ${msg}`);
-        continue;
-      }
-
-      sent += 1;
-      console.log(`[relances/devis] OK ${quoteRef} → ${emailTo}`);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push({ quoteId, detail: msg });
-      console.error(`[relances/devis] #${quoteId} erreur :`, msg);
-    }
-  }
-
-  console.log(`[relances/devis] Fin — envoyées: ${sent}, erreurs: ${errors.length}`);
-  res.json({
-    ok: errors.length === 0,
-    sent,
-    errors,
-    scanned: (candidates || []).length,
-    eligible: list.length,
-  });
 };
 
 app.get("/api/relances/devis", cronRelancesAuth, (req, res) => {
