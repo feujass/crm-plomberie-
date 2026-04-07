@@ -1622,7 +1622,8 @@ body {
     line-height: 1.15;
     touch-action: manipulation;
     cursor: pointer;
-    max-width: 20vw;
+    max-width: none;
+    min-width: 0;
   }
 
   .mobile-bottom-nav-item.active {
@@ -2022,9 +2023,255 @@ body {
   .mobile-bottom-nav-item {
     font-size: 9px;
     min-height: 48px;
+    max-width: none;
   }
 
   .mobile-bottom-nav-icon {
     font-size: 20px;
   }
+}
+
+/* —— Panneau IA plombier —— */
+.ia-panel .ia-btn-primary {
+  padding: 10px 16px;
+  background: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ia-panel .ia-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ia-panel .ia-btn-primary--small {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.ia-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .ia-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ia-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ia-tab:hover {
+  border-color: #c7d2fe;
+}
+
+.ia-tab.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.ia-tab-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.ia-tab-desc {
+  font-size: 12px;
+}
+
+.ia-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.ia-grid--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .ia-grid--triple {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ia-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ia-card-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ia-card-form input,
+.ia-card-form select,
+.ia-card-form textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font: inherit;
+  font-weight: 400;
+}
+
+.ia-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ia-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 600px) {
+  .ia-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ia-span-2 {
+    grid-column: span 1;
+  }
+}
+
+.ia-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+  font-weight: 500 !important;
+}
+
+.ia-check input {
+  width: auto;
+}
+
+.ia-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.ia-list-item {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fafbff;
+}
+
+.ia-slots {
+  list-style: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ia-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.ia-copy-btns {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ia-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ia-badge--urgent {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+}
+
+.ia-badge--ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+}
+
+.ia-report-textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ia-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.ia-table th,
+.ia-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ia-table-input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font: inherit;
+}
+
+.ia-table-input--num {
+  max-width: 72px;
+}
+
+.ia-cert-preview {
+  margin-top: 8px;
+  padding: 10px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
 }

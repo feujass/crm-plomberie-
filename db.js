@@ -46,6 +46,11 @@ const cleanupDemoDataOnce = async (userId) => {
     .eq("key", "cleaned_demo")
     .maybeSingle();
   if (existing) return;
+  await supabase.from("sav_tickets").delete().eq("user_id", userId);
+  await supabase.from("warranties").delete().eq("user_id", userId);
+  await supabase.from("material_orders").delete().eq("user_id", userId);
+  await supabase.from("intervention_reports").delete().eq("user_id", userId);
+  await supabase.from("booking_requests").delete().eq("user_id", userId);
   await supabase.from("quotes").delete().eq("user_id", userId);
   await supabase.from("projects").delete().eq("user_id", userId);
   await supabase.from("notifications").delete().eq("user_id", userId);
@@ -55,6 +60,11 @@ const cleanupDemoDataOnce = async (userId) => {
 
 const resetUserData = async (userId) => {
   const supabase = getSupabase();
+  await supabase.from("sav_tickets").delete().eq("user_id", userId);
+  await supabase.from("warranties").delete().eq("user_id", userId);
+  await supabase.from("material_orders").delete().eq("user_id", userId);
+  await supabase.from("intervention_reports").delete().eq("user_id", userId);
+  await supabase.from("booking_requests").delete().eq("user_id", userId);
   await supabase.from("quotes").delete().eq("user_id", userId);
   await supabase.from("projects").delete().eq("user_id", userId);
   await supabase.from("notifications").delete().eq("user_id", userId);

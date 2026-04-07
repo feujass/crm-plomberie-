@@ -5,12 +5,13 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SuiviProjetsPanel } from "./components/chantier/SuiviProjetsPanel";
 import { ETAPE_LABELS } from "./constants/chantier";
 import { ClientFicheDetail } from "./components/clients/ClientFicheDetail";
+import { PlombierIAPanel } from "./components/plombier-ia/PlombierIAPanel";
 import type { BootstrapData, Client, Quote, Service } from "./types";
 import { formatCurrency, formatDate, formatPhone } from "./utils/format";
 import { parseHours } from "./utils/hours";
 import { normalizeProject } from "./utils/project";
 
-type PanelId = "dashboard" | "clients" | "devis" | "projets" | "rapports" | "parametres";
+type PanelId = "dashboard" | "clients" | "devis" | "projets" | "ia" | "rapports" | "parametres";
 
 type MaterialRow = { name: string; price: number };
 
@@ -28,6 +29,7 @@ const NAV_ITEMS: { id: PanelId; icon: string; label: string; short: string }[] =
   { id: "clients", icon: "👥", label: "Clients", short: "Clients" },
   { id: "devis", icon: "🧾", label: "Devis", short: "Devis" },
   { id: "projets", icon: "🛠️", label: "Suivi projets", short: "Chantiers" },
+  { id: "ia", icon: "⚡", label: "IA & gain de temps", short: "IA" },
   { id: "rapports", icon: "📊", label: "Rapports", short: "Stats" },
   { id: "parametres", icon: "⚙️", label: "Paramètres", short: "Réglages" },
 ];
@@ -86,9 +88,15 @@ export default function App() {
   const bootstrap = useCallback(async () => {
     const payload = await apiFetch<BootstrapResponse>("/bootstrap");
     setUser(payload.user);
+    const d = payload.data;
     setData({
-      ...payload.data,
-      projects: payload.data.projects.map((p) => normalizeProject(p as unknown as Record<string, unknown>)),
+      ...d,
+      projects: d.projects.map((p) => normalizeProject(p as unknown as Record<string, unknown>)),
+      bookingRequests: d.bookingRequests ?? [],
+      interventionReports: d.interventionReports ?? [],
+      materialOrders: d.materialOrders ?? [],
+      warranties: d.warranties ?? [],
+      savTickets: d.savTickets ?? [],
     });
     await refreshGoogle();
   }, [refreshGoogle]);
@@ -582,6 +590,10 @@ export default function App() {
             }}
             onFocusPanel={() => setPanel("projets")}
           />
+        ) : null}
+
+        {data && panel === "ia" ? (
+          <PlombierIAPanel data={data} setData={setData} getClient={getClient} onRebootstrap={bootstrap} />
         ) : null}
 
         {data && panel === "rapports" ? <RapportsPanel data={data} getService={getService} /> : null}

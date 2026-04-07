@@ -9,6 +9,18 @@ const crypto = require("crypto");
 const { google } = require("googleapis");
 const { getSupabase, ensureSingleUser, cleanupDemoDataOnce, resetUserData } = require("./db");
 const { authorizeCronRequest, executeDevisRelances } = require("./api/lib/devisRelancesJob");
+const {
+  suggestAppointmentSlots,
+  reportFromTranscript,
+  reportFromTranscriptLocal,
+  materialOrderLinesFromQuote,
+  materialOrderLinesLocal,
+  buildCertificateBody,
+  polishCertificateText,
+  addMonths,
+  formatDateIsoDate,
+} = require("./api/lib/plombierIa");
+const { executeWarrantyReminders } = require("./api/lib/warrantyRemindersJob");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -152,6 +164,73 @@ const mapProject = (r) => ({
 const mapNotification = (r) => ({ id: r.id, label: r.label, type: r.type });
 const mapIntegration = (r) => ({
   id: r.id, name: r.name, description: r.description, enabled: Boolean(r.enabled),
+});
+
+const mapBookingRequest = (r) => ({
+  id: r.id,
+  clientId: r.client_id != null ? r.client_id : null,
+  channel: r.channel || "manuel",
+  contactName: r.contact_name || "",
+  contactPhone: r.contact_phone || "",
+  contactEmail: r.contact_email ?? null,
+  problemType: r.problem_type || "",
+  problemDetail: r.problem_detail || "",
+  urgency: r.urgency || "normal",
+  address: r.address || "",
+  status: r.status || "nouveau",
+  aiSuggestedSlots: Array.isArray(r.ai_suggested_slots) ? r.ai_suggested_slots : [],
+  scheduledAt: r.scheduled_at ?? null,
+  internalNotes: r.internal_notes || "",
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const mapInterventionReport = (r) => ({
+  id: r.id,
+  projectId: r.project_id != null ? r.project_id : null,
+  clientId: r.client_id != null ? r.client_id : null,
+  transcript: r.transcript || "",
+  reportBody: r.report_body || "",
+  photoUrls: Array.isArray(r.photo_urls) ? r.photo_urls : [],
+  clientEmailSentAt: r.client_email_sent_at ?? null,
+  createdAt: r.created_at,
+});
+
+const mapMaterialOrder = (r) => ({
+  id: r.id,
+  quoteId: r.quote_id != null ? r.quote_id : null,
+  title: r.title || "",
+  lines: Array.isArray(r.lines) ? r.lines : [],
+  supplierNotes: r.supplier_notes || "",
+  status: r.status || "brouillon",
+  createdAt: r.created_at,
+});
+
+const mapWarranty = (r) => ({
+  id: r.id,
+  projectId: r.project_id != null ? r.project_id : null,
+  clientId: r.client_id,
+  label: r.label || "",
+  workSummary: r.work_summary || "",
+  warrantyMonths: Number(r.warranty_months ?? 24),
+  startDate: r.start_date,
+  endDate: r.end_date,
+  certificateBody: r.certificate_body || "",
+  reminder30dSentAt: r.reminder_30d_sent_at ?? null,
+  reminder7dSentAt: r.reminder_7d_sent_at ?? null,
+  createdAt: r.created_at,
+});
+
+const mapSavTicket = (r) => ({
+  id: r.id,
+  clientId: r.client_id,
+  warrantyId: r.warranty_id != null ? r.warranty_id : null,
+  subject: r.subject || "",
+  description: r.description || "",
+  status: r.status || "ouvert",
+  priority: r.priority || "normal",
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
 });
 
 const progressForStatus = (status, fallback) => {
@@ -965,6 +1044,19 @@ app.get("/api/bootstrap", auth, async (req, res) => {
   const { data: projects } = await db().from("projects").select("*").eq("user_id", userId);
   const { data: notifications } = await db().from("notifications").select("*").eq("user_id", userId);
   const { data: integrations } = await db().from("integrations").select("*").eq("user_id", userId);
+  const [
+    { data: bookingRows },
+    { data: reportRows },
+    { data: orderRows },
+    { data: warrantyRows },
+    { data: savRows },
+  ] = await Promise.all([
+    db().from("booking_requests").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    db().from("intervention_reports").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    db().from("material_orders").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+    db().from("warranties").select("*").eq("user_id", userId).order("end_date", { ascending: true }),
+    db().from("sav_tickets").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+  ]);
   const settings = await ensureSettings(userId);
 
   res.json({
@@ -978,6 +1070,15 @@ app.get("/api/bootstrap", auth, async (req, res) => {
       projects: (projects || []).map(mapProject),
       notifications: (notifications || []).map(mapNotification),
       integrations: (integrations || []).map(mapIntegration),
+      bookingRequests: (bookingRows || []).map(mapBookingRequest),
+      interventionReports: (reportRows || []).map(mapInterventionReport),
+      materialOrders: (orderRows || []).map(mapMaterialOrder),
+      warranties: (warrantyRows || []).map(mapWarranty),
+      savTickets: (savRows || []).map(mapSavTicket),
+      iaHints: {
+        openAiConfigured: Boolean(process.env.OPENAI_API_KEY),
+        smtpConfigured: Boolean(transporter),
+      },
       satisfaction: {
         score: settings?.satisfaction_score || 4.6,
         responses: settings?.satisfaction_responses || 0,
@@ -1479,6 +1580,370 @@ app.patch("/api/integrations/:id", auth, async (req, res) => {
     .eq("id", req.params.id).eq("user_id", req.user.id);
   const { data: integration } = await db().from("integrations").select("*").eq("id", req.params.id).single();
   res.json({ integration: mapIntegration(integration) });
+});
+
+// ── Automatisation IA plombier : RDV, CR, commandes, garanties & SAV ──
+
+app.get("/api/booking-requests", auth, async (req, res) => {
+  const { data: rows } = await db()
+    .from("booking_requests")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .order("created_at", { ascending: false });
+  res.json({ bookingRequests: (rows || []).map(mapBookingRequest) });
+});
+
+app.post("/api/booking-requests", auth, async (req, res) => {
+  const b = req.body || {};
+  const slots = suggestAppointmentSlots(8);
+  const row = {
+    user_id: req.user.id,
+    client_id: b.clientId != null && b.clientId !== "" ? b.clientId : null,
+    channel: typeof b.channel === "string" ? b.channel : "manuel",
+    contact_name: String(b.contactName || ""),
+    contact_phone: String(b.contactPhone || ""),
+    contact_email: b.contactEmail || null,
+    problem_type: String(b.problemType || ""),
+    problem_detail: String(b.problemDetail || ""),
+    urgency: b.urgency === "urgent" ? "urgent" : "normal",
+    address: String(b.address || ""),
+    status: "nouveau",
+    ai_suggested_slots: slots,
+    internal_notes: String(b.internalNotes || ""),
+    updated_at: new Date().toISOString(),
+  };
+  const { data: created, error } = await db().from("booking_requests").insert(row).select("*").single();
+  if (error) return res.status(500).json({ message: error.message });
+  await addNotification(req.user.id, `Nouvelle demande de RDV (${row.channel})`, "warning");
+  res.json({ bookingRequest: mapBookingRequest(created) });
+});
+
+app.patch("/api/booking-requests/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("booking_requests").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Demande introuvable." });
+  const b = req.body || {};
+  const updates = { updated_at: new Date().toISOString() };
+  const statusOk = ["nouveau", "qualifie", "propose", "confirme", "annule"];
+  if (typeof b.status === "string" && statusOk.includes(b.status)) updates.status = b.status;
+  if (typeof b.internalNotes === "string") updates.internal_notes = b.internalNotes;
+  if (b.scheduledAt !== undefined) {
+    updates.scheduled_at = b.scheduledAt && String(b.scheduledAt).trim() ? b.scheduledAt : null;
+  }
+  if (Array.isArray(b.aiSuggestedSlots)) updates.ai_suggested_slots = b.aiSuggestedSlots;
+  if (typeof b.problemDetail === "string") updates.problem_detail = b.problemDetail;
+  if (typeof b.problemType === "string") updates.problem_type = b.problemType;
+  await db().from("booking_requests").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("booking_requests").select("*").eq("id", id).single();
+  res.json({ bookingRequest: mapBookingRequest(row) });
+});
+
+app.post("/api/booking-requests/:id/suggest-slots", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("booking_requests").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Demande introuvable." });
+  const slots = suggestAppointmentSlots(8);
+  const updates = { ai_suggested_slots: slots, status: "propose", updated_at: new Date().toISOString() };
+  await db().from("booking_requests").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("booking_requests").select("*").eq("id", id).single();
+  res.json({ bookingRequest: mapBookingRequest(row) });
+});
+
+app.get("/api/intervention-reports", auth, async (req, res) => {
+  const { data: rows } = await db()
+    .from("intervention_reports")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .order("created_at", { ascending: false });
+  res.json({ interventionReports: (rows || []).map(mapInterventionReport) });
+});
+
+app.post("/api/intervention-reports", auth, async (req, res) => {
+  const b = req.body || {};
+  let projectId = b.projectId != null && b.projectId !== "" ? b.projectId : null;
+  let clientId = b.clientId != null && b.clientId !== "" ? b.clientId : null;
+  if (projectId) {
+    const { data: p } = await db().from("projects").select("client_id").eq("id", projectId).eq("user_id", req.user.id).maybeSingle();
+    if (!p) return res.status(400).json({ message: "Chantier introuvable." });
+    clientId = p.client_id;
+  } else if (clientId) {
+    const { data: c } = await db().from("clients").select("id").eq("id", clientId).eq("user_id", req.user.id).maybeSingle();
+    if (!c) return res.status(400).json({ message: "Client introuvable." });
+  }
+  const transcript = String(b.transcript || "");
+  const { data: clientRow } = clientId
+    ? await db().from("clients").select("*").eq("id", clientId).eq("user_id", req.user.id).maybeSingle()
+    : { data: null };
+  const { data: projRow } = projectId
+    ? await db().from("projects").select("*").eq("id", projectId).eq("user_id", req.user.id).maybeSingle()
+    : { data: null };
+  const ctx = {
+    clientName: clientRow?.name || "",
+    siteAddress: projRow?.site_address || clientRow?.address || "",
+    companyName: COMPANY_INFO.name,
+  };
+  const useAi = b.useAi !== false;
+  const reportBody = useAi
+    ? await reportFromTranscript(transcript, ctx)
+    : reportFromTranscriptLocal(transcript, ctx);
+  const photoUrls = Array.isArray(b.photoUrls) ? b.photoUrls.filter((u) => typeof u === "string") : [];
+  const { data: created, error } = await db()
+    .from("intervention_reports")
+    .insert({
+      user_id: req.user.id,
+      project_id: projectId,
+      client_id: clientId,
+      transcript,
+      report_body: reportBody,
+      photo_urls: photoUrls,
+    })
+    .select("*")
+    .single();
+  if (error) return res.status(500).json({ message: error.message });
+  await addNotification(req.user.id, "Compte-rendu d'intervention généré", "success");
+  res.json({ interventionReport: mapInterventionReport(created) });
+});
+
+app.patch("/api/intervention-reports/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("intervention_reports").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Compte-rendu introuvable." });
+  const b = req.body || {};
+  const updates = {};
+  if (typeof b.transcript === "string") updates.transcript = b.transcript;
+  if (typeof b.reportBody === "string") updates.report_body = b.reportBody;
+  if (Array.isArray(b.photoUrls)) updates.photo_urls = b.photoUrls.filter((u) => typeof u === "string");
+  if (Object.keys(updates).length) await db().from("intervention_reports").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("intervention_reports").select("*").eq("id", id).single();
+  res.json({ interventionReport: mapInterventionReport(row) });
+});
+
+app.post("/api/intervention-reports/:id/regenerate", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("intervention_reports").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Compte-rendu introuvable." });
+  const { data: clientRow } = cur.client_id
+    ? await db().from("clients").select("*").eq("id", cur.client_id).maybeSingle()
+    : { data: null };
+  const { data: projRow } = cur.project_id
+    ? await db().from("projects").select("*").eq("id", cur.project_id).maybeSingle()
+    : { data: null };
+  const ctx = {
+    clientName: clientRow?.name || "",
+    siteAddress: projRow?.site_address || clientRow?.address || "",
+    companyName: COMPANY_INFO.name,
+  };
+  const useAi = req.body?.useAi !== false;
+  const reportBody = useAi
+    ? await reportFromTranscript(cur.transcript || "", ctx)
+    : reportFromTranscriptLocal(cur.transcript || "", ctx);
+  await db().from("intervention_reports").update({ report_body: reportBody }).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("intervention_reports").select("*").eq("id", id).single();
+  res.json({ interventionReport: mapInterventionReport(row) });
+});
+
+app.post("/api/intervention-reports/:id/notify-client", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("intervention_reports").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Compte-rendu introuvable." });
+  if (!cur.client_id) return res.status(400).json({ message: "Aucun client lié." });
+  const { data: client } = await db().from("clients").select("*").eq("id", cur.client_id).eq("user_id", req.user.id).maybeSingle();
+  if (!client?.email) return res.status(400).json({ message: "Le client n'a pas d'e-mail." });
+  if (!transporter) return res.status(503).json({ message: "E-mail non configuré (SMTP)." });
+  const subject = `Compte-rendu d'intervention — ${COMPANY_INFO.name}`;
+  const text =
+    `Bonjour ${client.name},\n\n` +
+    `Veuillez trouver ci-dessous le compte-rendu de notre passage.\n\n` +
+    `${cur.report_body || ""}\n\n` +
+    `Cordialement,\n${COMPANY_INFO.name}\n${COMPANY_INFO.phone}`;
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || "PlombiCRM <no-reply@plombicrm.fr>",
+      to: client.email,
+      subject,
+      text,
+    });
+    const nowIso = new Date().toISOString();
+    await db().from("intervention_reports").update({ client_email_sent_at: nowIso }).eq("id", id).eq("user_id", req.user.id);
+    const { data: row } = await db().from("intervention_reports").select("*").eq("id", id).single();
+    res.json({ interventionReport: mapInterventionReport(row), emailSent: true });
+  } catch (e) {
+    res.status(500).json({ message: e instanceof Error ? e.message : "Envoi impossible." });
+  }
+});
+
+app.post("/api/material-orders/from-quote/:quoteId", auth, async (req, res) => {
+  const quoteId = req.params.quoteId;
+  const { data: quote } = await db().from("quotes").select("*").eq("id", quoteId).eq("user_id", req.user.id).maybeSingle();
+  if (!quote) return res.status(404).json({ message: "Devis introuvable." });
+  const { data: service } = await db().from("services").select("*").eq("id", quote.service_id).maybeSingle();
+  const useAi = req.body?.useAi !== false;
+  const lines = useAi
+    ? await materialOrderLinesFromQuote(quote, service?.name || "")
+    : materialOrderLinesLocal(quote, service?.name || "");
+  const quoteRef = `DV-${String(quote.id).padStart(5, "0")}`;
+  const title = `Commande matériaux — ${quoteRef}`;
+  const { data: created, error } = await db()
+    .from("material_orders")
+    .insert({
+      user_id: req.user.id,
+      quote_id: quote.id,
+      title,
+      lines,
+      supplier_notes: "",
+      status: "brouillon",
+    })
+    .select("*")
+    .single();
+  if (error) return res.status(500).json({ message: error.message });
+  await addNotification(req.user.id, `Liste matériaux générée (${quoteRef})`, "success");
+  res.json({ materialOrder: mapMaterialOrder(created) });
+});
+
+app.patch("/api/material-orders/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("material_orders").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Commande introuvable." });
+  const b = req.body || {};
+  const updates = {};
+  if (Array.isArray(b.lines)) updates.lines = b.lines;
+  if (typeof b.supplierNotes === "string") updates.supplier_notes = b.supplierNotes;
+  if (typeof b.title === "string") updates.title = b.title;
+  const stOk = ["brouillon", "commande", "recu"];
+  if (typeof b.status === "string" && stOk.includes(b.status)) updates.status = b.status;
+  if (Object.keys(updates).length) await db().from("material_orders").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("material_orders").select("*").eq("id", id).single();
+  res.json({ materialOrder: mapMaterialOrder(row) });
+});
+
+app.post("/api/warranties", auth, async (req, res) => {
+  const b = req.body || {};
+  const clientId = b.clientId;
+  if (!clientId) return res.status(400).json({ message: "Client requis." });
+  const { data: client } = await db().from("clients").select("*").eq("id", clientId).eq("user_id", req.user.id).maybeSingle();
+  if (!client) return res.status(400).json({ message: "Client introuvable." });
+  let projectId = b.projectId != null && b.projectId !== "" ? b.projectId : null;
+  if (projectId) {
+    const { data: p } = await db().from("projects").select("*").eq("id", projectId).eq("user_id", req.user.id).maybeSingle();
+    if (!p) return res.status(400).json({ message: "Chantier introuvable." });
+  }
+  const warrantyMonths = Number.isFinite(Number(b.warrantyMonths)) ? Math.min(120, Math.max(1, Number(b.warrantyMonths))) : 24;
+  const startRaw = b.startDate || new Date().toISOString().slice(0, 10);
+  const startDate = String(startRaw).slice(0, 10);
+  const endD = addMonths(startDate, warrantyMonths);
+  const endDate = formatDateIsoDate(endD);
+  const label = String(b.label || (projectId ? "Garantie chantier" : "Garantie travaux"));
+  const workSummary = String(b.workSummary || "");
+  let draft = buildCertificateBody({
+    companyName: COMPANY_INFO.name,
+    companyAddress: COMPANY_INFO.address,
+    companyPhone: COMPANY_INFO.phone,
+    clientName: client.name,
+    clientAddress: client.address,
+    workSummary,
+    startDate,
+    endDate,
+    warrantyMonths,
+  });
+  if (b.useAi !== false) {
+    draft = await polishCertificateText(draft, { companyName: COMPANY_INFO.name, clientName: client.name });
+  }
+  const { data: created, error } = await db()
+    .from("warranties")
+    .insert({
+      user_id: req.user.id,
+      project_id: projectId,
+      client_id: clientId,
+      label,
+      work_summary: workSummary,
+      warranty_months: warrantyMonths,
+      start_date: startDate,
+      end_date: endDate,
+      certificate_body: draft,
+    })
+    .select("*")
+    .single();
+  if (error) return res.status(500).json({ message: error.message });
+  await addNotification(req.user.id, `Garantie enregistrée — fin ${endDate}`, "success");
+  res.json({ warranty: mapWarranty(created) });
+});
+
+app.patch("/api/warranties/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("warranties").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Garantie introuvable." });
+  const b = req.body || {};
+  const updates = {};
+  if (typeof b.certificateBody === "string") updates.certificate_body = b.certificateBody;
+  if (typeof b.workSummary === "string") updates.work_summary = b.workSummary;
+  if (typeof b.label === "string") updates.label = b.label;
+  if (Object.keys(updates).length) await db().from("warranties").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("warranties").select("*").eq("id", id).single();
+  res.json({ warranty: mapWarranty(row) });
+});
+
+app.post("/api/sav-tickets", auth, async (req, res) => {
+  const b = req.body || {};
+  if (!b.clientId || !b.subject) return res.status(400).json({ message: "Client et objet requis." });
+  const { data: client } = await db().from("clients").select("id").eq("id", b.clientId).eq("user_id", req.user.id).maybeSingle();
+  if (!client) return res.status(400).json({ message: "Client introuvable." });
+  let warrantyId = b.warrantyId != null && b.warrantyId !== "" ? b.warrantyId : null;
+  if (warrantyId) {
+    const { data: w } = await db().from("warranties").select("id").eq("id", warrantyId).eq("user_id", req.user.id).maybeSingle();
+    if (!w) return res.status(400).json({ message: "Garantie introuvable." });
+  }
+  const { data: created, error } = await db()
+    .from("sav_tickets")
+    .insert({
+      user_id: req.user.id,
+      client_id: b.clientId,
+      warranty_id: warrantyId,
+      subject: String(b.subject),
+      description: String(b.description || ""),
+      status: "ouvert",
+      priority: b.priority === "urgent" ? "urgent" : "normal",
+      updated_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+  if (error) return res.status(500).json({ message: error.message });
+  await addNotification(req.user.id, `SAV : ${b.subject}`, "warning");
+  res.json({ savTicket: mapSavTicket(created) });
+});
+
+app.patch("/api/sav-tickets/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const { data: cur } = await db().from("sav_tickets").select("*").eq("id", id).eq("user_id", req.user.id).maybeSingle();
+  if (!cur) return res.status(404).json({ message: "Ticket introuvable." });
+  const b = req.body || {};
+  const updates = { updated_at: new Date().toISOString() };
+  const stOk = ["ouvert", "en_cours", "resolu", "ferme"];
+  if (typeof b.status === "string" && stOk.includes(b.status)) updates.status = b.status;
+  if (typeof b.description === "string") updates.description = b.description;
+  if (typeof b.subject === "string") updates.subject = b.subject;
+  if (b.priority === "urgent" || b.priority === "normal") updates.priority = b.priority;
+  await db().from("sav_tickets").update(updates).eq("id", id).eq("user_id", req.user.id);
+  const { data: row } = await db().from("sav_tickets").select("*").eq("id", id).single();
+  res.json({ savTicket: mapSavTicket(row) });
+});
+
+const handleWarrantyCron = async (req, res) => {
+  try {
+    const dryRun = Boolean(req.body?.dryRun);
+    const out = await executeWarrantyReminders({ dryRun });
+    const status = out.errors?.length && !out.sent30 && !out.sent7 ? 503 : 200;
+    res.status(status).json({ ok: true, ...out });
+  } catch (e) {
+    console.error("[cron/warranty-reminders]", e);
+    res.status(500).json({ ok: false, errors: [{ detail: e instanceof Error ? e.message : String(e) }] });
+  }
+};
+
+app.get("/api/cron/warranty-reminders", cronRelancesAuth, (req, res) => {
+  void handleWarrantyCron(req, res);
+});
+app.post("/api/cron/warranty-reminders", cronRelancesAuth, (req, res) => {
+  void handleWarrantyCron(req, res);
 });
 
 app.post("/api/reset", auth, async (req, res) => {
