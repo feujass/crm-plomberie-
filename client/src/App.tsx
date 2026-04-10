@@ -217,8 +217,11 @@ export default function App() {
 
   if (!data && !authVisible) {
     return (
-      <div className="main" style={{ padding: 40 }}>
-        <p>Chargement…</p>
+      <div className="main app-loading" role="status" aria-live="polite">
+        <div className="app-loading-inner">
+          <div className="app-loading-spinner" aria-hidden />
+          <p className="app-loading-text">Chargement…</p>
+        </div>
       </div>
     );
   }
@@ -1078,7 +1081,7 @@ function RapportsPanel({
             className="ring"
             id="conversion-ring"
             style={{
-              background: `conic-gradient(var(--primary) ${conversion * 3.6}deg, #e5e7eb 0deg)`,
+              background: `conic-gradient(var(--primary) ${conversion * 3.6}deg, var(--border) 0deg)`,
             }}
           />
           <p className="muted">Devis convertis en contrats</p>
