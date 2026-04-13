@@ -545,7 +545,14 @@ async def get_dashboard_stats(user=Depends(get_current_user)):
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     all_devis = await db.devis.find({"user_id": user["id"]}).to_list(1000)
-    month_devis = [d for d in all_devis if d.get("created_at") and d["created_at"] >= month_start]
+    def is_this_month(d):
+        ca = d.get("created_at")
+        if not ca:
+            return False
+        if ca.tzinfo is None:
+            ca = ca.replace(tzinfo=timezone.utc)
+        return ca >= month_start
+    month_devis = [d for d in all_devis if is_this_month(d)]
     accepted = [d for d in all_devis if d.get("statut") == "accepte"]
     sent_waiting = [d for d in all_devis if d.get("statut") == "envoye"]
 
