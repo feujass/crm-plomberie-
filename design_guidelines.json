@@ -1,0 +1,82 @@
+{
+  "theme": "light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast) adapted for Industrial/Blue-Collar",
+  "mood": "Utilitarian, Rugged, High-Visibility, Trustworthy",
+  "colors": {
+    "background": "#F4F4F5",
+    "surface": "#FFFFFF",
+    "primary": "#E15C32",
+    "primary_hover": "#C94824",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "border": "#E4E4E7",
+    "status": {
+      "success": "#16A34A",
+      "warning": "#F59E0B",
+      "error": "#DC2626",
+      "info": "#2563EB",
+      "draft": "#71717A"
+    }
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Chivo",
+      "weights": ["400", "700", "900"],
+      "usage": "Use tight letter spacing (tracking-tight) for all headings. Never center-align. Keep it punchy and left-aligned."
+    },
+    "body": {
+      "font_family": "IBM Plex Sans",
+      "weights": ["400", "500", "600"],
+      "usage": "Technical body font, ideal for clear legibility on numbers (quotes/invoices) in harsh outdoor environments."
+    }
+  },
+  "spacing_and_layout": {
+    "system": "Generous Spacing (Tailwind Scale). Padding defaults to p-4 or p-6 for cards. Use p-8 for major sections.",
+    "grid_strategy": "Control Room Grid (Dense, Data Correlation) for Dashboard KPIs. Use grid-cols-2 for mobile screens, ensuring elements stretch fully.",
+    "mobile_specific": "Bottom Tab Navigation is MANDATORY. Use glassmorphism (`backdrop-blur-xl bg-white/90 border-t border-zinc-200`) to maintain context while scrolling. Tap targets minimum 48x48px."
+  },
+  "surfaces_and_components": {
+    "cards": "Neumorphism (The 'Tactile' Variant) adapted for high-visibility. Flat white background, sharp 1px border (`border-zinc-200`), heavy ambient shadow (`shadow-md`).",
+    "buttons": "Large, chunky, solid background. Primary buttons use Copper/Orange (#E15C32) with dark inner shadow for physical press feel. High contrast.",
+    "badges": "Solid background colors with white text for status tracking (Brouillon/Envoyé/Accepté). Avoid low-contrast pastel backgrounds. For example, solid Blue for 'Envoyé', solid Green for 'Accepté', Outline/Zinc for 'Brouillon'.",
+    "forms": "Use customized Shadcn components. Input fields must have `bg-white`, solid `border-zinc-300`, and focus ring of `ring-primary/20`. Large tap areas."
+  },
+  "motion_and_interactions": {
+    "hover_states": "Buttons darken slightly, cards lift `-translate-y-1`.",
+    "active_states": "Tactile press effect: `scale-95` on tap.",
+    "transitions": "Snappy, fast micro-interactions (`duration-150 ease-out`)."
+  },
+  "images_and_media": {
+    "strategy": "Use images for onboarding, empty states, and marketing material. Avoid generic graphics; prefer industrial, tactile textures.",
+    "urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1769376695235-d3253548a5d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxjb3BwZXIlMjBwaXBlcyUyMHRleHR1cmV8ZW58MHx8fHwxNzc2MDczMDQxfDA&ixlib=rb-4.1.0&q=85",
+        "category": "onboarding_bg",
+        "description": "Copper pipes forming a cross shape on blue background. Use with heavy gradient overlay (`bg-zinc-900/80`) as background for Login or Onboarding step 1."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1676210134190-3f2c0d5cf58d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHxwbHVtYmVyJTIwd29ya2luZ3xlbnwwfHx8fDE3NzYwNzMwMzB8MA&ixlib=rb-4.1.0&q=85",
+        "category": "profile_or_hero",
+        "description": "Plumber fixing water heater. Good for empty states in 'Clients' or 'Catalogue'."
+      },
+      {
+        "url": "https://images.pexels.com/photos/6419128/pexels-photo-6419128.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "quote_empty_state",
+        "description": "Close-up of a plumber's hands installing pipes. Perfect for 'Create your first quote' empty state visual."
+      }
+    ]
+  },
+  "instructions_to_main_agent": {
+    "general": "Build this as a highly mobile-optimized React application representing the React Native Expo app (SaaS CRM). Focus on responsive design but explicitly design for a mobile/tablet portrait viewport as the primary consumption method. The entire layout should feel like a native app (no generic website headers).",
+    "navigation": "Implement bottom tab bar (Accueil, Devis, Clients, Catalogue, Factures) using fixed positioning at the bottom (`fixed bottom-0 w-full z-50`).",
+    "language": "All UI text MUST be in French.",
+    "testing": "All interactive elements must have `data-testid` (e.g., `data-testid=\"nav-devis\"`).",
+    "icons": "Use lucide-react. Standardize stroke-width to 2 or 2.5 for a slightly bolder, utilitarian feel.",
+    "specific_features": {
+      "quote_creation": "Must have a prominent 'Voice Input' style floating action button or primary CTA (Microphone icon) for AI generation.",
+      "quote_editor": "Use ledger-style tables (tight grid layout with visible borders) for line items, showing Description, Qté, Unité, PU HT, TVA.",
+      "dashboard": "Use Bento grid (Control Room pattern) for KPIs like 'Devis acceptés', 'CA du mois', 'En attente'. Use thick borders and strong typography.",
+      "client_detail": "Show highly visible quick actions (Appeler, Email, Nouveau Devis) at the top of the client profile."
+    }
+  }
+}
