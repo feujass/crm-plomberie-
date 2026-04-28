@@ -1,0 +1,103 @@
+import { updateClientAction } from "@/app/actions/clients";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { backendFetch } from "@/lib/backend/server";
+import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import type { BackendClientDetail } from "@/types/backend";
+
+type Props = { params: Promise<{ id: string }> };
+
+export default async function ClientDetailPage({ params }: Props) {
+  const { id } = await params;
+  let client: BackendClientDetail | null = null;
+  try {
+    client = (await backendFetch(`/api/clients/${id}`)) as BackendClientDetail;
+  } catch {
+    client = null;
+  }
+  if (!client) notFound();
+
+  const devis = client.devis ?? [];
+  const factures = client.factures ?? [];
+  const ca = Number(client.ca_total ?? 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <a href={`tel:${client.tel || ""}`} className="text-sm text-sky-600 hover:underline">
+          Appeler
+        </a>
+        <a href={`mailto:${client.email || ""}`} className="text-sm text-sky-600 hover:underline">
+          Email
+        </a>
+        <Link href={`/devis/nouveau?client=${id}`} className="text-sm text-sky-600 hover:underline">
+          Nouveau devis
+        </Link>
+        <Link href={`/chantiers/nouveau?client=${id}`} className="text-sm text-sky-600 hover:underline">
+          Nouveau chantier
+        </Link>
+      </div>
+
+      <Card title="Fiche client">
+        <form action={updateClientAction.bind(null, id)} className="space-y-3">
+          <Input label="Nom" name="nom" defaultValue={client.nom} required />
+          <Input label="Prénom" name="prenom" defaultValue={client.prenom ?? ""} />
+          <Input label="Email" name="email" type="email" defaultValue={client.email ?? ""} />
+          <Input label="Téléphone" name="tel" type="tel" defaultValue={client.tel ?? ""} />
+          <Input label="Adresse" name="adresse" defaultValue={client.adresse ?? ""} />
+          <label className="block text-sm font-medium">
+            Type
+            <select
+              name="type"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              defaultValue={client.type}
+            >
+              <option value="particulier">Particulier</option>
+              <option value="professionnel">Professionnel</option>
+            </select>
+          </label>
+          <Input label="SIRET" name="siret" defaultValue={client.siret ?? ""} />
+          <Textarea label="Notes" name="notes" defaultValue={client.notes ?? ""} rows={3} />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="inactive" defaultChecked={client.inactive} />
+            Client inactif
+          </label>
+          <Button type="submit">Mettre à jour</Button>
+        </form>
+      </Card>
+
+      <Card title={`CA factures payées : ${formatCurrencyEUR(ca)}`}>
+        <p className="text-sm text-slate-600">Historique</p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {(devis ?? []).map((d) => (
+            <li key={d.id}>
+              <Link href={`/devis/${d.id}`} className="text-sky-600 hover:underline">
+                {d.numero}
+              </Link>{" "}
+              <Badge statut={d.statut ?? "—"} /> {formatCurrencyEUR(Number(d.total_ttc))} — {formatDateFr(d.created_at)}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-slate-500">
+          Chantiers : bientôt (non exposés côté backend pour l’instant).
+        </p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {(factures ?? []).map((f) => (
+            <li key={f.id}>
+              Facture :{" "}
+              <Link href={`/facturation/${f.id}`} className="text-sky-600 hover:underline">
+                {f.numero}
+              </Link>{" "}
+              <Badge statut={f.statut ?? "—"} /> {formatCurrencyEUR(Number(f.total_ttc))}
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}

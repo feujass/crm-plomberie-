@@ -1,9 +1,15 @@
 .env
+.env*.local
 node_modules/
+# Dossier volumineux d’imports (référence) — ne doit pas impacter Next/TS/Git
+_incoming/
 data/
 .DS_Store
 .vercel
+.next/
+.turbo/
+out/
 
-# Build Vite (ne jamais versionner : les hash changent à chaque build → casse le déploiement Vercel)
+# Legacy Vite build artifacts (si présents)
 /public/index.html
 /public/assets/
