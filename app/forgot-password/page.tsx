@@ -16,8 +16,12 @@ export default function ForgotPasswordPage() {
     setError(null);
     setMessage(null);
     setLoading(true);
-    setLoading(false);
-    setError("Réinitialisation non disponible : le backend FastAPI ne gère pas encore les emails de reset.");
+    try {
+      await Promise.resolve();
+      setError("Réinitialisation non disponible : le backend FastAPI ne gère pas encore les emails de reset.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

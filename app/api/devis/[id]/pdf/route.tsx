@@ -18,7 +18,12 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
   if (!devis) return NextResponse.json({ message: "Introuvable" }, { status: 404 });
 
-  const profile = (await backendFetch("/api/profile")) as BackendProfile;
+  let profile: BackendProfile = {};
+  try {
+    profile = (await backendFetch("/api/profile")) as BackendProfile;
+  } catch {
+    profile = {};
+  }
 
   let client: { nom: string; prenom: string | null; adresse: string | null } | null = null;
   if (devis.client_id) {
