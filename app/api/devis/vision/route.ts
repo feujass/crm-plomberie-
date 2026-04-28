@@ -1,14 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
+import { backendFetch } from "@/lib/backend/server";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
+import type { BackendMeResponse, BackendOuvrage } from "@/types/backend";
+
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  let me: BackendMeResponse;
+  try {
+    me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+  } catch {
+    return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  }
 
   const formData = (await req.formData()) as unknown as { get: (name: string) => unknown };
   const file = formData.get("file");
@@ -25,8 +28,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "OPENAI_API_KEY manquant" }, { status: 500 });
   }
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-  const { data: ouvrages } = await supabase.from("ouvrages").select("nom, description, prix_ht, unite, tva, type").eq("user_id", user.id).limit(40);
+  const profile = me.profile ?? {};
+  let ouvrages: BackendOuvrage[] = [];
+  try {
+    ouvrages = (await backendFetch("/api/ouvrages")) as BackendOuvrage[];
+  } catch {
+    ouvrages = [];
+  }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const catalogue = JSON.stringify(ouvrages ?? [], null, 0);
@@ -61,7 +69,7 @@ TVA défaut ${profile?.tva_defaut ?? 10}%. Ouvrages: ${catalogue}`;
   }
 
   const z = devisIaResponseSchema.safeParse(parsed);
-  if (!z.success) return NextResponse.json({ message: "Schéma invalide" }, { status: 422 });
+  if (!z.success) return NextResponse.json({ message: "Schéma invalide", details: z.error.flatten() }, { status: 422 });
 
   const lignes = z.data.lignes.map((l, i) => ({
     section: l.section ?? null,

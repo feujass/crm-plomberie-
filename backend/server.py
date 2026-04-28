@@ -37,10 +37,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # ─── CORS ─────────────────────────────────────────────────────────
+def _cors_allowed_origins() -> List[str]:
+    """CORS_ALLOW_ORIGINS = liste séparée par des virgules. Défaut * (dev). Ex. prod: https://app.flowo.fr"""
+    raw = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
+    if not raw:
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=_cors_allowed_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -129,6 +137,9 @@ class ProfileUpdate(BaseModel):
     conditions_paiement: Optional[str] = None
     onboarding_step: Optional[int] = None
     onboarding_complete: Optional[bool] = None
+    pays: Optional[str] = None
+    use_personal_library: Optional[bool] = None
+    assistant_name: Optional[str] = None
 
 class ChantierInput(BaseModel):
     name: str
@@ -196,6 +207,7 @@ class DevisLineInput(BaseModel):
 class DevisInput(BaseModel):
     client_id: Optional[str] = None
     notes: Optional[str] = ""
+    internal_notes: Optional[str] = ""
     date_expiration: Optional[str] = None
     remise_type: Optional[str] = None
     remise_valeur: Optional[float] = 0
@@ -205,9 +217,14 @@ class DevisUpdateInput(BaseModel):
     client_id: Optional[str] = None
     statut: Optional[str] = None
     notes: Optional[str] = None
+    internal_notes: Optional[str] = None
     date_expiration: Optional[str] = None
     remise_type: Optional[str] = None
     remise_valeur: Optional[float] = None
+
+
+class InternalNoteAppendInput(BaseModel):
+    text: str
 
 class PaiementInput(BaseModel):
     montant: float
@@ -467,9 +484,33 @@ async def delete_ouvrage(ouvrage_id: str, user=Depends(get_current_user)):
 @api.post("/ouvrages/seed-defaults")
 async def seed_default_ouvrages(user=Depends(get_current_user)):
     defaults = [
-        {"nom": "Main d'œuvre plomberie", "description": "Tarif horaire main d'œuvre", "type": "main_oeuvre", "prix_ht": 55, "unite": "h", "tva": 10, "tags": ["main_oeuvre"]},
-        {"nom": "Remplacement robinet", "description": "Fourniture et pose d'un robinet standard", "type": "ouvrage", "prix_ht": 120, "unite": "forfait", "tva": 10, "tags": ["sanitaire"]},
-        {"nom": "Pose chauffe-eau", "description": "Installation complète chauffe-eau", "type": "ouvrage", "prix_ht": 350, "unite": "forfait", "tva": 10, "tags": ["chauffage"]},
+        {
+            "nom": "Taux horaire standard",
+            "description": "Tarif horaire de base pour la main d'œuvre",
+            "type": "main_oeuvre",
+            "prix_ht": 50,
+            "unite": "h",
+            "tva": 10,
+            "tags": ["exemple"],
+        },
+        {
+            "nom": "Lame de parquet chêne massif",
+            "description": "Exemple de fourniture — personnalisable après ajout.",
+            "type": "fourniture",
+            "prix_ht": 48,
+            "unite": "m²",
+            "tva": 10,
+            "tags": ["exemple", "fourniture"],
+        },
+        {
+            "nom": "Pose et finition",
+            "description": "Exemple d'ouvrage — prestation et mise en œuvre.",
+            "type": "ouvrage",
+            "prix_ht": 35,
+            "unite": "m²",
+            "tva": 10,
+            "tags": ["exemple"],
+        },
     ]
     for d in defaults:
         d["user_id"] = user["id"]
@@ -495,9 +536,15 @@ async def get_next_devis_number(user_id):
     return f"DEV-{year}-{count + 1:04d}"
 
 @api.get("/devis")
-async def list_devis(user=Depends(get_current_user), search: str = "", statut: str = ""):
+async def list_devis(user=Depends(get_current_user), search: str = "", statut: str = "", segment: str = ""):
     query = {"user_id": user["id"]}
-    if statut:
+    if segment == "brouillon":
+        query["statut"] = "brouillon"
+    elif segment == "en_cours":
+        query["statut"] = {"$in": ["envoye"]}
+    elif segment == "termine":
+        query["statut"] = {"$in": ["accepte", "refuse", "facture", "archive", "expire"]}
+    elif statut:
         query["statut"] = statut
     if search:
         query["$or"] = [
@@ -540,6 +587,7 @@ async def create_devis(input: DevisInput, user=Depends(get_current_user)):
         "total_tva": round(total_tva, 2),
         "total_ttc": round(total_ttc, 2),
         "notes": input.notes or "",
+        "internal_notes": input.internal_notes or "",
         "date_expiration": input.date_expiration or "",
         "remise_type": input.remise_type or "",
         "remise_valeur": input.remise_valeur or 0,
@@ -567,6 +615,26 @@ async def update_devis(devis_id: str, input: DevisUpdateInput, user=Depends(get_
     await db.devis.update_one({"_id": ObjectId(devis_id), "user_id": user["id"]}, {"$set": update_data})
     d = await db.devis.find_one({"_id": ObjectId(devis_id)})
     return serialize_doc(d)
+
+
+@api.post("/devis/{devis_id}/internal-notes")
+async def append_internal_note(devis_id: str, body: InternalNoteAppendInput, user=Depends(get_current_user)):
+    """Ajoute une note interne au devis (n’apparaît pas au client)."""
+    fragment = body.text.strip() if isinstance(body.text, str) else ""
+    if not fragment:
+        raise HTTPException(status_code=400, detail="Texte vide")
+    d = await db.devis.find_one({"_id": ObjectId(devis_id), "user_id": user["id"]})
+    if not d:
+        raise HTTPException(status_code=404, detail="Devis non trouvé")
+    prev = str(d.get("internal_notes") or "").strip()
+    new_val = f"{prev}\n\n{fragment}" if prev else fragment
+    await db.devis.update_one(
+        {"_id": ObjectId(devis_id), "user_id": user["id"]},
+        {"$set": {"internal_notes": new_val}},
+    )
+    rd = await db.devis.find_one({"_id": ObjectId(devis_id)})
+    return serialize_doc(rd)
+
 
 @api.put("/devis/{devis_id}/lignes")
 async def update_devis_lignes(devis_id: str, lignes: List[DevisLineInput], user=Depends(get_current_user)):
@@ -675,13 +743,19 @@ async def get_dashboard_stats(user=Depends(get_current_user)):
             ca = ca.replace(tzinfo=timezone.utc)
         return ca >= month_start
     month_devis = [d for d in all_devis if is_this_month(d)]
-    accepted = [d for d in all_devis if d.get("statut") == "accepte"]
     sent_waiting = [d for d in all_devis if d.get("statut") == "envoye"]
+    # Un devis facturé passe en statut "facture" (voir /factures/from-devis) : il reste un devis "gagné"
+    # comme "accepte" pour le CA ; le taux doit les inclure au numérateur et au dénominateur.
+    statuts_acceptes = ("accepte", "facture")
+    statuts_taux_denombre = ("envoye", "accepte", "refuse", "facture")
 
     ca_mois = sum(d.get("total_ttc", 0) for d in month_devis if d.get("statut") in ["accepte", "facture"])
-    total_accepted = len(accepted)
-    total_sent = len([d for d in all_devis if d.get("statut") in ["envoye", "accepte", "refuse"]])
-    taux_acceptation = round((total_accepted / total_sent * 100) if total_sent > 0 else 0, 1)
+    total_accepted = len([d for d in all_devis if d.get("statut") in statuts_acceptes])
+    total_envoyes_avec_reponse = len([d for d in all_devis if d.get("statut") in statuts_taux_denombre])
+    taux_acceptation = round(
+        (total_accepted / total_envoyes_avec_reponse * 100) if total_envoyes_avec_reponse > 0 else 0,
+        1,
+    )
     montant_attente = sum(d.get("total_ttc", 0) for d in sent_waiting)
 
     # Recent devis
@@ -755,7 +829,7 @@ async def get_dashboard_rentabilite(user=Depends(get_current_user)):
 
     devis_crees = len(all_devis)
     devis_envoyes = len([d for d in all_devis if d.get("statut") == "envoye"])
-    devis_acceptes = len([d for d in all_devis if d.get("statut") == "accepte"])
+    devis_acceptes = len([d for d in all_devis if d.get("statut") in ("accepte", "facture")])
     devis_refuses = len([d for d in all_devis if d.get("statut") == "refuse"])
     montant_moyen_devis = (
         round(sum(float(d.get("total_ttc") or 0) for d in all_devis) / len(all_devis), 2) if all_devis else 0.0
@@ -793,7 +867,7 @@ async def get_dashboard_rentabilite(user=Depends(get_current_user)):
                 [
                     d
                     for d in all_devis
-                    if d.get("statut") not in ("brouillon", "envoye", "accepte", "refuse")
+                    if d.get("statut") not in ("brouillon", "envoye", "accepte", "refuse", "facture")
                 ]
             ),
         },

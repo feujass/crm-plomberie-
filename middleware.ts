@@ -24,6 +24,7 @@ export async function middleware(request: NextRequest) {
     "/assistant",
     "/facturation",
     "/parametres",
+    "/compte",
     "/onboarding",
   ];
   const isProtected = protectedRoots.some((r) => pathname === r || pathname.startsWith(`${r}/`));
@@ -41,8 +42,14 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+/** Ne pas exécuter le middleware sur les requêtes d’actions serveur (`next-action`) : exécuter quoi que ce soit
+ * ici (redirect, headers) peut empêcher Next de renvoyer une réponse Flight valide → E394 côté client.
+ * Voir https://github.com/vercel/next.js/discussions/87651 */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+      missing: [{ type: "header", key: "next-action" }],
+    },
   ],
 };

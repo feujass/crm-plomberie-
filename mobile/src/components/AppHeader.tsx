@@ -15,7 +15,7 @@ export function AppHeader() {
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + 8 }]}>
-      <Text style={styles.logo}>P</Text>
+      <Text style={styles.logo}>F</Text>
       <Pressable style={styles.support} onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>
         <Text style={styles.supportIcon}>?</Text>
         <Text style={styles.supportTxt}>Support</Text>

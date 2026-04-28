@@ -1,8 +1,6 @@
-import { addPaiementAction } from "@/app/actions/factures";
+import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiementFormClient";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { backendFetch } from "@/lib/backend/server";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import Link from "next/link";
@@ -65,25 +63,7 @@ export default async function FactureDetailPage({ params }: Props) {
             </li>
           ))}
         </ul>
-        <form action={addPaiementAction.bind(null, id)} className="flex flex-wrap gap-2">
-          <Input label="Montant" name="montant" type="number" step="0.01" required />
-          <Input label="Date" name="date" type="date" required />
-          <label className="block text-sm font-medium">
-            Mode
-            <select
-              name="mode"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-              defaultValue="virement"
-            >
-              <option value="virement">Virement</option>
-              <option value="cheque">Chèque</option>
-              <option value="especes">Espèces</option>
-              <option value="cb">CB</option>
-              <option value="autre">Autre</option>
-            </select>
-          </label>
-          <Button type="submit">Enregistrer paiement</Button>
-        </form>
+        <FacturePaiementFormClient factureId={id} />
       </Card>
     </div>
   );

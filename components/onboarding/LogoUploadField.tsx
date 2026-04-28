@@ -3,7 +3,14 @@
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
 
+function isSupabaseEnvConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim(),
+  );
+}
+
 export function LogoUploadField() {
+  const supabaseOk = isSupabaseEnvConfigured();
   const [logoUrl, setLogoUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -13,28 +20,56 @@ export function LogoUploadField() {
     if (!file) return;
     setErr(null);
     setBusy(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setErr("Non connecté");
-      setBusy(false);
-      return;
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setErr("Non connecté (session Supabase)");
+        setBusy(false);
+        return;
+      }
+      const ext = file.name.split(".").pop() || "png";
+      const path = `${user.id}/logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("logos").upload(path, file, { upsert: true });
+      if (error) {
+        setErr(error.message);
+        setBusy(false);
+        return;
+      }
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("logos").getPublicUrl(path);
+      setLogoUrl(publicUrl);
+    } catch (uploadErr) {
+      setErr(uploadErr instanceof Error ? uploadErr.message : "Import impossible");
     }
-    const ext = file.name.split(".").pop() || "png";
-    const path = `${user.id}/logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("logos").upload(path, file, { upsert: true });
-    if (error) {
-      setErr(error.message);
-      setBusy(false);
-      return;
-    }
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("logos").getPublicUrl(path);
-    setLogoUrl(publicUrl);
     setBusy(false);
+  }
+
+  if (!supabaseOk) {
+    return (
+      <div className="text-sm">
+        <label className="mb-1 block font-medium text-slate-700 dark:text-slate-300" htmlFor="onboarding-logo-url">
+          Logo (URL)
+        </label>
+        <input
+          id="onboarding-logo-url"
+          name="logo_url"
+          type="url"
+          inputMode="url"
+          placeholder="https://…"
+          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+          value={logoUrl}
+          onChange={(ev) => setLogoUrl(ev.target.value)}
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Collez l’URL HTTPS de votre logo. L’upload fichier via Supabase est disponible si vous configurez{" "}
+          <code className="rounded bg-[var(--muted)] px-1">NEXT_PUBLIC_SUPABASE_*</code>.
+        </p>
+      </div>
+    );
   }
 
   return (

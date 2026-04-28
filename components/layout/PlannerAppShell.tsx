@@ -1,18 +1,9 @@
 "use client";
 
-import {
-  BarChart3,
-  BookOpen,
-  Euro,
-  FileText,
-  HelpCircle,
-  Home,
-  Settings,
-  type LucideIcon,
-  Users,
-  Wrench,
-  Zap,
-} from "lucide-react";
+import { BookOpen, Euro, FileText, HelpCircle, Home, type LucideIcon, Wrench } from "lucide-react";
+import type { ComponentType } from "react";
+
+import { AssistantNavZIcon } from "@/components/layout/AssistantNavZIcon";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,39 +18,43 @@ import { APP_LOGO_MARK_SRC, APP_NAME } from "@/lib/app-branding";
 
 import { AppBreadcrumbs } from "./AppBreadcrumbs";
 
-const NAV: { href: string; label: string; short: string; Icon: LucideIcon }[] = [
+type NavGlyph = LucideIcon | ComponentType<{ className?: string }>;
+
+/** Barre du bas mobile (profil → /compte dans l’en-tête). */
+const NAV_MOBILE: { href: string; label: string; short: string; Icon: NavGlyph }[] = [
   { href: "/accueil", label: "Accueil", short: "Accueil", Icon: Home },
-  { href: "/rentabilite", label: "Rentabilité", short: "Stats", Icon: BarChart3 },
   { href: "/devis", label: "Devis", short: "Devis", Icon: FileText },
-  { href: "/chantiers", label: "Chantiers", short: "Chantiers", Icon: Wrench },
-  { href: "/clients", label: "Clients", short: "Clients", Icon: Users },
-  { href: "/catalogue", label: "Catalogue", short: "Cat.", Icon: BookOpen },
-  { href: "/assistant", label: "Assistant IA", short: "IA", Icon: Zap },
+  { href: "/chantiers", label: "Chantiers", short: "Chant.", Icon: Wrench },
+  { href: "/catalogue", label: "Catalogue", short: "Ouvrages", Icon: BookOpen },
   { href: "/facturation", label: "Facturation", short: "Fact.", Icon: Euro },
-  { href: "/parametres", label: "Paramètres", short: "Régl.", Icon: Settings },
+  { href: "/assistant", label: "Assistant IA", short: "Assistant", Icon: AssistantNavZIcon },
 ];
 
 function MobileNavLink({
   href,
   label,
+  title,
   Icon,
 }: {
   href: string;
   label: string;
-  Icon: LucideIcon;
+  title?: string;
+  Icon: NavGlyph;
 }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
+      aria-label={title ?? label}
+      title={title ?? label}
       className={cx(
         "touch-target flex flex-1 flex-col items-center justify-center gap-0 px-0.5 text-[10px] font-semibold leading-none sm:text-xs",
-        active ? "text-[var(--primary)]" : "text-gray-600 dark:text-gray-400",
+        active ? "text-white" : "text-white/65",
         focusRing,
       )}
     >
-      <Icon className="size-4.5 shrink-0" aria-hidden />
+      <Icon className="size-5 shrink-0" aria-hidden />
       <span className="mt-0.5 max-w-full truncate">{label}</span>
     </Link>
   );
@@ -79,8 +74,8 @@ function DesktopChrome({
   return (
     <SidebarProvider defaultOpen={defaultSidebarOpen}>
       <PlombiAppSidebar prenom={prenom} email={email} />
-      <div className="flex min-h-svh min-w-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-950">
+      <div className="flex min-h-svh min-w-0 flex-1 flex-col bg-[var(--background)] dark:bg-gray-950">
+        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-gray-200/80 bg-[var(--background)] px-4 dark:border-gray-800 dark:bg-gray-950">
           <SidebarTrigger className="-ml-1 shrink-0" />
           <div className="mr-2 hidden h-4 w-px shrink-0 bg-gray-200 sm:block dark:bg-gray-800" />
           <div className="min-w-0 flex-1">
@@ -135,9 +130,9 @@ function MobileChrome({
         </Link>
         <div className="flex min-w-0 items-center justify-center">
           <Link
-            href="/parametres"
+            href="/assistant"
             className={cx(
-              "touch-target inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-white/30 px-3 py-1.5 text-xs font-medium text-white/95 hover:bg-white/10",
+              "touch-target inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-white/30 bg-black/10 px-3 py-1.5 text-xs font-medium text-white/95 hover:bg-white/10",
               focusRing,
             )}
           >
@@ -147,8 +142,8 @@ function MobileChrome({
         </div>
         <div className="flex items-center justify-end">
           <Link
-            href="/parametres"
-            aria-label="Profil et réglages"
+            href="/compte"
+            aria-label="Mon compte"
             className={cx(
               "flex size-9 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/15 text-sm font-semibold text-white hover:bg-white/25",
               focusRing,
@@ -160,9 +155,9 @@ function MobileChrome({
         </div>
       </header>
       <main className="flex-1 overflow-auto overflow-x-hidden p-3 pb-20 md:p-6 md:pb-6">{children}</main>
-      <nav className="fixed bottom-0 left-0 right-0 z-20 flex border-t border-gray-200 bg-white pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1 shadow-[0_-1px_10px_rgba(0,0,0,0.06)] dark:border-gray-800 dark:bg-gray-950">
-        {NAV.map((item) => (
-          <MobileNavLink key={item.href} href={item.href} label={item.short} Icon={item.Icon} />
+      <nav className="fixed bottom-0 left-0 right-0 z-20 flex border-t border-white/15 bg-[color:var(--primary)] pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-6px_24px_rgba(0,0,0,0.12)]">
+        {NAV_MOBILE.map((item) => (
+          <MobileNavLink key={item.href} href={item.href} label={item.short} title={item.label} Icon={item.Icon} />
         ))}
       </nav>
     </div>

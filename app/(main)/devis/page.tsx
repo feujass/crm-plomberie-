@@ -1,91 +1,104 @@
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { DevisRenatoCards } from "@/components/devis/DevisRenatoCards";
 import { backendFetch } from "@/lib/backend/server";
-import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
+import { FLOWO_SEARCH_INPUT_CLASS, flowoSegmentTabClass } from "@/lib/flowo-ui";
+import { cx, focusRing } from "@/lib/utils";
+import type { BackendClient, BackendDevis } from "@/types/backend";
+import { Search } from "lucide-react";
 import Link from "next/link";
-import type { BackendDevis } from "@/types/backend";
 
-type Search = { q?: string; statut?: string; tri?: string };
+type Search = { q?: string; segment?: string };
+
+const SEGMENTS = ["en_cours", "termine"] as const;
+const SEGMENT_LABEL: Record<(typeof SEGMENTS)[number], string> = {
+  en_cours: "En cours",
+  termine: "Terminé",
+};
+
+function buildDevisHref(segment: string, q: string) {
+  const p = new URLSearchParams();
+  p.set("segment", segment);
+  if (q.trim()) p.set("q", q.trim());
+  const s = p.toString();
+  return s ? `/devis?${s}` : "/devis";
+}
 
 export default async function DevisListPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const qs = new URLSearchParams();
-  if (sp.statut?.trim()) qs.set("statut", sp.statut.trim());
-  if (sp.q?.trim()) qs.set("search", sp.q.trim());
-  const rows = (await backendFetch(`/api/devis?${qs.toString()}`)) as BackendDevis[];
+  const rawSeg = sp.segment?.trim() ?? "";
+  const segment: (typeof SEGMENTS)[number] = SEGMENTS.includes(rawSeg as (typeof SEGMENTS)[number])
+    ? (rawSeg as (typeof SEGMENTS)[number])
+    : "en_cours";
+  const q = sp.q?.trim() ?? "";
 
-  const tri = sp.tri || "date";
+  const qs = new URLSearchParams();
+  qs.set("segment", segment);
+  if (q) qs.set("search", q);
+
+  const [rows, clients] = await Promise.all([
+    backendFetch(`/api/devis?${qs.toString()}`).catch(() => []) as Promise<BackendDevis[]>,
+    backendFetch("/api/clients").catch(() => []) as Promise<BackendClient[]>,
+  ]);
+
   const sorted = [...(rows ?? [])].sort((a, b) => {
-    if (tri === "montant") return Number(b.total_ttc ?? 0) - Number(a.total_ttc ?? 0);
     const da = a.created_at ? Date.parse(a.created_at) : 0;
     const db = b.created_at ? Date.parse(b.created_at) : 0;
     return db - da;
   });
 
+  const clientAddresses: Record<string, string> = {};
+  for (const c of clients ?? []) {
+    const addr = c.adresse?.trim();
+    if (addr) clientAddresses[String(c.id)] = addr;
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Devis</h1>
-        <Link href="/devis/nouveau" className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700">
+    <div className="space-y-5 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">
+          Suivi de vos devis
+        </h1>
+        <Link
+          href="/devis/nouveau"
+          className={cx(
+            "rounded-full bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95",
+            focusRing,
+          )}
+        >
           Nouveau devis
         </Link>
       </div>
 
-      <Card>
-        <form className="flex flex-wrap gap-2" method="get">
-          <input
-            name="q"
-            placeholder="Recherche numéro…"
-            defaultValue={sp.q}
-            className="min-w-[160px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
-          />
-          <select
-            name="statut"
-            defaultValue={sp.statut || ""}
-            className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-          >
-            <option value="">Tous statuts</option>
-            <option value="brouillon">Brouillon</option>
-            <option value="envoye">Envoyé</option>
-            <option value="accepte">Accepté</option>
-            <option value="refuse">Refusé</option>
-            <option value="expire">Expiré</option>
-            <option value="archive">Archivé</option>
-          </select>
-          <select
-            name="tri"
-            defaultValue={tri}
-            className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-          >
-            <option value="date">Tri date</option>
-            <option value="montant">Tri montant</option>
-          </select>
-          <button type="submit" className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-white dark:bg-slate-200 dark:text-slate-900">
-            Filtrer
-          </button>
-        </form>
-      </Card>
+      <form method="get" className="relative">
+        <input type="hidden" name="segment" value={segment} />
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+          aria-hidden
+        />
+        <input
+          name="q"
+          placeholder="Rechercher…"
+          defaultValue={q}
+          autoComplete="off"
+          className={FLOWO_SEARCH_INPUT_CLASS}
+        />
+      </form>
 
-      <ul className="space-y-2">
-        {sorted.map((d) => {
-          const nom = d.client_nom?.trim() || "—";
+      <div className="flex flex-wrap gap-2">
+        {SEGMENTS.map((key) => {
+          const active = segment === key;
           return (
-            <li key={d.id}>
-              <Link href={`/devis/${d.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
-                <div>
-                  <span className="font-semibold text-sky-700">{d.numero}</span>
-                  <span className="ml-2 text-sm text-slate-600">{nom}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Badge statut={d.statut ?? "—"} />
-                  <span>{formatCurrencyEUR(Number(d.total_ttc))} TTC</span>
-                  <span className="text-xs text-slate-400">{formatDateFr(d.created_at)}</span>
-                </div>
-              </Link>
-            </li>
+            <Link
+              key={key}
+              href={buildDevisHref(key, q)}
+              className={cx(focusRing, flowoSegmentTabClass(active))}
+            >
+              {SEGMENT_LABEL[key]}
+            </Link>
           );
         })}
-      </ul>
+      </div>
+
+      <DevisRenatoCards devis={sorted} clientAddresses={clientAddresses} listSegment={segment} />
     </div>
   );
 }

@@ -1,20 +1,28 @@
-import { createClient } from "@/lib/supabase/server";
+import { backendFetch } from "@/lib/backend/server";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
+import type { BackendMeResponse, BackendOuvrage } from "@/types/backend";
+
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  let me: BackendMeResponse;
+  try {
+    me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+  } catch {
+    return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  }
 
   const body = (await req.json()) as { text?: string };
   if (!body.text?.trim()) return NextResponse.json({ message: "Texte requis" }, { status: 400 });
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-  const { data: ouvrages } = await supabase.from("ouvrages").select("nom, description, prix_ht, unite, tva, type").eq("user_id", user.id).limit(40);
+  const profile = me.profile ?? {};
+  let ouvrages: BackendOuvrage[] = [];
+  try {
+    ouvrages = (await backendFetch("/api/ouvrages")) as BackendOuvrage[];
+  } catch {
+    ouvrages = [];
+  }
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ message: "OPENAI_API_KEY non configurée" }, { status: 500 });

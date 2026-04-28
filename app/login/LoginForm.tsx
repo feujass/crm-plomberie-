@@ -40,7 +40,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
     return (
       <input
         className={cn(
-          "flex h-10 w-full rounded-md border border-[#2a2d3a] bg-[#13151f] px-3 py-2 text-sm text-gray-200 ring-offset-[#090b13] placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-10 w-full rounded-md border border-[#2a2d3a] bg-[#13151f] px-3 py-2 text-base text-gray-200 ring-offset-[#090b13] placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
           className
         )}
         ref={ref}
@@ -322,7 +322,7 @@ export function LoginForm({
                 <div className="w-full border-t border-[#2a2d3a]" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-[#090b13] px-2 text-gray-400">ou</span>
+                <span className="bg-white px-2 text-gray-400 dark:bg-gray-900">ou</span>
               </div>
             </div>
 

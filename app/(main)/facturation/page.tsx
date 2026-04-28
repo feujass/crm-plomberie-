@@ -1,50 +1,124 @@
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { FacturesRenatoCards } from "@/components/facturation/FacturesRenatoCards";
 import { backendFetch } from "@/lib/backend/server";
-import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
+import { FLOWO_SEARCH_INPUT_CLASS, flowoSegmentTabClass } from "@/lib/flowo-ui";
+import { cx, focusRing } from "@/lib/utils";
+import type { BackendClient, BackendFacture } from "@/types/backend";
+import { Search } from "lucide-react";
 import Link from "next/link";
-import type { BackendFacture } from "@/types/backend";
 
-export default async function FacturationPage() {
-  const rows = (await backendFetch("/api/factures")) as BackendFacture[];
-  const sorted = [...(rows ?? [])].sort((a, b) => {
-    const da = a.date_emission ? Date.parse(a.date_emission) : 0;
-    const db = b.date_emission ? Date.parse(b.date_emission) : 0;
+type FacturationPageSearch = { q?: string; segment?: string };
+
+const SEGMENTS = ["en_cours", "termine"] as const;
+const SEGMENT_LABEL: Record<(typeof SEGMENTS)[number], string> = {
+  en_cours: "En cours",
+  termine: "Terminé",
+};
+
+function buildFacturesHref(segment: string, q: string) {
+  const p = new URLSearchParams();
+  p.set("segment", segment);
+  if (q.trim()) p.set("q", q.trim());
+  const s = p.toString();
+  return s ? `/facturation?${s}` : "/facturation";
+}
+
+const EN_COURS_STATUTS = new Set(["emise", "partiellement_payee"]);
+
+export default async function FacturationPage({ searchParams }: { searchParams: Promise<FacturationPageSearch> }) {
+  const sp = await searchParams;
+  const rawSeg = sp.segment?.trim() ?? "";
+  const segment: (typeof SEGMENTS)[number] = SEGMENTS.includes(rawSeg as (typeof SEGMENTS)[number])
+    ? (rawSeg as (typeof SEGMENTS)[number])
+    : "en_cours";
+  const q = sp.q?.trim() ?? "";
+  const qLower = q.toLowerCase();
+
+  const [allRows, clients] = await Promise.all([
+    backendFetch("/api/factures").catch(() => []) as Promise<BackendFacture[]>,
+    backendFetch("/api/clients").catch(() => []) as Promise<BackendClient[]>,
+  ]);
+
+  let rows = allRows ?? [];
+  if (qLower) {
+    rows = rows.filter(
+      (f) =>
+        (f.numero?.toLowerCase().includes(qLower) ?? false) ||
+        (f.client_nom?.toLowerCase().includes(qLower) ?? false),
+    );
+  }
+
+  const filtered = rows.filter((f) => {
+    const s = f.statut ?? "";
+    if (segment === "termine") return s === "payee";
+    return EN_COURS_STATUTS.has(s);
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const da = a.date_emission ? Date.parse(a.date_emission) : a.created_at ? Date.parse(a.created_at) : 0;
+    const db = b.date_emission ? Date.parse(b.date_emission) : b.created_at ? Date.parse(b.created_at) : 0;
     return db - da;
   });
 
+  const clientAddresses: Record<string, string> = {};
+  for (const c of clients ?? []) {
+    const addr = c.adresse?.trim();
+    if (addr) clientAddresses[String(c.id)] = addr;
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Facturation</h1>
-        <div className="flex gap-2">
+    <div className="space-y-5 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">
+          Suivi de vos factures
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href="/api/factures/export-csv"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+            className={cx(
+              "rounded-full border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50/80 hover:text-[color:var(--primary)] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/75",
+              focusRing,
+            )}
           >
             Export CSV
           </a>
         </div>
       </div>
-      <p className="text-sm text-slate-600">Créez une facture depuis un devis accepté (bouton Facturer sur le devis).</p>
-      <Card>
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {sorted.map((f) => {
-            const nom = f.client_nom?.trim() || "—";
-            return (
-              <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <Link href={`/facturation/${f.id}`} className="font-medium text-sky-700 hover:underline">
-                  {f.numero}
-                </Link>
-                <span className="text-sm text-slate-600">{nom}</span>
-                <Badge statut={f.statut ?? "—"} />
-                <span>{formatCurrencyEUR(Number(f.total_ttc))}</span>
-                <span className="text-xs text-slate-400">{formatDateFr(f.date_emission)}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Créez une facture depuis un devis accepté (bouton Facturer sur le devis).
+      </p>
+
+      <form method="get" className="relative">
+        <input type="hidden" name="segment" value={segment} />
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+          aria-hidden
+        />
+        <input
+          name="q"
+          placeholder="Rechercher…"
+          defaultValue={q}
+          autoComplete="off"
+          className={FLOWO_SEARCH_INPUT_CLASS}
+        />
+      </form>
+
+      <div className="flex flex-wrap gap-2">
+        {SEGMENTS.map((key) => {
+          const active = segment === key;
+          return (
+            <Link
+              key={key}
+              href={buildFacturesHref(key, q)}
+              className={cx(focusRing, flowoSegmentTabClass(active))}
+            >
+              {SEGMENT_LABEL[key]}
+            </Link>
+          );
+        })}
+      </div>
+
+      <FacturesRenatoCards factures={sorted} clientAddresses={clientAddresses} listSegment={segment} />
     </div>
   );
 }

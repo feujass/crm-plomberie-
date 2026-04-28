@@ -1,12 +1,10 @@
-import { ChantiersBoard } from "@/components/chantiers/ChantiersBoard";
-import Link from "next/link";
+import { ChantierCreateForm } from "@/components/chantiers/ChantierCreateForm";
+import { Card } from "@/components/ui/Card";
 import { backendFetch } from "@/lib/backend/server";
 import type { BackendClient, BackendDevis } from "@/types/backend";
-import type { Chantier } from "@/types/chantiers";
+import Link from "next/link";
 
 export default async function NouveauChantierPage() {
-  // Réutilise le board (formulaire intégré), et scroll côté client.
-  const chantiers = (await backendFetch("/api/chantiers").catch(() => [])) as Chantier[];
   const clients = (await backendFetch("/api/clients").catch(() => [])) as BackendClient[];
   const devis = (await backendFetch("/api/devis").catch(() => [])) as BackendDevis[];
 
@@ -15,7 +13,10 @@ export default async function NouveauChantierPage() {
       <Link href="/chantiers" className="text-sm text-[color:var(--primary)] hover:underline">
         ← Chantiers
       </Link>
-      <ChantiersBoard initialChantiers={chantiers} clients={clients} devis={devis} />
+      <h1 className="text-2xl font-bold">Nouveau chantier</h1>
+      <Card title="Informations">
+        <ChantierCreateForm clients={clients} devis={devis} />
+      </Card>
     </div>
   );
 }

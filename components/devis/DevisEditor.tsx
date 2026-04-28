@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  addDevisNoteAction,
-  archiveDevisAction,
-  duplicateDevisAction,
-  markDevisAccepte,
-  markDevisSent,
-  saveDevisAction,
-  type DevisLigneInput,
-} from "@/app/actions/devis";
-import { convertDevisToFacture } from "@/app/actions/factures";
+import type { DevisLigneInput } from "@/types/devis";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -21,8 +12,14 @@ import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useS
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+
+/** Clé stable pour le DnD ; `crypto.randomUUID` est absent en HTTP sur certains navigateurs mobiles. */
+function clientRandomId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 type LigneState = DevisLigneInput & { id: string };
 
@@ -78,8 +75,8 @@ export function DevisEditor({
   devis: BackendDevisDetail;
   clients: BackendClient[];
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
+  const [bannerErr, setBannerErr] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string>(devis.client_id ?? "");
   const [notes, setNotes] = useState(devis.notes ?? "");
   const [dateExp, setDateExp] = useState(devis.date_expiration ?? "");
@@ -89,7 +86,7 @@ export function DevisEditor({
   const [remiseValue, setRemiseValue] = useState<number | "">(devis.remise_valeur ?? "");
   const [lignes, setLignes] = useState<LigneState[]>(() =>
     (devis.lignes ?? []).map((l: BackendDevisLine, i: number) => ({
-      id: `l-${i}-${crypto.randomUUID()}`,
+      id: `l-${i}-${clientRandomId()}`,
       section: l.section ?? null,
       designation: l.designation,
       quantite: Number(l.quantite ?? 1),
@@ -100,6 +97,7 @@ export function DevisEditor({
       ligne_type: "prestation",
     })),
   );
+  const [internalNotesHist, setInternalNotesHist] = useState(devis.internal_notes ?? "");
   const [noteInterne, setNoteInterne] = useState("");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -134,7 +132,7 @@ export function DevisEditor({
     setLignes((ls) => [
       ...ls,
       {
-        id: `n-${crypto.randomUUID()}`,
+        id: `n-${clientRandomId()}`,
         section: null,
         designation: "Nouvelle ligne",
         quantite: 1,
@@ -171,13 +169,43 @@ export function DevisEditor({
       })),
     };
     start(async () => {
-      await saveDevisAction(payload);
-      router.refresh();
+      setBannerErr(null);
+      /** Enregistrement via `/api/devis/[id]/save` — pas de Server Action (évite E394 sur `fetchServerAction`). */
+      const res = await fetch(`/api/devis/${devis.id}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          client_id: payload.client_id,
+          notes: payload.notes,
+          date_expiration: payload.date_expiration,
+          remise_type: payload.remise_type,
+          remise_value: payload.remise_value,
+          lignes: payload.lignes,
+        }),
+      });
+      let data: { message?: string; ok?: boolean } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setBannerErr("Réponse serveur invalide");
+        return;
+      }
+      if (!res.ok) {
+        setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+        return;
+      }
+      window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
     });
   }
 
   return (
     <div className="space-y-4">
+      {bannerErr ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {bannerErr}
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
@@ -192,8 +220,19 @@ export function DevisEditor({
           onSubmit={(e) => {
             e.preventDefault();
             start(async () => {
-              await markDevisSent(devis.id);
-              router.refresh();
+              setBannerErr(null);
+              const res = await fetch(`/api/devis/${devis.id}/statut`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ statut: "envoye" }),
+              });
+              const data = await res.json().catch(() => ({} as { message?: string }));
+              if (!res.ok) {
+                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                return;
+              }
+              window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
             });
           }}
         >
@@ -205,8 +244,19 @@ export function DevisEditor({
           onSubmit={(e) => {
             e.preventDefault();
             start(async () => {
-              await markDevisAccepte(devis.id);
-              router.refresh();
+              setBannerErr(null);
+              const res = await fetch(`/api/devis/${devis.id}/statut`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ statut: "accepte" }),
+              });
+              const data = await res.json().catch(() => ({} as { message?: string }));
+              if (!res.ok) {
+                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                return;
+              }
+              window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
             });
           }}
         >
@@ -218,7 +268,21 @@ export function DevisEditor({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void convertDevisToFacture(devis.id);
+              start(async () => {
+                setBannerErr(null);
+                const res = await fetch(`/api/factures/from-devis/${devis.id}`, {
+                  method: "POST",
+                  credentials: "same-origin",
+                });
+                const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
+                if (!res.ok) {
+                  setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                  return;
+                }
+                if (data.id) {
+                  window.location.assign(`/facturation/${encodeURIComponent(data.id)}`);
+                }
+              });
             }}
           >
             <Button type="submit">Facturer</Button>
@@ -227,7 +291,21 @@ export function DevisEditor({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void duplicateDevisAction(devis.id);
+            start(async () => {
+              setBannerErr(null);
+              const res = await fetch(`/api/devis/${devis.id}/duplicate`, {
+                method: "POST",
+                credentials: "same-origin",
+              });
+              const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
+              if (!res.ok) {
+                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                return;
+              }
+              if (data.id) {
+                window.location.assign(`/devis/${encodeURIComponent(data.id)}`);
+              }
+            });
           }}
         >
           <Button type="submit" variant="secondary">
@@ -239,8 +317,19 @@ export function DevisEditor({
             e.preventDefault();
             if (!confirm("Archiver ce devis ?")) return;
             start(async () => {
-              await archiveDevisAction(devis.id);
-              router.push("/devis");
+              setBannerErr(null);
+              const res = await fetch(`/api/devis/${devis.id}/statut`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ statut: "archive" }),
+              });
+              const data = await res.json().catch(() => ({} as { message?: string }));
+              if (!res.ok) {
+                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                return;
+              }
+              window.location.assign("/devis");
             });
           }}
         >
@@ -318,19 +407,41 @@ export function DevisEditor({
       </Card>
 
       <Card title="Note interne">
+        {internalNotesHist.trim() ? (
+          <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
+            {internalNotesHist}
+          </pre>
+        ) : (
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Aucune note interne pour l’instant.</p>
+        )}
         <form
           className="flex flex-col gap-2 sm:flex-row"
           onSubmit={(e) => {
             e.preventDefault();
+            const t = noteInterne.trim();
+            if (!t) return;
             start(async () => {
-              await addDevisNoteAction(devis.id, noteInterne);
+              setBannerErr(null);
+              const res = await fetch(`/api/devis/${devis.id}/internal-notes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({ text: t }),
+              });
+              const data = (await res.json().catch(() => ({}))) as { message?: string; internal_notes?: string };
+              if (!res.ok) {
+                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                return;
+              }
+              if (typeof data.internal_notes === "string") {
+                setInternalNotesHist(data.internal_notes);
+              }
               setNoteInterne("");
-              router.refresh();
             });
           }}
         >
           <Input label="Texte" value={noteInterne} onChange={(e) => setNoteInterne(e.target.value)} className="flex-1" />
-          <Button type="submit" className="sm:self-end">
+          <Button type="submit" disabled={pending} className="sm:self-end">
             Ajouter
           </Button>
         </form>

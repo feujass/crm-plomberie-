@@ -12,7 +12,7 @@ const NAV: { href: string; label: string; short: string; icon: string }[] = [
   { href: "/chantiers", label: "Chantiers", short: "Chantiers", icon: "🛠️" },
   { href: "/clients", label: "Clients", short: "Clients", icon: "👥" },
   { href: "/catalogue", label: "Catalogue", short: "Ouvrages", icon: "📚" },
-  { href: "/assistant", label: "Assistant IA", short: "IA", icon: "⚡" },
+  { href: "/assistant", label: "Assistant IA", short: "IA", icon: "Z" },
   { href: "/facturation", label: "Facturation", short: "Factures", icon: "💶" },
   { href: "/parametres", label: "Paramètres", short: "Réglages", icon: "⚙️" },
 ];

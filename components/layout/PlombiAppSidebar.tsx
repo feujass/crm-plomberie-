@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  BarChart3,
-  BookOpen,
-  Euro,
-  FileText,
-  Home,
-  Settings,
-  type LucideIcon,
-  Users,
-  Wrench,
-  Zap,
-} from "lucide-react";
+import { BarChart3, BookOpen, Euro, FileText, Home, type LucideIcon, UserCircle, Users, Wrench } from "lucide-react";
+import type { ComponentType } from "react";
+
+import { AssistantNavZIcon } from "@/components/layout/AssistantNavZIcon";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -31,16 +23,18 @@ import { cx, focusRing } from "@/lib/utils";
 
 import { PlombiUserProfile } from "./PlombiUserProfile";
 
-const NAV: { href: string; label: string; Icon: LucideIcon }[] = [
+type NavGlyph = LucideIcon | ComponentType<{ className?: string }>;
+
+const NAV: { href: string; label: string; Icon: NavGlyph }[] = [
   { href: "/accueil", label: "Accueil", Icon: Home },
   { href: "/rentabilite", label: "Rentabilité", Icon: BarChart3 },
   { href: "/devis", label: "Devis", Icon: FileText },
   { href: "/chantiers", label: "Chantiers", Icon: Wrench },
   { href: "/clients", label: "Clients", Icon: Users },
   { href: "/catalogue", label: "Catalogue", Icon: BookOpen },
-  { href: "/assistant", label: "Assistant IA", Icon: Zap },
+  { href: "/assistant", label: "Assistant IA", Icon: AssistantNavZIcon },
   { href: "/facturation", label: "Facturation", Icon: Euro },
-  { href: "/parametres", label: "Paramètres", Icon: Settings },
+  { href: "/compte", label: "Mon compte", Icon: UserCircle },
 ];
 
 function NavLink({
@@ -50,7 +44,7 @@ function NavLink({
 }: {
   href: string;
   label: string;
-  Icon: LucideIcon;
+  Icon: NavGlyph;
 }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);

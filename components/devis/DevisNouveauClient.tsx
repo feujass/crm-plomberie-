@@ -1,10 +1,9 @@
 "use client";
 
-import { createDevisFromIaAction, createDraftDevis } from "@/app/actions/devis";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { BackendClient } from "@/types/backend";
-import type { DevisLigneInput } from "@/app/actions/devis";
+import type { DevisLigneInput } from "@/types/devis";
 import { cx } from "@/lib/utils";
 import { BookMarked, Euro, FileUp, KeyRound, Mic, Play, Sparkles, Zap } from "lucide-react";
 import Image from "next/image";
@@ -20,7 +19,7 @@ function ZeusAvatar({ className }: { className?: string }) {
   return (
     <Image
       src={ZEUS_AVATAR_SRC}
-      alt={`${ASSISTANT_NAME}, assistant IA — ours brun, casquette à l’envers`}
+      alt={`${ASSISTANT_NAME}, assistant pour vos devis`}
       width={512}
       height={512}
       className={cx("h-full w-full rounded-full object-cover object-[center_18%]", className)}
@@ -77,6 +76,16 @@ const CATEGORY_PRESETS: { label: string; snippet: string }[] = [
   },
 ];
 
+async function parseJsonSafely<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text.trim()) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Réponse serveur invalide (pas de JSON)");
+  }
+}
+
 type InputTab = "write" | "voice" | "file";
 
 export function DevisNouveauClient({ clients, initialClientId = "" }: { clients: BackendClient[]; initialClientId?: string }) {
@@ -105,24 +114,34 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
         const fd = new FormData();
         fd.append("file", body.file);
         const res = await fetch("/api/devis/vision", { method: "POST", body: fd });
-        const json = await res.json();
+        const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
         if (!res.ok) throw new Error(json.message || "Vision");
-        lignes = json.lignes;
+        lignes = json.lignes ?? [];
       } else if (body.text) {
         const res = await fetch("/api/devis/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: body.text }),
         });
-        const json = await res.json();
+        const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
         if (!res.ok) throw new Error(json.message || "Génération");
-        lignes = json.lignes;
+        lignes = json.lignes ?? [];
       }
-      await createDevisFromIaAction({
-        client_id: clientId || null,
-        lignes,
-        notes: null,
+      const cre = await fetch("/api/devis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          mode: "from_ia",
+          client_id: clientId || null,
+          lignes,
+          notes: null,
+        }),
       });
+      const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
+      if (!cre.ok) throw new Error(created.message || "Création du devis");
+      if (!created.id) throw new Error("Réponse serveur invalide");
+      window.location.assign(`/devis/${encodeURIComponent(created.id)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erreur");
     }
@@ -147,7 +166,7 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
       start(async () => {
         try {
           const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
-          const json = await tr.json();
+          const json = await parseJsonSafely<{ message?: string; text?: string }>(tr);
           if (!tr.ok) throw new Error(json.message || "Transcription");
           await runGenerate({ text: json.text as string });
         } catch (e) {
@@ -386,7 +405,24 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
               type="button"
               variant="ghost"
               className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              onClick={() => start(() => createDraftDevis(clientId || null))}
+              onClick={() =>
+                start(async () => {
+                  setErr(null);
+                  try {
+                    const res = await fetch("/api/devis", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "same-origin",
+                      body: JSON.stringify({ mode: "draft", client_id: clientId || null }),
+                    });
+                    const data = await parseJsonSafely<{ id?: string; message?: string }>(res);
+                    if (!res.ok) throw new Error(data.message || "Erreur");
+                    if (!data.id) throw new Error("Réponse serveur invalide");
+                    window.location.assign(`/devis/${encodeURIComponent(data.id)}`);
+                  } catch (e) {
+                    setErr(e instanceof Error ? e.message : "Erreur");
+                  }
+                })}
             >
               Créer un brouillon vide à la place
             </Button>
@@ -415,8 +451,8 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
           <div className="text-center">
             <p className="text-lg font-bold text-[color:var(--primary)]">{ASSISTANT_NAME}</p>
             <p className="mt-2 text-pretty text-xs leading-relaxed text-[var(--muted-foreground)]">
-              {ASSISTANT_NAME} est un ours brun aux yeux bleus, avec une casquette portée à l’envers bleu marine — la même teinte
-              que la typographie de l’application.
+              {ASSISTANT_NAME} produit un devis structuré à partir de votre description ou d’un import (photo, PDF), en s’appuyant
+              sur votre catalogue et vos réglages. Questions métier&nbsp;: écran Assistant.
             </p>
             <p className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">En ligne</p>
           </div>

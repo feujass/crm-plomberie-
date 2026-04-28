@@ -16,7 +16,7 @@ import {
 } from "@/components/planner/DropdownMenu";
 import { Button } from "@/components/ui/Button";
 import { cx, focusRing } from "@/lib/utils";
-import { ChevronsUpDown, LogOut, Monitor, Moon, Settings as SettingsIcon, Sun } from "lucide-react";
+import { ChevronsUpDown, LogOut, Monitor, Moon, Sun, UserCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import * as React from "react";
@@ -117,9 +117,9 @@ export function PlombiUserProfile({
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => router.push("/parametres")} className="cursor-pointer gap-2">
-              <SettingsIcon className="size-4 shrink-0" aria-hidden />
-              Paramètres
+            <DropdownMenuItem onClick={() => router.push("/compte")} className="cursor-pointer gap-2">
+              <UserCircle className="size-4 shrink-0" aria-hidden />
+              Mon compte
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />

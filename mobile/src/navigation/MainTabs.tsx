@@ -29,6 +29,8 @@ export function MainTabs() {
         tabBarActiveTintColor: colors.textOnPrimary,
         tabBarInactiveTintColor: "rgba(255,255,255,0.65)",
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarActiveBackgroundColor: colors.tabActivePill,
+        tabBarItemStyle: { borderRadius: 12, marginHorizontal: 2, marginVertical: 4 },
       }}
     >
       <Tab.Screen

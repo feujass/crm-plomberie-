@@ -1,13 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
+import { backendFetch } from "@/lib/backend/server";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  try {
+    await backendFetch("/api/auth/me");
+  } catch {
+    return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+  }
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ message: "OPENAI_API_KEY manquant" }, { status: 500 });

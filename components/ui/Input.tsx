@@ -8,7 +8,7 @@ import { cx, focusInput, focusRing, hasErrorInput } from "@/lib/utils";
 
 const inputStyles = tv({
   base: [
-    "relative block w-full appearance-none rounded-md border px-2.5 py-2 shadow-sm outline-none transition sm:text-sm",
+    "relative block w-full appearance-none rounded-md border px-2.5 py-2 text-base shadow-sm outline-none transition md:text-sm",
     "border-gray-300 dark:border-gray-800",
     "text-gray-900 dark:text-gray-50",
     "placeholder-gray-400 dark:placeholder-gray-500",
@@ -102,8 +102,8 @@ InputInner.displayName = "InputInner";
 export function Input({ label, className, id, name, ...rest }: InputProps) {
   if (label) {
     return (
-      <label className={cx("block w-full text-sm", className)}>
-        <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">{label}</span>
+      <label className={cx("block w-full", className)}>
+        <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
         <InputInner id={id} name={name} {...rest} />
       </label>
     );

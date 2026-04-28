@@ -1,9 +1,6 @@
-import { updateClientAction } from "@/app/actions/clients";
-import { Button } from "@/components/ui/Button";
+import { EditClientFormClient } from "@/components/clients/ClientFormsClient";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
 import { backendFetch } from "@/lib/backend/server";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import Link from "next/link";
@@ -44,31 +41,7 @@ export default async function ClientDetailPage({ params }: Props) {
       </div>
 
       <Card title="Fiche client">
-        <form action={updateClientAction.bind(null, id)} className="space-y-3">
-          <Input label="Nom" name="nom" defaultValue={client.nom} required />
-          <Input label="Prénom" name="prenom" defaultValue={client.prenom ?? ""} />
-          <Input label="Email" name="email" type="email" defaultValue={client.email ?? ""} />
-          <Input label="Téléphone" name="tel" type="tel" defaultValue={client.tel ?? ""} />
-          <Input label="Adresse" name="adresse" defaultValue={client.adresse ?? ""} />
-          <label className="block text-sm font-medium">
-            Type
-            <select
-              name="type"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-              defaultValue={client.type}
-            >
-              <option value="particulier">Particulier</option>
-              <option value="professionnel">Professionnel</option>
-            </select>
-          </label>
-          <Input label="SIRET" name="siret" defaultValue={client.siret ?? ""} />
-          <Textarea label="Notes" name="notes" defaultValue={client.notes ?? ""} rows={3} />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="inactive" defaultChecked={client.inactive} />
-            Client inactif
-          </label>
-          <Button type="submit">Mettre à jour</Button>
-        </form>
+        <EditClientFormClient clientId={id} initial={client} />
       </Card>
 
       <Card title={`CA factures payées : ${formatCurrencyEUR(ca)}`}>

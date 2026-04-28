@@ -20,6 +20,10 @@ export type BackendProfile = {
   conditions_paiement?: string;
   onboarding_step?: number;
   onboarding_complete?: boolean;
+  /** Code pays (ex. FR) — devis & affichage. */
+  pays?: string;
+  use_personal_library?: boolean;
+  assistant_name?: string;
 };
 
 export type BackendMeResponse = BackendUser & {
@@ -30,7 +34,9 @@ export type BackendDevis = {
   id: string;
   numero?: string;
   statut?: string;
+  client_id?: string;
   client_nom?: string;
+  total_ht?: number;
   total_ttc?: number;
   created_at?: string;
 };
@@ -123,6 +129,8 @@ export type BackendDevisDetail = BackendDevis & {
   client_id?: string;
   lignes?: BackendDevisLine[];
   notes?: string;
+  /** Notes d’équipe, non visibles sur le PDF / client — historique concaténé côté API. */
+  internal_notes?: string;
   date_expiration?: string;
   remise_type?: string;
   remise_valeur?: number;

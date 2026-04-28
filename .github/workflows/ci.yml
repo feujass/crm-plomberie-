@@ -1,0 +1,82 @@
+# Vérification automatique : à chaque push/PR, sans action manuelle.
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  next:
+    name: Next.js (typecheck, lint, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+        env:
+          # Pas de .env.local sur le runner : mêmes clés qu’en prod (valeurs de CI, pas de secrets ici)
+          BACKEND_URL: "http://127.0.0.1:8000"
+          NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000"
+          NEXT_PUBLIC_SUPABASE_URL: "https://ci-placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-anon-key"
+
+  mobile:
+    name: Expo (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install
+        working-directory: mobile
+        run: npm ci
+      - name: Typecheck
+        working-directory: mobile
+        run: npm run typecheck
+
+  backend:
+    name: FastAPI (pytest + MongoDB)
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      DB_NAME: flowo_ci
+      JWT_SECRET: ci-jwt-secret-key-32-chars-minimum-ok
+      ADMIN_EMAIL: admin-ci@flowo.test
+      ADMIN_PASSWORD: ci-admin-pass-123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Pytest
+        working-directory: backend
+        run: pytest -q

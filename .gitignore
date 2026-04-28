@@ -6,6 +6,14 @@ _incoming/
 data/
 .DS_Store
 .vercel
+debug-session-0f238e.ndjson
+debug-session-0f238e-peek.json
+/public/e394-last-session.json
+/public/_crm_browser_probe.json
+.cursor/debug-0f238e.log
+
+# Sentinel local uniquement — active la route `/api/debug/session-log` sans variable d'environnement
+.session-debug-enable
 .next/
 .turbo/
 out/

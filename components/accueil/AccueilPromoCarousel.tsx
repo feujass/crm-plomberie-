@@ -113,10 +113,15 @@ export function AccueilPromoCarousel() {
   const [activeDot, setActiveDot] = useState(0);
 
   const scrollToSlide = useCallback((i: 0 | 1) => {
+    const sc = scrollerRef.current;
     const el = i === 0 ? slide0Ref.current : slide1Ref.current;
     indexRef.current = i;
     setActiveDot(i);
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    if (!sc || !el) return;
+    // Défile uniquement le conteneur horizontal — évite scrollIntoView qui remonte toute la page.
+    const targetLeft =
+      el.offsetLeft - Math.max(0, Math.floor((sc.clientWidth - el.offsetWidth) / 2));
+    sc.scrollTo({ left: targetLeft, behavior: "smooth" });
   }, []);
 
   useEffect(() => {
