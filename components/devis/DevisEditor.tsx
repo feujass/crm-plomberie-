@@ -12,7 +12,19 @@ import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useS
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/planner/Drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/planner/DropdownMenu";
+import { MoreHorizontal } from "lucide-react";
 
 /** Clé stable pour le DnD ; `crypto.randomUUID` est absent en HTTP sur certains navigateurs mobiles. */
 function clientRandomId(): string {
@@ -75,9 +87,17 @@ export function DevisEditor({
   devis: BackendDevisDetail;
   clients: BackendClient[];
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [bannerErr, setBannerErr] = useState<string | null>(null);
+  const [bannerOk, setBannerOk] = useState<string | null>(null);
+  const sp = useSearchParams();
+  const info = sp.get("info");
   const [clientId, setClientId] = useState<string>(devis.client_id ?? "");
+  const [sendDrawerOpen, setSendDrawerOpen] = useState(false);
+  const [sendEmailTo, setSendEmailTo] = useState("");
+  const [lastAutoEmail, setLastAutoEmail] = useState("");
+  const [sending, setSending] = useState(false);
   const [notes, setNotes] = useState(devis.notes ?? "");
   const [dateExp, setDateExp] = useState(devis.date_expiration ?? "");
   const [remiseType, setRemiseType] = useState<"percent" | "fixed" | "">(
@@ -99,6 +119,7 @@ export function DevisEditor({
   );
   const [internalNotesHist, setInternalNotesHist] = useState(devis.internal_notes ?? "");
   const [noteInterne, setNoteInterne] = useState("");
+  const [adresseChantier, setAdresseChantier] = useState(devis.adresse_chantier ?? "");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -170,6 +191,7 @@ export function DevisEditor({
     };
     start(async () => {
       setBannerErr(null);
+      setBannerOk(null);
       /** Enregistrement via `/api/devis/[id]/save` — pas de Server Action (évite E394 sur `fetchServerAction`). */
       const res = await fetch(`/api/devis/${devis.id}/save`, {
         method: "POST",
@@ -181,6 +203,7 @@ export function DevisEditor({
           date_expiration: payload.date_expiration,
           remise_type: payload.remise_type,
           remise_value: payload.remise_value,
+          adresse_chantier: adresseChantier || null,
           lignes: payload.lignes,
         }),
       });
@@ -195,18 +218,121 @@ export function DevisEditor({
         setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
         return;
       }
-      window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
+      setBannerOk("Devis enregistré.");
+      router.refresh();
     });
   }
 
+  const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
+  const clientLabel = useMemo(() => {
+    if (!selectedClient) return "Client";
+    const n = [selectedClient.prenom, selectedClient.nom].filter(Boolean).join(" ").trim();
+    return n || selectedClient.nom || "Client";
+  }, [selectedClient]);
+
+  // Pré-remplissage auto de l’e-mail lorsque l’utilisateur sélectionne un client.
+  // Règle: on ne remplace pas si l'utilisateur a déjà tapé autre chose.
+  useEffect(() => {
+    const nextEmail = (selectedClient?.email ?? "").trim();
+    if (!nextEmail) return;
+    setSendEmailTo((prev) => {
+      const p = prev.trim();
+      if (!p) {
+        setLastAutoEmail(nextEmail);
+        return nextEmail;
+      }
+      // Si le champ contient encore l'ancienne valeur auto, on met à jour.
+      if (p === lastAutoEmail) {
+        setLastAutoEmail(nextEmail);
+        return nextEmail;
+      }
+      return prev;
+    });
+  }, [selectedClient?.email, lastAutoEmail]);
+
+  const statut = devis.statut ?? "";
+  const statutLabel =
+    statut === "brouillon"
+      ? "Brouillon"
+      : statut === "envoye"
+        ? "Devis disponible"
+        : statut === "accepte"
+          ? "Accepté"
+          : statut === "refuse"
+            ? "Refusé"
+            : statut === "facture"
+              ? "Facturé"
+              : statut === "archive"
+                ? "Archivé"
+                : statut === "expire"
+                  ? "Expiré"
+                  : "Devis";
+
+  async function sendByEmail() {
+    const to = sendEmailTo.trim() || String(selectedClient?.email ?? "").trim();
+    if (!to) {
+      setBannerErr("Renseigne l’e-mail du client pour envoyer le devis.");
+      return;
+    }
+    setSending(true);
+    setBannerErr(null);
+    setBannerOk(null);
+    try {
+      const res = await fetch(`/api/devis/${devis.id}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ to }),
+      });
+      const data = (await res.json().catch(() => ({} as { ok?: boolean; mode?: string; error?: string }))) as {
+        ok?: boolean;
+        mode?: string;
+        error?: string;
+      };
+      if (!res.ok) throw new Error("Erreur d’envoi");
+      setSendDrawerOpen(false);
+      if (data.ok) {
+        setBannerOk(`Devis envoyé à ${to}.`);
+        router.replace(`/devis/${encodeURIComponent(devis.id)}?info=email-sent`);
+        router.refresh();
+        return;
+      }
+      if (data.mode === "mock") {
+        router.replace(`/devis/${encodeURIComponent(devis.id)}?info=email-mock&to=${encodeURIComponent(to)}`);
+        router.refresh();
+        return;
+      }
+      throw new Error(typeof data.error === "string" ? data.error : "Envoi impossible");
+    } catch (e) {
+      setBannerErr(e instanceof Error ? e.message : "Envoi impossible");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24">
+      {info === "no-ai" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+          IA non configurée : devis créé en brouillon (tu peux le remplir manuellement).
+        </div>
+      ) : null}
+      {info === "email-mock" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+          Envoi e-mail en mode test : `RESEND_API_KEY` manquante (aucun e-mail réel n’a été envoyé), mais le devis est marqué “envoyé”.
+        </div>
+      ) : null}
+      {info === "email-sent" || bannerOk ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+          {bannerOk ?? "Devis envoyé."}
+        </div>
+      ) : null}
       {bannerErr ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           {bannerErr}
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
         </Button>
@@ -215,178 +341,227 @@ export function DevisEditor({
             PDF
           </Button>
         </a>
-        {/* Lien public + email non encore branchés sur le backend */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            start(async () => {
-              setBannerErr(null);
-              const res = await fetch(`/api/devis/${devis.id}/statut`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({ statut: "envoye" }),
-              });
-              const data = await res.json().catch(() => ({} as { message?: string }));
-              if (!res.ok) {
-                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                return;
-              }
-              window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
-            });
-          }}
-        >
-          <Button type="submit" variant="secondary">
-            Marquer envoyé
-          </Button>
-        </form>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            start(async () => {
-              setBannerErr(null);
-              const res = await fetch(`/api/devis/${devis.id}/statut`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({ statut: "accepte" }),
-              });
-              const data = await res.json().catch(() => ({} as { message?: string }));
-              if (!res.ok) {
-                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                return;
-              }
-              window.location.assign(`/devis/${encodeURIComponent(devis.id)}`);
-            });
-          }}
-        >
-          <Button type="submit" variant="secondary">
-            Marquer accepté
-          </Button>
-        </form>
-        {devis.statut === "accepte" ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              start(async () => {
-                setBannerErr(null);
-                const res = await fetch(`/api/factures/from-devis/${devis.id}`, {
-                  method: "POST",
-                  credentials: "same-origin",
-                });
-                const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
-                if (!res.ok) {
-                  setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                  return;
-                }
-                if (data.id) {
-                  window.location.assign(`/facturation/${encodeURIComponent(data.id)}`);
-                }
-              });
-            }}
-          >
-            <Button type="submit">Facturer</Button>
-          </form>
-        ) : null}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            start(async () => {
-              setBannerErr(null);
-              const res = await fetch(`/api/devis/${devis.id}/duplicate`, {
-                method: "POST",
-                credentials: "same-origin",
-              });
-              const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
-              if (!res.ok) {
-                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                return;
-              }
-              if (data.id) {
-                window.location.assign(`/devis/${encodeURIComponent(data.id)}`);
-              }
-            });
-          }}
-        >
-          <Button type="submit" variant="secondary">
-            Dupliquer
-          </Button>
-        </form>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!confirm("Archiver ce devis ?")) return;
-            start(async () => {
-              setBannerErr(null);
-              const res = await fetch(`/api/devis/${devis.id}/statut`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "same-origin",
-                body: JSON.stringify({ statut: "archive" }),
-              });
-              const data = await res.json().catch(() => ({} as { message?: string }));
-              if (!res.ok) {
-                setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                return;
-              }
-              window.location.assign("/devis");
-            });
-          }}
-        >
-          <Button type="submit" variant="danger">
-            Archiver
-          </Button>
-        </form>
-        <Link href="/devis">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" className="px-2">
+              <MoreHorizontal className="size-5" aria-hidden />
+              <span className="sr-only">Plus</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Plus</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={() => {
+                  start(async () => {
+                    setBannerErr(null);
+                    const res = await fetch(`/api/devis/${devis.id}/statut`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "same-origin",
+                      body: JSON.stringify({ statut: "accepte" }),
+                    });
+                    const data = await res.json().catch(() => ({} as { message?: string }));
+                    if (!res.ok) {
+                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+                className="cursor-pointer"
+              >
+                Marquer accepté
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  start(async () => {
+                    setBannerErr(null);
+                    const res = await fetch(`/api/devis/${devis.id}/duplicate`, { method: "POST", credentials: "same-origin" });
+                    const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
+                    if (!res.ok) {
+                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                      return;
+                    }
+                    if (data.id) {
+                      router.push(`/devis/${encodeURIComponent(data.id)}`);
+                      router.refresh();
+                    }
+                  });
+                }}
+                className="cursor-pointer"
+              >
+                Dupliquer
+              </DropdownMenuItem>
+              {devis.statut === "accepte" ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    start(async () => {
+                      setBannerErr(null);
+                      const res = await fetch(`/api/factures/from-devis/${devis.id}`, { method: "POST", credentials: "same-origin" });
+                      const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
+                      if (!res.ok) {
+                        setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                        return;
+                      }
+                      if (data.id) {
+                        router.push(`/facturation/${encodeURIComponent(data.id)}`);
+                        router.refresh();
+                      }
+                    });
+                  }}
+                  className="cursor-pointer"
+                >
+                  Facturer
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs opacity-80">Signature (avancé)</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => {
+                  start(async () => {
+                    setBannerErr(null);
+                    const res = await fetch(`/api/devis/${devis.id}/esign-stub`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "same-origin",
+                      body: JSON.stringify({ action: "init" }),
+                    });
+                    const data = await res.json().catch(() => ({} as { message?: string }));
+                    if (!res.ok) {
+                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+                className="cursor-pointer"
+              >
+                Initier la signature (test)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  start(async () => {
+                    setBannerErr(null);
+                    const res = await fetch(`/api/devis/${devis.id}/esign-stub`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "same-origin",
+                      body: JSON.stringify({ action: "mark_signed" }),
+                    });
+                    const data = await res.json().catch(() => ({} as { message?: string }));
+                    if (!res.ok) {
+                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+                className="cursor-pointer"
+              >
+                Marquer comme signé (test)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!confirm("Archiver ce devis ?")) return;
+                  start(async () => {
+                    setBannerErr(null);
+                    const res = await fetch(`/api/devis/${devis.id}/statut`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "same-origin",
+                      body: JSON.stringify({ statut: "archive" }),
+                    });
+                    const data = await res.json().catch(() => ({} as { message?: string }));
+                    if (!res.ok) {
+                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                      return;
+                    }
+                    router.push("/devis");
+                    router.refresh();
+                  });
+                }}
+                className="cursor-pointer text-red-700 dark:text-red-400"
+              >
+                Archiver
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Link href="/devis" className="ml-auto">
           <Button type="button" variant="ghost">
             Liste
           </Button>
         </Link>
       </div>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            Devis {devis.numero ?? "—"}
+          </p>
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            {statutLabel}
+          </span>
+        </div>
 
-      <Card title={`Devis ${devis.numero} — ${devis.statut}`}>
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Client
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-            >
-              <option value="">—</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Input label="Validité (date)" type="date" value={dateExp} onChange={(e) => setDateExp(e.target.value)} />
+          <Card title="Client">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Sélectionne le client
+              <select
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              >
+                <option value="">—</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </Card>
+
+          <Card title="Adresse chantier / intervention">
+            <Textarea
+              label="Adresse du chantier"
+              value={adresseChantier}
+              onChange={(e) => setAdresseChantier(e.target.value)}
+              rows={3}
+            />
+          </Card>
+
+          <Card title="Validité & conditions" className="md:col-span-2">
+            <div className="grid gap-3 md:grid-cols-3">
+              <Input label="Validité (date)" type="date" value={dateExp} onChange={(e) => setDateExp(e.target.value)} />
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Remise
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+                  value={remiseType}
+                  onChange={(e) => setRemiseType(e.target.value as "percent" | "fixed" | "")}
+                >
+                  <option value="">Aucune</option>
+                  <option value="percent">%</option>
+                  <option value="fixed">€</option>
+                </select>
+              </label>
+              <Input
+                label="Valeur remise"
+                type="number"
+                value={remiseValue === "" ? "" : String(remiseValue)}
+                onChange={(e) => setRemiseValue(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </div>
+            <div className="mt-3">
+              <Textarea label="Notes / conditions (visibles client)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+            </div>
+          </Card>
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Remise
-            <select
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
-              value={remiseType}
-              onChange={(e) => setRemiseType(e.target.value as "percent" | "fixed" | "")}
-            >
-              <option value="">Aucune</option>
-              <option value="percent">%</option>
-              <option value="fixed">€</option>
-            </select>
-          </label>
-          <Input
-            label="Valeur remise"
-            type="number"
-            value={remiseValue === "" ? "" : String(remiseValue)}
-            onChange={(e) => setRemiseValue(e.target.value === "" ? "" : Number(e.target.value))}
-          />
-        </div>
-        <div className="mt-3">
-          <Textarea label="Notes / conditions" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-        </div>
-      </Card>
+      </div>
 
       <Card title="Lignes">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -446,6 +621,54 @@ export function DevisEditor({
           </Button>
         </form>
       </Card>
+
+      {/* Barre d'action simple en bas : envoyer après relecture */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+        <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <Button type="button" variant="secondary" disabled={pending} onClick={() => save()}>
+            Enregistrer
+          </Button>
+          <Button type="button" disabled={pending} className="flex-1" onClick={() => setSendDrawerOpen(true)}>
+            Envoyer le devis
+          </Button>
+        </div>
+      </div>
+
+      <Drawer open={sendDrawerOpen} onOpenChange={setSendDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Envoyer le devis</DrawerTitle>
+          </DrawerHeader>
+          <DrawerBody className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              1) Vérifie l’e-mail, 2) clique sur <strong>Envoyer</strong>.
+            </p>
+            <Input
+              label={`E-mail du client (${clientLabel})`}
+              type="email"
+              placeholder="client@exemple.fr"
+              value={sendEmailTo}
+              onChange={(e) => setSendEmailTo(e.target.value)}
+            />
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+              Si l’e-mail réel n’est pas configuré (Resend), Flowo passe en mode test mais marque quand même le devis “envoyé”.
+            </div>
+          </DrawerBody>
+          <DrawerFooter>
+            <Button variant="secondary" type="button" onClick={() => setSendDrawerOpen(false)} disabled={sending}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              isLoading={sending}
+              loadingText="Envoi…"
+              onClick={() => void sendByEmail()}
+            >
+              Envoyer
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

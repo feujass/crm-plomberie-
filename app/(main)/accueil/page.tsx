@@ -5,6 +5,7 @@ import { backendFetch } from "@/lib/backend/server";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import type { BackendDashboardStats, BackendMeResponse } from "@/types/backend";
 import type { Chantier } from "@/types/chantiers";
+import { isChantierInTermineListSegment } from "@/lib/chantier";
 import { greetingDisplayName } from "@/lib/greeting-display-name";
 import Link from "next/link";
 
@@ -20,7 +21,7 @@ export default async function AccueilPage() {
   ]);
   const statsTyped = stats as BackendDashboardStats;
 
-  const chantiersEnCours = (chantiersRows as Chantier[]).filter((c) => (c.status ?? "") !== "Terminé");
+  const chantiersEnCours = (chantiersRows as Chantier[]).filter((c) => !isChantierInTermineListSegment(c));
   const chantiersAccueil = [...chantiersEnCours].sort((a, b) => {
     if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
     if (a.due_date) return -1;

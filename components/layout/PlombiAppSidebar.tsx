@@ -56,7 +56,7 @@ function NavLink({
       className={cx(
         "flex items-center gap-x-2.5 rounded-md p-2 text-base transition hover:bg-gray-200/50 sm:text-sm hover:dark:bg-gray-900",
         "text-gray-900 dark:text-gray-400 hover:dark:text-gray-50",
-        "data-[active=true]:text-[var(--primary)] data-[active=true]:dark:text-blue-400",
+        "data-[active=true]:text-[var(--primary)] data-[active=true]:dark:text-[var(--primary)]",
         focusRing,
       )}
     >

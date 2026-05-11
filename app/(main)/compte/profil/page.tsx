@@ -3,11 +3,11 @@ import {
 } from "@/components/compte/CompteFormsClient";
 import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
 import { backendFetch } from "@/lib/backend/server";
-import type { BackendMeResponse } from "@/types/backend";
+import type { BackendMeResponse, BackendProfile } from "@/types/backend";
 
 export default async function CompteProfilPage() {
   const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
-  const profile = (await backendFetch("/api/profile").catch(() => ({}))) as { tel?: string };
+  const profile = (await backendFetch("/api/profile").catch(() => ({}))) as BackendProfile;
 
   return (
     <CompteSubLayout
@@ -16,7 +16,12 @@ export default async function CompteProfilPage() {
     >
       <CompteProfilFormClient
         email={me.email ?? ""}
-        initial={{ prenom: me.prenom ?? "", nom: me.nom ?? "", tel: profile.tel ?? "" }}
+        initial={{
+          prenom: me.prenom ?? "",
+          nom: me.nom ?? "",
+          tel: profile.tel ?? "",
+          avatar_url: profile.avatar_url ?? "",
+        }}
       />
     </CompteSubLayout>
   );

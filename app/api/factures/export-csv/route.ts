@@ -1,18 +1,24 @@
-import { createClient } from "@/lib/supabase/server";
+import { backendFetch } from "@/lib/backend/server";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
-
-  const { data: rows } = await supabase
-    .from("factures")
-    .select("numero, statut, date_emission, date_echeance, total_ht, total_tva, total_ttc")
-    .eq("user_id", user.id)
-    .order("date_emission", { ascending: false });
+  // Le reste de l'app s'authentifie via le backend (cookie access_token) :
+  // on utilise donc le backend plutôt que Supabase direct.
+  let rows: Array<{
+    numero?: string;
+    statut?: string;
+    date_emission?: string;
+    date_echeance?: string;
+    total_ht?: number;
+    total_tva?: number;
+    total_ttc?: number;
+  }> = [];
+  try {
+    rows = (await backendFetch("/api/factures")) as typeof rows;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Non authentifié";
+    return NextResponse.json({ message: msg }, { status: 401 });
+  }
 
   const header = ["numero", "statut", "date_emission", "date_echeance", "total_ht", "total_tva", "total_ttc"];
   const lines = [header.join(";")];
@@ -26,6 +32,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
+      "Cache-Control": "no-store",
       "Content-Disposition": 'attachment; filename="factures.csv"',
     },
   });

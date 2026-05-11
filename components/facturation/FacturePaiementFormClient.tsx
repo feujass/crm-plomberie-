@@ -12,12 +12,13 @@ export function FacturePaiementFormClient({ factureId }: { factureId: string }) 
 
   return (
     <form
-      className="flex flex-wrap gap-2"
+      className="flex flex-wrap items-end gap-2"
       onSubmit={async (e) => {
         e.preventDefault();
+        const form = e.currentTarget;
         setErr(null);
         setPending(true);
-        const fd = new FormData(e.currentTarget);
+        const fd = new FormData(form);
         try {
           const res = await fetch(`/api/factures/${factureId}/paiements`, {
             method: "POST",
@@ -33,7 +34,8 @@ export function FacturePaiementFormClient({ factureId }: { factureId: string }) 
             setErr(json.message ?? `Erreur ${res.status}`);
             return;
           }
-          e.currentTarget.reset();
+          // Évite les erreurs si `e.currentTarget` devient nul après l'await (selon impl / tooling).
+          form.reset();
           router.refresh();
         } finally {
           setPending(false);
@@ -57,7 +59,7 @@ export function FacturePaiementFormClient({ factureId }: { factureId: string }) 
         </select>
       </label>
       {err ? <p className="w-full text-sm text-red-600">{err}</p> : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending} className="h-10 px-4">
         {pending ? "…" : "Enregistrer paiement"}
       </Button>
     </form>

@@ -1,7 +1,7 @@
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { useAuth } from "../context/AuthContext";
 import type { MainTabParamList } from "../navigation/MainTabs";
@@ -43,9 +43,11 @@ export function HomeScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Restez informé</Text>
-          <Text style={styles.cardSub}>Activez les notifications pour les relances et devis prêts (bientôt).</Text>
-          <Pressable style={styles.ctaSecondary}>
-            <Text style={styles.ctaSecondaryTxt}>Activer plus tard</Text>
+          <Text style={styles.cardSub}>
+            Ouvrez les réglages de votre téléphone pour gérer les notifications de cette application.
+          </Text>
+          <Pressable style={styles.ctaSecondary} onPress={() => void Linking.openSettings()}>
+            <Text style={styles.ctaSecondaryTxt}>Ouvrir les réglages</Text>
           </Pressable>
         </View>
 

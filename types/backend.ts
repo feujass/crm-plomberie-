@@ -9,10 +9,23 @@ export type BackendUser = {
 export type BackendProfile = {
   entreprise?: string;
   siret?: string;
+  siren?: string;
+  forme_juridique?: string;
+  capital_social?: string;
+  rcs_ville?: string;
+  numero_tva_intracom?: string;
+  tva_sur_encaissements?: boolean;
+  tva_sur_debits_opt_in?: boolean;
+  decennale_mention?: string;
+  iban?: string;
+  bic?: string;
   adresse?: string;
   tel?: string;
   email_facturation?: string;
   logo_url?: string;
+  avatar_url?: string;
+  /** Domaines d’intervention / corps d’état (texte libre). */
+  specialites?: string;
   tva_defaut?: number;
   sep_fourniture_pose?: boolean;
   structure_devis?: string;
@@ -24,6 +37,10 @@ export type BackendProfile = {
   pays?: string;
   use_personal_library?: boolean;
   assistant_name?: string;
+  feature_flag_pdp?: boolean;
+  feature_flag_ereporting?: boolean;
+  feature_flag_chorus?: boolean;
+  feature_flag_esign_advanced?: boolean;
 };
 
 export type BackendMeResponse = BackendUser & {
@@ -61,6 +78,11 @@ export type BackendClient = {
   adresse?: string;
   type?: "particulier" | "professionnel" | string;
   siret?: string;
+  siren?: string;
+  tva_intracom?: string;
+  categorie_fiscale?: string;
+  secteur_public?: boolean;
+  chorus_service_code?: string;
   notes?: string;
   inactive?: boolean;
   created_at?: string;
@@ -93,6 +115,27 @@ export type BackendFactureDetail = BackendFacture & {
   date_echeance?: string;
   paiements?: BackendPaiement[];
   montant_paye?: number;
+  /** Jeton pour la page publique `/f/[token]` (créé à la volée si absent). */
+  public_token?: string;
+  conformite_branche?: string;
+  conformite_warnings?: string[];
+  operations_type?: string;
+  facture_type?: string;
+  adresse_livraison_chantier?: string;
+  chorus_service_code?: string;
+  immutable?: boolean;
+  locked_at?: string;
+};
+
+export type BackendTransmission = {
+  id?: string;
+  facture_id?: string;
+  kind?: string;
+  status?: string;
+  detail?: string;
+  provider_ref?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type BackendClientDetail = BackendClient & {
@@ -136,5 +179,11 @@ export type BackendDevisDetail = BackendDevis & {
   remise_valeur?: number;
   total_ht?: number;
   total_tva?: number;
+  adresse_chantier?: string;
+  esign_provider?: string;
+  esign_envelope_id?: string;
+  esign_status?: string;
+  esign_signed_at?: string;
+  esign_proof?: Record<string, unknown>;
 };
 

@@ -8,6 +8,7 @@ type SaveBody = {
   date_expiration: string | null;
   remise_type: "percent" | "fixed" | null;
   remise_value: number | null;
+  adresse_chantier?: string | null;
   lignes: Array<{
     section: string | null;
     designation: string;
@@ -49,6 +50,7 @@ export async function POST(req: Request, ctx: Ctx) {
         date_expiration: body.date_expiration,
         remise_type,
         remise_valeur,
+        adresse_chantier: body.adresse_chantier ?? "",
       }),
     });
 

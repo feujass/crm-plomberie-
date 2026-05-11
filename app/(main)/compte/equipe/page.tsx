@@ -1,11 +1,18 @@
 import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
 import { backendFetch } from "@/lib/backend/server";
 import type { BackendMeResponse } from "@/types/backend";
+import { cx, focusRing } from "@/lib/utils";
 import { Share2, UserRound } from "lucide-react";
+
+const SUPPORT_EMAIL = (process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "bonjour@flowo.app").trim();
 
 export default async function CompteEquipePage() {
   const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
   const label = [me.prenom, me.nom].filter(Boolean).join(" ").trim() || me.email || "Vous";
+
+  const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Ajout de membres équipe — Flowo")}&body=${encodeURIComponent(
+    "Bonjour,\n\nJe souhaite ajouter des collaborateurs à mon espace Flowo.\n\nMon compte : " + (me.email || "") + "\n\nMerci,\n",
+  )}`;
 
   return (
     <CompteSubLayout
@@ -20,20 +27,24 @@ export default async function CompteEquipePage() {
             <p className="font-semibold text-[var(--foreground)]">Votre équipe</p>
           </div>
         </div>
-        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">1 membre</p>
+        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">1 membre (votre compte)</p>
         <div className="rounded-xl bg-gray-50 py-6 text-center dark:bg-gray-950/50">
           <UserRound className="mx-auto size-10 text-gray-400" aria-hidden />
           <p className="mt-2 text-sm font-medium text-[var(--foreground)]">{label}</p>
         </div>
-        <button
-          type="button"
-          disabled
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[color:var(--primary)] py-3.5 text-sm font-semibold text-[var(--primary-foreground)] opacity-60"
+        <a
+          href={mailto}
+          className={cx(
+            "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[color:var(--primary)] py-3.5 text-sm font-semibold text-[var(--primary-foreground)] transition hover:opacity-95",
+            focusRing,
+          )}
         >
           <Share2 className="size-4" aria-hidden />
-          Inviter
-        </button>
-        <p className="mt-2 text-center text-xs text-gray-500">Invitation multi-utilisateurs : bientôt disponible.</p>
+          Demander plusieurs accès
+        </a>
+        <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+          Un e-mail s’ouvre pour contacter le support : nous configurons les sièges supplémentaires sur votre compte.
+        </p>
       </div>
     </CompteSubLayout>
   );

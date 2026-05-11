@@ -10,6 +10,11 @@ type Body = {
   adresse?: string;
   type?: string;
   siret?: string;
+  siren?: string;
+  tva_intracom?: string;
+  categorie_fiscale?: string;
+  secteur_public?: boolean;
+  chorus_service_code?: string;
   notes?: string;
   inactive?: boolean;
 };
@@ -35,6 +40,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         adresse: String(raw.adresse || "").trim(),
         type: String(raw.type || "particulier"),
         siret: String(raw.siret || "").trim(),
+        siren: String(raw.siren || "").trim(),
+        tva_intracom: String(raw.tva_intracom || "").trim(),
+        categorie_fiscale: String(raw.categorie_fiscale || "").trim() || null,
+        secteur_public: Boolean(raw.secteur_public),
+        chorus_service_code: String(raw.chorus_service_code || "").trim(),
         notes: String(raw.notes || "").trim(),
         inactive: Boolean(raw.inactive),
       }),

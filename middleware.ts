@@ -10,6 +10,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/forgot-password" ||
     pathname.startsWith("/devis/public") ||
     pathname.startsWith("/facturation/public") ||
+    pathname.startsWith("/f/") ||
     pathname.startsWith("/api/webhooks");
 
   if (isPublic) return NextResponse.next();

@@ -13,6 +13,17 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 
+from conformite import (
+    chorus_export_payload,
+    classify_client_branche,
+    default_b2b_mentions_footer,
+    ereporting_transaction_snapshot,
+    pdp_einvoice_snapshot,
+    simulation_status_for_env,
+    transmission_kinds_for_branche,
+    validate_facture_emission,
+)
+
 # ─── Config ───────────────────────────────────────────────────────
 JWT_ALGORITHM = "HS256"
 mongo_url = os.environ.get("MONGO_URL")
@@ -82,6 +93,15 @@ def serialize_doc(doc):
             doc[k] = v.isoformat()
     return doc
 
+
+def _iso_date(val):
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.isoformat()
+    return val
+
+
 async def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
     token = None
@@ -106,6 +126,73 @@ async def get_current_user(request: Request) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token invalide")
 
+
+def _pdp_simulate() -> bool:
+    return os.environ.get("PDP_SIMULATE", "true").lower() in ("1", "true", "yes")
+
+
+def _pdp_configured() -> bool:
+    return bool(os.environ.get("PDP_API_URL", "").strip() and os.environ.get("PDP_API_KEY", "").strip())
+
+
+async def audit_log(
+    user_id: str,
+    action: str,
+    entity_type: str,
+    entity_id: str,
+    payload: Optional[dict] = None,
+):
+    await db.audit_events.insert_one(
+        {
+            "user_id": user_id,
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "payload": payload or {},
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+
+
+async def create_transmissions_for_facture(user_id: str, facture_id: str, facture_doc: dict, branche: str):
+    """Crée les enregistrements de transmission (PDP / Chorus) — simulation ou pending selon env."""
+    kinds = transmission_kinds_for_branche(branche)
+    status, msg = simulation_status_for_env(_pdp_simulate(), _pdp_configured())
+    now = datetime.now(timezone.utc)
+    prof = await db.profiles.find_one({"user_id": user_id})
+    cli = None
+    cid = facture_doc.get("client_id")
+    if cid:
+        try:
+            cli = await db.clients.find_one({"_id": ObjectId(str(cid)), "user_id": user_id})
+        except Exception:
+            cli = None
+    prof_s = serialize_doc(dict(prof)) if prof else None
+    cli_s = serialize_doc(dict(cli)) if cli else None
+    fd = {**facture_doc, "id": facture_id}
+    for kind in kinds:
+        if kind == "pdp_einvoicing":
+            snap = pdp_einvoice_snapshot(fd, prof_s, cli_s)
+        elif kind == "pdp_ereporting":
+            snap = ereporting_transaction_snapshot(fd, cli_s)
+        elif kind == "chorus_pro":
+            snap = chorus_export_payload(fd, prof_s, cli_s)
+        else:
+            snap = {"kind": kind}
+        doc = {
+            "user_id": user_id,
+            "facture_id": facture_id,
+            "kind": kind,
+            "status": status,
+            "detail": msg,
+            "payload_snapshot": snap,
+            "provider_ref": f"stub-{uuid.uuid4()}" if status == "simulated_ok" else None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.transmissions.insert_one(doc)
+
+
 # ─── Pydantic Models ─────────────────────────────────────────────
 class RegisterInput(BaseModel):
     email: str
@@ -126,10 +213,22 @@ class UserMeUpdate(BaseModel):
 class ProfileUpdate(BaseModel):
     entreprise: Optional[str] = None
     siret: Optional[str] = None
+    siren: Optional[str] = None
+    forme_juridique: Optional[str] = None
+    capital_social: Optional[str] = None
+    rcs_ville: Optional[str] = None
+    numero_tva_intracom: Optional[str] = None
+    tva_sur_encaissements: Optional[bool] = None
+    tva_sur_debits_opt_in: Optional[bool] = None
+    decennale_mention: Optional[str] = None
+    iban: Optional[str] = None
+    bic: Optional[str] = None
     adresse: Optional[str] = None
     tel: Optional[str] = None
     email_facturation: Optional[str] = None
     logo_url: Optional[str] = None
+    avatar_url: Optional[str] = None
+    specialites: Optional[str] = None
     tva_defaut: Optional[float] = None
     sep_fourniture_pose: Optional[bool] = None
     structure_devis: Optional[str] = None
@@ -140,6 +239,10 @@ class ProfileUpdate(BaseModel):
     pays: Optional[str] = None
     use_personal_library: Optional[bool] = None
     assistant_name: Optional[str] = None
+    feature_flag_pdp: Optional[bool] = None
+    feature_flag_ereporting: Optional[bool] = None
+    feature_flag_chorus: Optional[bool] = None
+    feature_flag_esign_advanced: Optional[bool] = None
 
 class ChantierInput(BaseModel):
     name: str
@@ -184,6 +287,12 @@ class ClientInput(BaseModel):
     adresse: Optional[str] = ""
     type: Optional[str] = "particulier"
     siret: Optional[str] = ""
+    siren: Optional[str] = ""
+    tva_intracom: Optional[str] = ""
+    categorie_fiscale: Optional[str] = None
+    """particulier | pro_assujetti | pro_non_assujetti | pro_international"""
+    secteur_public: Optional[bool] = False
+    chorus_service_code: Optional[str] = ""
     notes: Optional[str] = ""
     inactive: Optional[bool] = False
 
@@ -211,6 +320,7 @@ class DevisInput(BaseModel):
     date_expiration: Optional[str] = None
     remise_type: Optional[str] = None
     remise_valeur: Optional[float] = 0
+    adresse_chantier: Optional[str] = None
     lignes: Optional[List[DevisLineInput]] = []
 
 class DevisUpdateInput(BaseModel):
@@ -221,6 +331,12 @@ class DevisUpdateInput(BaseModel):
     date_expiration: Optional[str] = None
     remise_type: Optional[str] = None
     remise_valeur: Optional[float] = None
+    adresse_chantier: Optional[str] = None
+    esign_provider: Optional[str] = None
+    esign_envelope_id: Optional[str] = None
+    esign_status: Optional[str] = None
+    esign_signed_at: Optional[str] = None
+    esign_proof: Optional[dict] = None
 
 
 class InternalNoteAppendInput(BaseModel):
@@ -230,6 +346,25 @@ class PaiementInput(BaseModel):
     montant: float
     date: Optional[str] = None
     mode: Optional[str] = "virement"
+
+
+class FactureFromDevisOptions(BaseModel):
+    """Options conformité lors de la création facture depuis devis."""
+
+    operations_type: Optional[str] = "services"
+    adresse_livraison_chantier: Optional[str] = None
+    date_prestation_debut: Optional[str] = None
+    date_prestation_fin: Optional[str] = None
+    facture_type: Optional[str] = "standard"
+    """standard | acompte | situation | solde | avoir"""
+    chorus_service_code: Optional[str] = None
+
+
+class DevisEsignStubInput(BaseModel):
+    """Stub signature avancée — à brancher sur Yousign / DocuSign (webhook + API)."""
+
+    action: str = "init"
+    """init | mark_signed (recette interne) | reset"""
 
 class AIGenerateInput(BaseModel):
     description: str
@@ -259,6 +394,7 @@ async def register(input: RegisterInput):
         "user_id": user_id,
         "entreprise": "",
         "siret": "",
+        "siren": "",
         "adresse": "",
         "tel": "",
         "email_facturation": email,
@@ -266,10 +402,16 @@ async def register(input: RegisterInput):
         "tva_defaut": 10,
         "sep_fourniture_pose": False,
         "structure_devis": "libre",
-        "mention_legale": "",
+        "mention_legale": default_b2b_mentions_footer(),
         "conditions_paiement": "Paiement à 30 jours",
         "onboarding_step": 0,
         "onboarding_complete": False,
+        "tva_sur_encaissements": True,
+        "tva_sur_debits_opt_in": False,
+        "feature_flag_pdp": True,
+        "feature_flag_ereporting": True,
+        "feature_flag_chorus": True,
+        "feature_flag_esign_advanced": True,
     })
     token = create_access_token(user_id, email)
     refresh = create_refresh_token(user_id)
@@ -328,10 +470,17 @@ async def update_profile(input: ProfileUpdate, user=Depends(get_current_user)):
 
 # ─── CHANTIERS ENDPOINTS ─────────────────────────────────────────
 @api.get("/chantiers")
-async def list_chantiers(user=Depends(get_current_user), search: str = "", status: str = ""):
+async def list_chantiers(
+    user=Depends(get_current_user),
+    search: str = "",
+    status: str = "",
+    client_id: str = "",
+):
     query = {"user_id": user["id"]}
     if status:
         query["status"] = status
+    if client_id.strip():
+        query["client_id"] = client_id.strip()
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
     rows = await db.chantiers.find(query).sort("due_date", 1).to_list(500)
@@ -398,6 +547,10 @@ async def list_clients(user=Depends(get_current_user), search: str = "", type: s
 @api.post("/clients")
 async def create_client(input: ClientInput, user=Depends(get_current_user)):
     doc = input.dict()
+    if not doc.get("categorie_fiscale"):
+        doc["categorie_fiscale"] = (
+            "particulier" if str(doc.get("type") or "").lower() == "particulier" else "pro_assujetti"
+        )
     doc["user_id"] = user["id"]
     doc["created_at"] = datetime.now(timezone.utc)
     result = await db.clients.insert_one(doc)
@@ -591,6 +744,7 @@ async def create_devis(input: DevisInput, user=Depends(get_current_user)):
         "date_expiration": input.date_expiration or "",
         "remise_type": input.remise_type or "",
         "remise_valeur": input.remise_valeur or 0,
+        "adresse_chantier": (input.adresse_chantier or "").strip(),
         "created_at": datetime.now(timezone.utc),
     }
     result = await db.devis.insert_one(doc)
@@ -669,11 +823,31 @@ async def list_factures(user=Depends(get_current_user), statut: str = ""):
     return [serialize_doc(f) for f in factures]
 
 @api.post("/factures/from-devis/{devis_id}")
-async def create_facture_from_devis(devis_id: str, user=Depends(get_current_user)):
+async def create_facture_from_devis(
+    devis_id: str,
+    body: FactureFromDevisOptions = FactureFromDevisOptions(),
+    user=Depends(get_current_user),
+):
     d = await db.devis.find_one({"_id": ObjectId(devis_id), "user_id": user["id"]})
     if not d:
         raise HTTPException(status_code=404, detail="Devis non trouvé")
     numero = await get_next_facture_number(user["id"])
+    cli = None
+    cid = d.get("client_id")
+    if cid:
+        try:
+            cli = await db.clients.find_one({"_id": ObjectId(str(cid)), "user_id": user["id"]})
+        except Exception:
+            cli = None
+    prof = await db.profiles.find_one({"user_id": user["id"]})
+    cli_flat = serialize_doc(dict(cli)) if cli else None
+    prof_flat = serialize_doc(dict(prof)) if prof else None
+    branche = classify_client_branche(cli_flat)
+    adresse_liv = (body.adresse_livraison_chantier or "").strip() or (d.get("adresse_chantier") or "").strip()
+    if not adresse_liv and cli_flat:
+        adresse_liv = (cli_flat.get("adresse") or "").strip()
+    chorus_code = (body.chorus_service_code or "").strip() or (cli_flat or {}).get("chorus_service_code") or ""
+    now = datetime.now(timezone.utc)
     facture_doc = {
         "user_id": user["id"],
         "devis_id": devis_id,
@@ -686,25 +860,70 @@ async def create_facture_from_devis(devis_id: str, user=Depends(get_current_user
         "total_tva": d.get("total_tva", 0),
         "total_ttc": d.get("total_ttc", 0),
         "notes": d.get("notes", ""),
-        "date_emission": datetime.now(timezone.utc),
-        "date_echeance": (datetime.now(timezone.utc) + timedelta(days=30)),
+        "date_emission": now,
+        "date_echeance": (now + timedelta(days=30)),
         "paiements": [],
         "montant_paye": 0,
-        "created_at": datetime.now(timezone.utc),
+        "public_token": str(uuid.uuid4()),
+        "created_at": now,
+        "operations_type": body.operations_type or "services",
+        "facture_type": body.facture_type or "standard",
+        "adresse_livraison_chantier": adresse_liv,
+        "date_prestation_debut": body.date_prestation_debut,
+        "date_prestation_fin": body.date_prestation_fin,
+        "conformite_branche": branche,
+        "chorus_service_code": chorus_code,
+        "immutable": True,
+        "locked_at": now,
     }
+    pre_val = {**facture_doc, "numero": numero}
+    facture_doc["conformite_warnings"] = validate_facture_emission(pre_val, prof_flat, cli_flat)
     result = await db.factures.insert_one(facture_doc)
-    facture_doc["id"] = str(result.inserted_id)
-    facture_doc.pop("_id", None)
+    fid = str(result.inserted_id)
+    stored = await db.factures.find_one({"_id": result.inserted_id})
+    out = serialize_doc(stored)
+    await create_transmissions_for_facture(user["id"], fid, out, branche)
+    await audit_log(
+        user["id"],
+        "facture.created",
+        "facture",
+        fid,
+        {"branche": branche, "numero": numero, "warnings": facture_doc.get("conformite_warnings") or []},
+    )
     # Update devis status
     await db.devis.update_one({"_id": ObjectId(devis_id)}, {"$set": {"statut": "facture"}})
-    return serialize_doc(facture_doc)
+    return out
 
 @api.get("/factures/{facture_id}")
 async def get_facture(facture_id: str, user=Depends(get_current_user)):
     f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
     if not f:
         raise HTTPException(status_code=404, detail="Facture non trouvée")
+    if not f.get("public_token"):
+        tok = str(uuid.uuid4())
+        await db.factures.update_one({"_id": ObjectId(facture_id)}, {"$set": {"public_token": tok}})
+        f["public_token"] = tok
     return serialize_doc(f)
+
+
+@api.get("/public/factures/{public_token}")
+async def get_public_facture(public_token: str):
+    """Consultation sans compte : lien partagé (UUID non devinable)."""
+    f = await db.factures.find_one({"public_token": public_token.strip()})
+    if not f:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    return {
+        "numero": f.get("numero"),
+        "client_nom": f.get("client_nom"),
+        "statut": f.get("statut"),
+        "lignes": f.get("lignes", []),
+        "total_ht": f.get("total_ht"),
+        "total_tva": f.get("total_tva"),
+        "total_ttc": f.get("total_ttc"),
+        "notes": f.get("notes"),
+        "date_emission": _iso_date(f.get("date_emission")),
+        "date_echeance": _iso_date(f.get("date_echeance")),
+    }
 
 @api.post("/factures/{facture_id}/paiements")
 async def add_paiement(facture_id: str, input: PaiementInput, user=Depends(get_current_user)):
@@ -726,7 +945,164 @@ async def add_paiement(facture_id: str, input: PaiementInput, user=Depends(get_c
         {"$set": {"paiements": paiements, "montant_paye": montant_paye, "statut": statut}}
     )
     updated = await db.factures.find_one({"_id": ObjectId(facture_id)})
+    await audit_log(
+        user["id"],
+        "facture.paiement",
+        "facture",
+        facture_id,
+        {"montant": input.montant, "mode": input.mode},
+    )
     return serialize_doc(updated)
+
+
+@api.get("/factures/{facture_id}/transmissions")
+async def list_facture_transmissions(facture_id: str, user=Depends(get_current_user)):
+    f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
+    if not f:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+    rows = await db.transmissions.find({"user_id": user["id"], "facture_id": facture_id}).sort("created_at", -1).to_list(
+        100
+    )
+    return [serialize_doc(t) for t in rows]
+
+
+@api.get("/factures/{facture_id}/chorus-export")
+async def export_facture_chorus(facture_id: str, user=Depends(get_current_user)):
+    f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
+    if not f:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+    prof = await db.profiles.find_one({"user_id": user["id"]})
+    cli = None
+    if f.get("client_id"):
+        try:
+            cli = await db.clients.find_one({"_id": ObjectId(str(f["client_id"])), "user_id": user["id"]})
+        except Exception:
+            cli = None
+    payload = chorus_export_payload(
+        serialize_doc(dict(f)),
+        serialize_doc(dict(prof)) if prof else None,
+        serialize_doc(dict(cli)) if cli else None,
+    )
+    return payload
+
+
+@api.post("/factures/{facture_id}/transmissions/retry")
+async def retry_facture_transmissions(facture_id: str, user=Depends(get_current_user)):
+    f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
+    if not f:
+        raise HTTPException(status_code=404, detail="Facture non trouvée")
+    branche = f.get("conformite_branche")
+    cli = None
+    if f.get("client_id"):
+        try:
+            cli = await db.clients.find_one({"_id": ObjectId(str(f["client_id"])), "user_id": user["id"]})
+        except Exception:
+            cli = None
+    if not branche:
+        branche = classify_client_branche(serialize_doc(dict(cli)) if cli else None)
+    await db.transmissions.delete_many({"user_id": user["id"], "facture_id": facture_id})
+    ins = serialize_doc(dict(f))
+    await create_transmissions_for_facture(user["id"], facture_id, ins, branche)
+    await audit_log(user["id"], "facture.transmissions_retry", "facture", facture_id, {"branche": branche})
+    rows = await db.transmissions.find({"user_id": user["id"], "facture_id": facture_id}).sort("created_at", -1).to_list(
+        100
+    )
+    return [serialize_doc(t) for t in rows]
+
+
+@api.get("/conformite/transmissions")
+async def list_all_transmissions(user=Depends(get_current_user), limit: int = 80):
+    lim = max(1, min(limit, 200))
+    rows = await db.transmissions.find({"user_id": user["id"]}).sort("created_at", -1).to_list(lim)
+    return [serialize_doc(t) for t in rows]
+
+
+@api.get("/conformite/audit")
+async def list_audit_events(user=Depends(get_current_user), limit: int = 100):
+    lim = max(1, min(limit, 300))
+    rows = await db.audit_events.find({"user_id": user["id"]}).sort("created_at", -1).to_list(lim)
+    return [serialize_doc(t) for t in rows]
+
+
+@api.get("/conformite/archive")
+async def conformite_archive_export(user=Depends(get_current_user), date_from: str = "", date_to: str = ""):
+    """Export JSON agrégé (archivage / preuve) — filtre optionnel sur date_emission des factures (YYYY-MM-DD)."""
+    factures = await db.factures.find({"user_id": user["id"]}).sort("created_at", -1).to_list(2000)
+
+    def _emission_day(doc) -> str:
+        de = doc.get("date_emission")
+        if de is None:
+            return ""
+        if isinstance(de, datetime):
+            return de.date().isoformat()
+        s = str(de)
+        return s[:10] if len(s) >= 10 else s
+
+    if date_from or date_to:
+
+        def _keep_emission(doc) -> bool:
+            d = _emission_day(doc)
+            if date_from and d and d < date_from:
+                return False
+            if date_to and d and d > date_to:
+                return False
+            return True
+
+        factures = [x for x in factures if _keep_emission(x)]
+    fids = [str(x["_id"]) for x in factures]
+    trans = (
+        await db.transmissions.find({"user_id": user["id"], "facture_id": {"$in": fids}}).to_list(10000)
+        if fids
+        else []
+    )
+    audits = await db.audit_events.find({"user_id": user["id"]}).sort("created_at", -1).to_list(5000)
+    devis = await db.devis.find({"user_id": user["id"]}).sort("created_at", -1).to_list(2000)
+    return {
+        "format": "flowo.conformite_archive.v1",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "filtre": {"date_from": date_from or None, "date_to": date_to or None},
+        "factures": [serialize_doc(x) for x in factures],
+        "transmissions": [serialize_doc(x) for x in trans],
+        "audit_events": [serialize_doc(x) for x in audits],
+        "devis": [serialize_doc(x) for x in devis],
+    }
+
+
+@api.put("/devis/{devis_id}/esign-stub")
+async def devis_esign_stub(devis_id: str, body: DevisEsignStubInput, user=Depends(get_current_user)):
+    d = await db.devis.find_one({"_id": ObjectId(devis_id), "user_id": user["id"]})
+    if not d:
+        raise HTTPException(status_code=404, detail="Devis non trouvé")
+    now = datetime.now(timezone.utc).isoformat()
+    if body.action == "init":
+        env_id = str(uuid.uuid4())
+        patch = {
+            "esign_provider": "advanced_stub",
+            "esign_envelope_id": env_id,
+            "esign_status": "pending_signature",
+            "esign_proof": {"init_at": now, "note": "Remplacez par intégration Yousign/DocuSign (eIDAS)."},
+        }
+    elif body.action == "mark_signed":
+        patch = {
+            "esign_status": "signed",
+            "esign_signed_at": now,
+            "esign_proof": {"completed_via": "stub", "signed_at": now},
+        }
+    elif body.action == "reset":
+        patch = {
+            "esign_provider": None,
+            "esign_envelope_id": None,
+            "esign_status": None,
+            "esign_signed_at": None,
+            "esign_proof": None,
+        }
+    else:
+        raise HTTPException(status_code=400, detail="action invalide (init | mark_signed | reset)")
+    await db.devis.update_one({"_id": ObjectId(devis_id), "user_id": user["id"]}, {"$set": patch})
+    await audit_log(user["id"], f"devis.esign.{body.action}", "devis", devis_id, patch)
+    rd = await db.devis.find_one({"_id": ObjectId(devis_id)})
+    return serialize_doc(rd)
+
 
 # ─── DASHBOARD STATS ──────────────────────────────────────────────
 @api.get("/dashboard/stats")
@@ -922,7 +1298,11 @@ async def startup():
     await db.devis.create_index([("user_id", 1), ("created_at", -1)])
     await db.ouvrages.create_index([("user_id", 1), ("nom", 1)])
     await db.factures.create_index([("user_id", 1), ("created_at", -1)])
+    await db.factures.create_index("public_token", unique=True, sparse=True)
     await db.chantiers.create_index([("user_id", 1), ("due_date", 1)])
+    await db.audit_events.create_index([("user_id", 1), ("created_at", -1)])
+    await db.transmissions.create_index([("user_id", 1), ("created_at", -1)])
+    await db.transmissions.create_index([("user_id", 1), ("facture_id", 1)])
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@plombicrm.com")
@@ -941,6 +1321,7 @@ async def startup():
             "user_id": str(result.inserted_id),
             "entreprise": "Flowo Admin",
             "siret": "",
+            "siren": "",
             "adresse": "",
             "tel": "",
             "email_facturation": admin_email,
@@ -948,10 +1329,16 @@ async def startup():
             "tva_defaut": 10,
             "sep_fourniture_pose": False,
             "structure_devis": "libre",
-            "mention_legale": "",
+            "mention_legale": default_b2b_mentions_footer(),
             "conditions_paiement": "Paiement à 30 jours",
             "onboarding_step": 3,
             "onboarding_complete": True,
+            "tva_sur_encaissements": True,
+            "tva_sur_debits_opt_in": False,
+            "feature_flag_pdp": True,
+            "feature_flag_ereporting": True,
+            "feature_flag_chorus": True,
+            "feature_flag_esign_advanced": True,
         })
         logger.info(f"Admin seeded: {admin_email}")
     elif not verify_password(admin_password, existing["password_hash"]):

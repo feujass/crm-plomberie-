@@ -217,7 +217,7 @@ const SidebarLink = React.forwardRef<
       className={cx(
         "flex items-center justify-between rounded-md p-2 text-base transition hover:bg-gray-200/50 sm:text-sm hover:dark:bg-gray-900",
         "text-gray-900 dark:text-gray-400 hover:dark:text-gray-50",
-        "data-[active=true]:text-blue-600 data-[active=true]:dark:text-blue-500",
+        "data-[active=true]:text-[var(--primary)] data-[active=true]:dark:text-[var(--primary)]",
         focusRing,
         className,
       )}
@@ -228,7 +228,7 @@ const SidebarLink = React.forwardRef<
         {children}
       </span>
       {notifications ? (
-        <span className="inline-flex size-5 items-center justify-center rounded bg-blue-100 text-sm font-medium text-blue-600 sm:text-xs dark:bg-blue-500/10 dark:text-blue-500">
+        <span className="inline-flex size-5 items-center justify-center rounded bg-[color:var(--sidebar-accent)] text-sm font-medium text-[color:var(--primary)] sm:text-xs dark:bg-[color:var(--sidebar-accent)] dark:text-[color:var(--primary)]">
           {notifications}
         </span>
       ) : null}
@@ -268,14 +268,14 @@ const SidebarSubLink = React.forwardRef<
     className={cx(
       "relative flex gap-2 rounded-md py-1.5 pl-9 pr-3 text-base transition sm:text-sm",
       "text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-      "data-[active=true]:rounded data-[active=true]:bg-white data-[active=true]:text-blue-600 data-[active=true]:shadow data-[active=true]:ring-1 data-[active=true]:ring-gray-200 data-[active=true]:dark:bg-gray-900 data-[active=true]:dark:text-blue-500 data-[active=true]:dark:ring-gray-800",
+      "data-[active=true]:rounded data-[active=true]:bg-white data-[active=true]:text-[var(--primary)] data-[active=true]:shadow data-[active=true]:ring-1 data-[active=true]:ring-gray-200 data-[active=true]:dark:bg-gray-900 data-[active=true]:dark:text-[var(--primary)] data-[active=true]:dark:ring-gray-800",
       focusRing,
       className,
     )}
     {...props}
   >
     {isActive ? (
-      <div className="absolute left-4 top-1/2 h-5 w-px -translate-y-1/2 bg-blue-500 dark:bg-blue-500" aria-hidden="true" />
+      <div className="absolute left-4 top-1/2 h-5 w-px -translate-y-1/2 bg-[color:var(--primary)]" aria-hidden="true" />
     ) : null}
     {children}
   </a>

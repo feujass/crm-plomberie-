@@ -33,12 +33,8 @@ async function appendInstrumentationNdjson(payload: {
 
   const cwd = process.cwd();
   const nodeEnv = process.env.NODE_ENV;
-  const isNextDev =
-    typeof nodeEnv === "string" && nodeEnv === "development";
   const loggingEnabled =
-    isNextDev ||
     process.env.SESSION_DEBUG_LOG === "1" ||
-    process.env.CRM_NEXT_IS_DEV_TUNNEL === "1" ||
     process.env.NEXT_PUBLIC_CRM_DEBUG_UI === "1" ||
     (() => {
       try {

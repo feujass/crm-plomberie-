@@ -17,9 +17,9 @@ const buttonVariants = tv({
     variant: {
       primary: [
         "border-transparent text-white dark:text-white",
-        "bg-blue-500 dark:bg-blue-500",
-        "hover:bg-blue-600 dark:hover:bg-blue-600",
-        "disabled:bg-blue-300 disabled:text-white disabled:dark:bg-blue-800 disabled:dark:text-blue-400",
+        "bg-[color:var(--primary)]",
+        "hover:opacity-95",
+        "disabled:opacity-60",
       ],
       secondary: [
         "border-gray-300 dark:border-gray-800 text-gray-900 dark:text-gray-50",

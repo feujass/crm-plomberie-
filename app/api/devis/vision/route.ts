@@ -25,7 +25,10 @@ export async function POST(req: Request) {
   const dataUrl = `data:${mime};base64,${b64}`;
 
   if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ message: "OPENAI_API_KEY manquant" }, { status: 500 });
+    return NextResponse.json(
+      { message: "IA non configurée (OPENAI_API_KEY manquante). Crée un devis en brouillon ou configure une clé.", code: "llm_not_configured" },
+      { status: 501 },
+    );
   }
 
   const profile = me.profile ?? {};

@@ -25,7 +25,11 @@ export async function POST(req: Request) {
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ message: "OPENAI_API_KEY non configurée" }, { status: 500 });
+    // L’IA est optionnelle en local : le client peut basculer en "brouillon".
+    return NextResponse.json(
+      { message: "IA non configurée (OPENAI_API_KEY manquante). Crée un devis en brouillon ou configure une clé.", code: "llm_not_configured" },
+      { status: 501 },
+    );
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

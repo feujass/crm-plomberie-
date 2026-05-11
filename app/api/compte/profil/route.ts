@@ -11,7 +11,7 @@ function revalidateCompteAll() {
   revalidatePath("/accueil");
 }
 
-type Body = { prenom?: string; nom?: string; tel?: string };
+type Body = { prenom?: string; nom?: string; tel?: string; avatar_url?: string | null };
 
 export async function POST(req: Request) {
   let raw: Body;
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tel: String(raw.tel || "").trim() || null,
+        avatar_url: String(raw.avatar_url ?? "").trim() || null,
       }),
     });
     revalidateCompteAll();

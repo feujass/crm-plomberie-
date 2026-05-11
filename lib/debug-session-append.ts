@@ -46,12 +46,8 @@ export function resolveDebugLogAbsolutePath(): string {
 
 /** `next dev` : `NODE_ENV=development` évite de dépendre de `CRM_NEXT_IS_DEV_TUNNEL` (souvent figé `"0"` après `next build`). */
 export function loggingEnabled(): boolean {
-  const env = process.env.NODE_ENV;
-  const isNextDev = typeof env === "string" && env === "development";
   return (
-    isNextDev ||
     process.env.SESSION_DEBUG_LOG === "1" ||
-    process.env.CRM_NEXT_IS_DEV_TUNNEL === "1" ||
     /** Prévisualisation / prod volontaire : rebuild requis (NEXT_PUBLIC figé au build). */
     process.env.NEXT_PUBLIC_CRM_DEBUG_UI === "1" ||
     sessionDebugViaSentinelFile()

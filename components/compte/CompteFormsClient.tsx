@@ -1,6 +1,8 @@
 "use client";
 
-import { Building2, Camera, ImagePlus, Mail, SlidersHorizontal, Trash2, User } from "lucide-react";
+import { Building2, ImagePlus, Mail, SlidersHorizontal, Trash2, User } from "lucide-react";
+import type { BackendProfile } from "@/types/backend";
+import { CompteLogoPicker } from "@/components/compte/CompteLogoPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -22,7 +24,7 @@ export function CompteProfilFormClient({
   initial,
 }: {
   email: string;
-  initial: { prenom: string | null; nom: string | null; tel: string };
+  initial: { prenom: string | null; nom: string | null; tel: string; avatar_url?: string | null };
 }) {
   const router = useRouter();
   const [err, setErr] = useState<string | null>(null);
@@ -41,6 +43,7 @@ export function CompteProfilFormClient({
             prenom: String(fd.get("prenom") || "").trim(),
             nom: String(fd.get("nom") || "").trim(),
             tel: String(fd.get("tel") || "").trim(),
+            avatar_url: String(fd.get("avatar_url") || "").trim(),
           });
           router.refresh();
         } catch (er) {
@@ -63,22 +66,9 @@ export function CompteProfilFormClient({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="mx-auto mb-3 flex size-20 items-center justify-center rounded-full border-2 border-dashed border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-          <User className="size-10 text-[color:var(--primary)] opacity-80" aria-hidden />
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Photo de profil : gestion avancée à venir.</p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <span className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-xs font-medium text-gray-600 opacity-60 dark:border-gray-700 dark:text-gray-400">
-            <Camera className="size-4" aria-hidden />
-            Prendre une photo
-          </span>
-          <span className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-xs font-medium text-gray-600 opacity-60 dark:border-gray-700 dark:text-gray-400">
-            <ImagePlus className="size-4" aria-hidden />
-            Choisir une photo
-          </span>
-        </div>
-        <p className="mt-2 text-[11px] text-gray-400">Format carré recommandé.</p>
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Photo de profil</p>
+        <CompteLogoPicker kind="avatar" name="avatar_url" defaultUrl={initial.avatar_url ?? ""} maxEdge={384} />
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -114,15 +104,7 @@ export function CompteProfilFormClient({
 export function CompteEntrepriseFormClient({
   profile,
 }: {
-  profile: {
-    entreprise?: string | null;
-    logo_url?: string | null;
-    siret?: string | null;
-    adresse?: string | null;
-    email_facturation?: string | null;
-    mention_legale?: string | null;
-    conditions_paiement?: string | null;
-  };
+  profile: BackendProfile;
 }) {
   const router = useRouter();
   const [err, setErr] = useState<string | null>(null);
@@ -141,10 +123,25 @@ export function CompteEntrepriseFormClient({
             entreprise: String(fd.get("entreprise") || ""),
             logo_url: String(fd.get("logo_url") || ""),
             siret: String(fd.get("siret") || ""),
+            siren: String(fd.get("siren") || ""),
+            forme_juridique: String(fd.get("forme_juridique") || ""),
+            capital_social: String(fd.get("capital_social") || ""),
+            rcs_ville: String(fd.get("rcs_ville") || ""),
+            numero_tva_intracom: String(fd.get("numero_tva_intracom") || ""),
+            tva_sur_encaissements: fd.get("tva_sur_encaissements") === "on",
+            tva_sur_debits_opt_in: fd.get("tva_sur_debits_opt_in") === "on",
+            decennale_mention: String(fd.get("decennale_mention") || ""),
+            iban: String(fd.get("iban") || ""),
+            bic: String(fd.get("bic") || ""),
             adresse: String(fd.get("adresse") || ""),
             email_facturation: String(fd.get("email_facturation") || ""),
             mention_legale: String(fd.get("mention_legale") || ""),
             conditions_paiement: String(fd.get("conditions_paiement") || ""),
+            specialites: String(fd.get("specialites") || ""),
+            feature_flag_pdp: fd.get("feature_flag_pdp") === "on",
+            feature_flag_ereporting: fd.get("feature_flag_ereporting") === "on",
+            feature_flag_chorus: fd.get("feature_flag_chorus") === "on",
+            feature_flag_esign_advanced: fd.get("feature_flag_esign_advanced") === "on",
           });
           router.refresh();
         } catch (er) {
@@ -168,27 +165,72 @@ export function CompteEntrepriseFormClient({
         <div className="space-y-3">
           <Input label="NOM" name="entreprise" defaultValue={profile.entreprise ?? ""} />
 
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 p-4 text-center dark:border-gray-700 dark:bg-gray-950/50">
-            <p className="mb-2 text-xs text-gray-500">Logo (URL pour l&apos;instant)</p>
-            <Input name="logo_url" defaultValue={profile.logo_url ?? ""} placeholder="https://…" className="text-left" />
-            <p className="mt-2 flex items-center justify-center gap-1 text-[11px] text-gray-400">
-              <ImagePlus className="size-3.5 shrink-0" aria-hidden />
-              Format carré recommandé.
-            </p>
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Logo</p>
+            <CompteLogoPicker defaultUrl={profile.logo_url ?? ""} />
           </div>
 
-          <div>
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Spécialités</p>
-            <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-400">
-              Déclaration des spécialités métier : prochainement. En attendant, précisez-les dans les mentions légales ou les notes de devis.
-            </p>
-          </div>
+          <Textarea
+            label="Spécialités"
+            name="specialites"
+            defaultValue={profile.specialites ?? ""}
+            rows={3}
+            placeholder="Ex. Plomberie, chauffage, assainissement…"
+          />
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            Indiquez vos corps d’état ou zones d’intervention. Ce texte peut être réutilisé sur vos documents.
+          </p>
 
           <Input label="SIRET" name="siret" defaultValue={profile.siret ?? ""} />
+          <Input label="SIREN (9 chiffres)" name="siren" defaultValue={profile.siren ?? ""} />
+          <Input label="Forme juridique" name="forme_juridique" placeholder="SARL, SASU, EI…" defaultValue={profile.forme_juridique ?? ""} />
+          <Input label="Capital social" name="capital_social" defaultValue={profile.capital_social ?? ""} />
+          <Input label="RCS (ville)" name="rcs_ville" defaultValue={profile.rcs_ville ?? ""} />
+          <Input
+            label="N° TVA intracommunautaire"
+            name="numero_tva_intracom"
+            defaultValue={profile.numero_tva_intracom ?? ""}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="tva_sur_encaissements" defaultChecked={profile.tva_sur_encaissements !== false} />
+            TVA sur les encaissements (cochez si vous y êtes assujetti)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="tva_sur_debits_opt_in" defaultChecked={profile.tva_sur_debits_opt_in === true} />
+            Option pour la TVA sur les débits (si applicable)
+          </label>
+          <Textarea
+            label="Assurance décennale / RC pro (BTP)"
+            name="decennale_mention"
+            defaultValue={profile.decennale_mention ?? ""}
+            rows={2}
+            placeholder="Ex. Assurance décennale n°…"
+          />
+          <Input label="IBAN" name="iban" defaultValue={profile.iban ?? ""} autoComplete="off" />
+          <Input label="BIC" name="bic" defaultValue={profile.bic ?? ""} />
           <Input label="Adresse" name="adresse" defaultValue={profile.adresse ?? ""} />
           <Input label="Email facturation" name="email_facturation" type="email" defaultValue={profile.email_facturation ?? ""} />
           <Textarea label="Mentions légales" name="mention_legale" defaultValue={profile.mention_legale ?? ""} rows={3} />
           <Textarea label="Conditions de paiement" name="conditions_paiement" defaultValue={profile.conditions_paiement ?? ""} rows={2} />
+          <div className="rounded-xl border border-dashed border-gray-300 p-3 dark:border-gray-600">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Fonctionnalités conformité</p>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="feature_flag_pdp" defaultChecked={profile.feature_flag_pdp !== false} />
+              PDP / e-invoicing & e-reporting
+            </label>
+            <label className="mt-1 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="feature_flag_ereporting" defaultChecked={profile.feature_flag_ereporting !== false} />
+              E-reporting explicite
+            </label>
+            <label className="mt-1 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="feature_flag_chorus" defaultChecked={profile.feature_flag_chorus !== false} />
+              Chorus Pro (secteur public)
+            </label>
+            <label className="mt-1 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="feature_flag_esign_advanced" defaultChecked={profile.feature_flag_esign_advanced !== false} />
+              Signature électronique avancée (devis)
+            </label>
+          </div>
         </div>
       </div>
 
@@ -298,8 +340,7 @@ export function CompteLogoFormClient({ defaultLogoUrl }: { defaultLogoUrl: strin
         <ImagePlus className="size-5 text-gray-600 dark:text-gray-400" aria-hidden />
         <p className="font-semibold text-[var(--foreground)]">Logo sur les documents</p>
       </div>
-      <Input name="logo_url" defaultValue={defaultLogoUrl} placeholder="https://…" />
-      <p className="text-xs text-gray-500">URL du logo (PNG ou JPG, fond transparent ou carré recommandé).</p>
+      <CompteLogoPicker defaultUrl={defaultLogoUrl} />
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       <Button type="submit" className="w-full rounded-2xl py-3.5" disabled={pending}>
         {pending ? "…" : "Enregistrer le logo"}

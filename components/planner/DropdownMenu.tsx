@@ -285,7 +285,7 @@ const DropdownMenuRadioItem = React.forwardRef<
         <span className="absolute left-2 flex size-4 items-center justify-center">
           <RiRadioButtonFill
             aria-hidden="true"
-            className="size-full shrink-0 text-blue-500 group-data-[state=checked]/DropdownMenuRadioItem:flex group-data-[state=unchecked]/DropdownMenuRadioItem:hidden dark:text-blue-500"
+            className="size-full shrink-0 text-[color:var(--primary)] group-data-[state=checked]/DropdownMenuRadioItem:flex group-data-[state=unchecked]/DropdownMenuRadioItem:hidden dark:text-[color:var(--primary)]"
           />
           <RiCheckboxBlankCircleLine
             aria-hidden="true"

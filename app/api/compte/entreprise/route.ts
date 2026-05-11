@@ -14,11 +14,26 @@ function revalidateCompteAll() {
 type Body = {
   entreprise?: string;
   siret?: string | null;
+  siren?: string | null;
+  forme_juridique?: string | null;
+  capital_social?: string | null;
+  rcs_ville?: string | null;
+  numero_tva_intracom?: string | null;
+  tva_sur_encaissements?: boolean | null;
+  tva_sur_debits_opt_in?: boolean | null;
+  decennale_mention?: string | null;
+  iban?: string | null;
+  bic?: string | null;
   adresse?: string | null;
   email_facturation?: string | null;
   logo_url?: string | null;
   mention_legale?: string | null;
   conditions_paiement?: string | null;
+  specialites?: string | null;
+  feature_flag_pdp?: boolean | null;
+  feature_flag_ereporting?: boolean | null;
+  feature_flag_chorus?: boolean | null;
+  feature_flag_esign_advanced?: boolean | null;
 };
 
 export async function POST(req: Request) {
@@ -36,11 +51,30 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         entreprise: String(raw.entreprise ?? "").trim() || null,
         siret: String(raw.siret ?? "").trim() || null,
+        siren: String(raw.siren ?? "").trim() || null,
+        forme_juridique: String(raw.forme_juridique ?? "").trim() || null,
+        capital_social: String(raw.capital_social ?? "").trim() || null,
+        rcs_ville: String(raw.rcs_ville ?? "").trim() || null,
+        numero_tva_intracom: String(raw.numero_tva_intracom ?? "").trim() || null,
+        tva_sur_encaissements:
+          typeof raw.tva_sur_encaissements === "boolean" ? raw.tva_sur_encaissements : undefined,
+        tva_sur_debits_opt_in:
+          typeof raw.tva_sur_debits_opt_in === "boolean" ? raw.tva_sur_debits_opt_in : undefined,
+        decennale_mention: String(raw.decennale_mention ?? "").trim() || null,
+        iban: String(raw.iban ?? "").trim() || null,
+        bic: String(raw.bic ?? "").trim() || null,
         adresse: String(raw.adresse ?? "").trim() || null,
         email_facturation: String(raw.email_facturation ?? "").trim() || null,
         logo_url: String(raw.logo_url ?? "").trim() || null,
         mention_legale: String(raw.mention_legale ?? "").trim() || null,
         conditions_paiement: String(raw.conditions_paiement ?? "").trim() || null,
+        specialites: String(raw.specialites ?? "").trim() || null,
+        feature_flag_pdp: typeof raw.feature_flag_pdp === "boolean" ? raw.feature_flag_pdp : undefined,
+        feature_flag_ereporting:
+          typeof raw.feature_flag_ereporting === "boolean" ? raw.feature_flag_ereporting : undefined,
+        feature_flag_chorus: typeof raw.feature_flag_chorus === "boolean" ? raw.feature_flag_chorus : undefined,
+        feature_flag_esign_advanced:
+          typeof raw.feature_flag_esign_advanced === "boolean" ? raw.feature_flag_esign_advanced : undefined,
       }),
     });
     revalidateCompteAll();

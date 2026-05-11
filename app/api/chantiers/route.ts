@@ -6,9 +6,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const search = url.searchParams.get("search") ?? "";
   const status = url.searchParams.get("status") ?? "";
+  const clientId = url.searchParams.get("client_id") ?? "";
   const qs = new URLSearchParams();
   if (search) qs.set("search", search);
   if (status) qs.set("status", status);
+  if (clientId) qs.set("client_id", clientId);
   const path = `/api/chantiers${qs.toString() ? `?${qs.toString()}` : ""}`;
 
   try {

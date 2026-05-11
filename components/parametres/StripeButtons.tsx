@@ -56,13 +56,12 @@ export function StripeButtons({ hasStripeCustomer }: { hasStripeCustomer: boolea
           }
         }}
       >
-        Passer Pro (Stripe Checkout)
+        Ouvrir Stripe Checkout (plan Pro)
       </Button>
       {hasStripeCustomer ? (
         <Button
           type="button"
           variant="secondary"
-          className="ml-2"
           onClick={async () => {
             setErr(null);
             try {

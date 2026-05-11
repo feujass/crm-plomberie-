@@ -7,7 +7,7 @@ import type { DevisLigneInput } from "@/types/devis";
 import { cx } from "@/lib/utils";
 import { BookMarked, Euro, FileUp, KeyRound, Mic, Play, Sparkles, Zap } from "lucide-react";
 import Image from "next/image";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 
 /** Persona affichée dans l’interface. */
 const ASSISTANT_NAME = "Zeus";
@@ -91,6 +91,10 @@ type InputTab = "write" | "voice" | "file";
 export function DevisNouveauClient({ clients, initialClientId = "" }: { clients: BackendClient[]; initialClientId?: string }) {
   const [tab, setTab] = useState<InputTab>("write");
   const [clientId, setClientId] = useState(initialClientId);
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPrenom, setClientPrenom] = useState("");
+  const [clientNom, setClientNom] = useState("");
+  const [lastAutoEmail, setLastAutoEmail] = useState("");
   const [text, setText] = useState("");
   const [busy, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -98,6 +102,27 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
   const [recState, setRecState] = useState<"idle" | "recording">("idle");
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [fileLabel, setFileLabel] = useState<string | null>(null);
+
+  const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
+
+  // Pré-remplir automatiquement l’e-mail si le client sélectionné en a un.
+  // Règle: on ne remplace pas si l'utilisateur a déjà tapé autre chose.
+  useEffect(() => {
+    const nextEmail = (selectedClient?.email ?? "").trim();
+    if (!nextEmail) return;
+    setClientEmail((prev) => {
+      const p = prev.trim();
+      if (!p) {
+        setLastAutoEmail(nextEmail);
+        return nextEmail;
+      }
+      if (p === lastAutoEmail) {
+        setLastAutoEmail(nextEmail);
+        return nextEmail;
+      }
+      return prev;
+    });
+  }, [selectedClient?.email, lastAutoEmail]);
 
   const visibleCategories = showAllCategories ? CATEGORY_PRESETS : CATEGORY_PRESETS.slice(0, VISIBLE_CATEGORY_COUNT);
   const hiddenCategoryCount = Math.max(0, CATEGORY_PRESETS.length - VISIBLE_CATEGORY_COUNT);
@@ -109,13 +134,47 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
   async function runGenerate(body: { text?: string; file?: File }) {
     setErr(null);
     try {
+      let resolvedClientId: string | null = clientId || null;
+      if (!resolvedClientId && (clientEmail.trim() || clientNom.trim() || clientPrenom.trim())) {
+        const nom = clientNom.trim() || (clientEmail.trim() ? clientEmail.trim().split("@")[0] : "Client");
+        const resCli = await fetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ nom, prenom: clientPrenom.trim(), email: clientEmail.trim() }),
+        });
+        const jsonCli = await parseJsonSafely<{ id?: string; message?: string }>(resCli);
+        if (!resCli.ok) throw new Error(jsonCli.message || "Création client");
+        if (jsonCli.id) {
+          resolvedClientId = jsonCli.id;
+          setClientId(jsonCli.id);
+        }
+      }
+
       let lignes: DevisLigneInput[] = [];
       if (body.file) {
         const fd = new FormData();
         fd.append("file", body.file);
         const res = await fetch("/api/devis/vision", { method: "POST", body: fd });
         const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
-        if (!res.ok) throw new Error(json.message || "Vision");
+        if (!res.ok) {
+          const msg = json.message || "Analyse impossible";
+          if (msg.toLowerCase().includes("openai_api_key") || msg.toLowerCase().includes("ia non configurée")) {
+            // Fallback : créer un devis vide sans IA
+            const cre = await fetch("/api/devis", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ mode: "draft", client_id: resolvedClientId }),
+            });
+            const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
+            if (!cre.ok) throw new Error(created.message || "Création du devis");
+            if (!created.id) throw new Error("Réponse serveur invalide");
+            window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
+            return;
+          }
+          throw new Error(msg);
+        }
         lignes = json.lignes ?? [];
       } else if (body.text) {
         const res = await fetch("/api/devis/generate", {
@@ -124,7 +183,23 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
           body: JSON.stringify({ text: body.text }),
         });
         const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
-        if (!res.ok) throw new Error(json.message || "Génération");
+        if (!res.ok) {
+          const msg = json.message || "Génération impossible";
+          if (msg.toLowerCase().includes("openai_api_key") || msg.toLowerCase().includes("ia non configurée")) {
+            const cre = await fetch("/api/devis", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ mode: "draft", client_id: resolvedClientId }),
+            });
+            const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
+            if (!cre.ok) throw new Error(created.message || "Création du devis");
+            if (!created.id) throw new Error("Réponse serveur invalide");
+            window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
+            return;
+          }
+          throw new Error(msg);
+        }
         lignes = json.lignes ?? [];
       }
       const cre = await fetch("/api/devis", {
@@ -133,7 +208,7 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
         credentials: "same-origin",
         body: JSON.stringify({
           mode: "from_ia",
-          client_id: clientId || null,
+          client_id: resolvedClientId,
           lignes,
           notes: null,
         }),
@@ -250,6 +325,12 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
               ))}
             </select>
           </label>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <Input label="E-mail client (optionnel)" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+            <Input label="Prénom (optionnel)" value={clientPrenom} onChange={(e) => setClientPrenom(e.target.value)} />
+            <Input label="Nom (optionnel)" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
+          </div>
 
           {err ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">

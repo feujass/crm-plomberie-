@@ -66,6 +66,12 @@ export default async function CompteHubPage() {
           Icon={Building2}
         />
         <CompteHubRow
+          href="/compte/conformite"
+          title="Conformité facturation"
+          subtitle="PDP, e-reporting, Chorus Pro, audit, archivage."
+          Icon={Shield}
+        />
+        <CompteHubRow
           href="/compte/equipe"
           title="Équipe"
           subtitle="Invitez et gérez vos collaborateurs."

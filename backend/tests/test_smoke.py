@@ -43,3 +43,10 @@ def test_register_me_chantiers(client: TestClient) -> None:
     ch = client.get("/api/chantiers", headers=h)
     assert ch.status_code == 200, ch.text
     assert isinstance(ch.json(), list)
+
+    ch_f = client.get("/api/chantiers?client_id=507f1f77bcf86cd799439011", headers=h)
+    assert ch_f.status_code == 200, ch_f.text
+    assert isinstance(ch_f.json(), list)
+
+    pub = client.get("/api/public/factures/00000000-0000-0000-0000-000000000000")
+    assert pub.status_code == 404

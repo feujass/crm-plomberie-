@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { EtapeMetier } from "@/lib/chantier";
+import { isChantierInTermineListSegment } from "@/lib/chantier";
 import type { BackendClient, BackendDevis } from "@/types/backend";
 import type { Chantier } from "@/types/chantiers";
 
@@ -53,7 +54,7 @@ export function ChantiersBoard({ initialChantiers, clients, devis }: Props) {
     const items: { id: string; chantierId: string; type: "warning" | "danger"; message: string }[] = [];
     const today = todayMidnight();
     for (const p of rows) {
-      if (p.status === "Terminé") continue;
+      if (isChantierInTermineListSegment(p)) continue;
       if (p.a_relancer) {
         items.push({ id: `rel-${p.id}`, chantierId: p.id, type: "danger", message: `À relancer · ${p.name}` });
       }

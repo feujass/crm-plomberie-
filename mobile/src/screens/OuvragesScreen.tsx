@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { useAuth } from "../context/AuthContext";
+import { getApiBaseUrl } from "../lib/constants";
 import { supabase } from "../lib/supabase";
 import { colors } from "../theme/colors";
 
@@ -59,17 +60,23 @@ export function OuvragesScreen() {
         <Text style={styles.sub}>Tous vos ouvrages, réunis et prêts à être utilisés dans vos devis.</Text>
 
         <View style={styles.actions}>
-          <Pressable style={styles.btnPrimary} onPress={() => Alert.alert("Bientôt", "Création d’ouvrage depuis l’app.")}>
+          <Pressable
+            style={styles.btnPrimary}
+            onPress={() => void Linking.openURL(`${getApiBaseUrl()}/catalogue/nouveau`)}
+          >
             <Text style={styles.btnPrimaryTxt}>+ Ajouter</Text>
           </Pressable>
-          <Pressable style={styles.btnOutline} onPress={() => Alert.alert("Bientôt", "Import depuis l’app web pour l’instant.")}>
-            <Text style={styles.btnOutlineTxt}>Importer</Text>
+          <Pressable
+            style={styles.btnOutline}
+            onPress={() => void Linking.openURL(`${getApiBaseUrl()}/catalogue`)}
+          >
+            <Text style={styles.btnOutlineTxt}>Voir sur le web</Text>
           </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>Commencez avec des exemples</Text>
         <Text style={styles.sectionSub}>
-          Trois types : main d’œuvre, fourniture, ouvrage. Ajoutez les vôtres depuis le web ou ici (bientôt).
+          Types : main d’œuvre, fourniture, ouvrage. Créez ou modifiez vos ouvrages sur le web ; la liste se met à jour ici.
         </Text>
 
         {loading ? (
@@ -79,7 +86,9 @@ export function OuvragesScreen() {
             data={rows}
             keyExtractor={(item) => item.id}
             contentContainerStyle={rows.length === 0 ? styles.emptyWrap : { paddingBottom: 24 }}
-            ListEmptyComponent={<Text style={styles.empty}>Aucun ouvrage — créez-en sur le web ou attendez l’éditeur mobile.</Text>}
+            ListEmptyComponent={
+              <Text style={styles.empty}>Aucun ouvrage — créez-en depuis l’app web (bouton Ajouter).</Text>
+            }
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>{item.nom}</Text>

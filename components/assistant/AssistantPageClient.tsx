@@ -266,7 +266,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
               <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[color:var(--primary)]/20 bg-white px-3 py-1.5 text-[10px] font-extrabold tracking-wide text-[color:var(--primary)] dark:bg-slate-900/80 dark:text-[color:var(--chart-1)]">
                 {autoSave === "saving" ? <span className="size-2.5 animate-pulse rounded-full bg-[color:var(--primary)]" /> : "✓"}
                 <span>
-                  {autoSave === "error" ? "ERREUR DE SAUVEGARDE" : autoSave === "saving" ? "SAUVEGARDE…" : "SAUVEGARDE AUTO"}
+                  {autoSave === "error" ? "ERREUR D’ENREGISTREMENT" : autoSave === "saving" ? "Enregistrement…" : "Enregistré ✓"}
                 </span>
               </div>
             </div>
@@ -530,7 +530,7 @@ function ToggleBlock({
           <span
             className={cx(
               "pointer-events-none absolute left-0.5 top-0.5 size-7 rounded-full bg-white shadow transition-transform duration-200",
-              value ? "translate-x-7" : "translate-x-0",
+              value ? "translate-x-6" : "translate-x-0",
             )}
             aria-hidden
           />

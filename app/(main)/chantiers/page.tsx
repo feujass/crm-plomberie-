@@ -1,5 +1,6 @@
 import { ChantiersRenatoCards } from "@/components/chantiers/ChantiersRenatoCards";
 import { backendFetch } from "@/lib/backend/server";
+import { isChantierInTermineListSegment } from "@/lib/chantier";
 import { FLOWO_SEARCH_INPUT_CLASS, flowoSegmentTabClass } from "@/lib/flowo-ui";
 import { cx, focusRing } from "@/lib/utils";
 import type { BackendClient } from "@/types/backend";
@@ -33,7 +34,7 @@ function computeChantierAlerts(rows: Chantier[]) {
   const items: { id: string; chantierId: string; type: "warning" | "danger"; message: string }[] = [];
   const today = todayMidnight();
   for (const p of rows) {
-    if (p.status === "Terminé") continue;
+    if (isChantierInTermineListSegment(p)) continue;
     if (p.a_relancer) {
       items.push({ id: `rel-${p.id}`, chantierId: p.id, type: "danger", message: `À relancer · ${p.name}` });
     }
@@ -70,7 +71,7 @@ export default async function ChantiersPage({ searchParams }: { searchParams: Pr
   ]);
 
   const filtered = (allRows ?? []).filter((c) =>
-    segment === "termine" ? c.status === "Terminé" : c.status !== "Terminé",
+    segment === "termine" ? isChantierInTermineListSegment(c) : !isChantierInTermineListSegment(c),
   );
 
   const sorted = [...filtered].sort((a, b) => {

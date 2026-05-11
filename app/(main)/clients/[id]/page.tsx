@@ -6,6 +6,7 @@ import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { BackendClientDetail } from "@/types/backend";
+import type { Chantier } from "@/types/chantiers";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,16 @@ export default async function ClientDetailPage({ params }: Props) {
   const devis = client.devis ?? [];
   const factures = client.factures ?? [];
   const ca = Number(client.ca_total ?? 0);
+
+  let chantiersClient: Chantier[] = [];
+  try {
+    const rows = (await backendFetch(
+      `/api/chantiers?client_id=${encodeURIComponent(id)}`,
+    ).catch(() => [])) as Chantier[];
+    chantiersClient = Array.isArray(rows) ? rows : [];
+  } catch {
+    chantiersClient = [];
+  }
 
   return (
     <div className="space-y-4">
@@ -45,7 +56,7 @@ export default async function ClientDetailPage({ params }: Props) {
       </Card>
 
       <Card title={`CA factures payées : ${formatCurrencyEUR(ca)}`}>
-        <p className="text-sm text-slate-600">Historique</p>
+        <p className="text-sm text-slate-600">Devis</p>
         <ul className="mt-2 space-y-1 text-sm">
           {(devis ?? []).map((d) => (
             <li key={d.id}>
@@ -56,9 +67,31 @@ export default async function ClientDetailPage({ params }: Props) {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-sm text-slate-500">
-          Chantiers : bientôt (non exposés côté backend pour l’instant).
-        </p>
+        <p className="mt-3 text-sm font-medium text-slate-700 dark:text-slate-300">Chantiers</p>
+        {chantiersClient.length === 0 ? (
+          <p className="mt-1 text-sm text-slate-500">Aucun chantier lié à ce client.</p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm">
+            {chantiersClient.map((c) => (
+              <li key={c.id}>
+                <Link href={`/chantiers/${c.id}`} className="text-sky-600 hover:underline">
+                  {c.name || "Sans nom"}
+                </Link>
+                {c.status ? (
+                  <>
+                    {" "}
+                    <Badge statut={c.status} />
+                  </>
+                ) : null}
+                {c.due_date ? (
+                  <span className="text-slate-500"> — échéance {formatDateFr(c.due_date)}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <p className="mt-4 text-sm font-medium text-slate-700 dark:text-slate-300">Factures</p>
         <ul className="mt-2 space-y-1 text-sm">
           {(factures ?? []).map((f) => (
             <li key={f.id}>

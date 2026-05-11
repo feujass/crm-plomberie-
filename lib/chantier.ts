@@ -37,3 +37,23 @@ export const CHANTIER_TYPES: { value: ChantierTypeKey; label: string }[] = [
 export const CHANTIER_STATUS = ["Planifié", "En cours", "Urgent", "Terminé"] as const;
 export type ChantierStatus = (typeof CHANTIER_STATUS)[number];
 
+/** Comparaison à minuit local, même convention que les alertes chantiers (`due_date` + `T12:00:00`). */
+export function isChantierDueDateStrictlyPast(dueDate: string | null | undefined, now = new Date()): boolean {
+  const raw = dueDate?.trim();
+  if (!raw) return false;
+  const due = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(due.getTime())) return false;
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  return due.getTime() < today.getTime();
+}
+
+export function isChantierInTermineListSegment(c: {
+  status?: string | null;
+  due_date?: string | null;
+}): boolean {
+  if ((c.status ?? "").trim() === "Terminé") return true;
+  return isChantierDueDateStrictlyPast(c.due_date);
+}
+

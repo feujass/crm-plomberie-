@@ -119,6 +119,12 @@ const nextConfig: NextConfig = {
           "**/node_modules/**",
           "**/.git/**",
           "**/.next/**",
+          // Évite des recompils HMR causées par des logs/artefacts locaux
+          "**/*.ndjson",
+          "**/*-peek.json",
+          "**/.cursor/**",
+          "**/agent-transcripts/**",
+          path.join(root, "public/_crm_browser_probe.json"),
           path.join(root, "_incoming/**"),
           path.join(root, "backend/.venv/**"),
           path.join(root, "mobile/node_modules/**"),

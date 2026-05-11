@@ -18,5 +18,7 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return !!isMobile;
+  // Mobile-first par défaut : évite de rendre le chrome desktop sur téléphone
+  // avant que `useEffect` puisse mesurer la largeur.
+  return isMobile ?? true;
 }

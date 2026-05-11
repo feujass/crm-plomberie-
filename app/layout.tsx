@@ -1,4 +1,5 @@
 import { ClientFetchInstrumentation } from "@/components/debug/ClientFetchInstrumentation";
+import { ChunkLoadAutoReload } from "@/components/debug/ChunkLoadAutoReload";
 import { DebugImgPing } from "@/components/debug/DebugImgPing";
 import { DebugRootLayoutVisit } from "@/components/debug/DebugRootLayoutVisit";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -31,6 +32,7 @@ fetch(location.origin+"/api/debug/session-log?inlineboot=v1&p="+encodeURICompone
         ) : null}
         <DebugRootLayoutVisit />
         <DebugImgPing />
+        <ChunkLoadAutoReload />
         <ClientFetchInstrumentation />
         <ThemeProvider>{children}</ThemeProvider>
       </body>

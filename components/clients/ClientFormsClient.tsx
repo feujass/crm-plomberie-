@@ -15,6 +15,11 @@ type ClientInitial = {
   adresse?: string | null;
   type?: string;
   siret?: string | null;
+  siren?: string | null;
+  tva_intracom?: string | null;
+  categorie_fiscale?: string | null;
+  secteur_public?: boolean;
+  chorus_service_code?: string | null;
   notes?: string | null;
   inactive?: boolean;
 };
@@ -40,6 +45,11 @@ export function NouveauClientFormClient() {
           adresse: String(fd.get("adresse") || "").trim(),
           type: String(fd.get("type") || "particulier"),
           siret: String(fd.get("siret") || "").trim(),
+          siren: String(fd.get("siren") || "").trim(),
+          tva_intracom: String(fd.get("tva_intracom") || "").trim(),
+          categorie_fiscale: String(fd.get("categorie_fiscale") || "").trim(),
+          secteur_public: fd.get("secteur_public") === "on",
+          chorus_service_code: String(fd.get("chorus_service_code") || "").trim(),
           notes: String(fd.get("notes") || "").trim(),
         };
         try {
@@ -76,7 +86,27 @@ export function NouveauClientFormClient() {
           <option value="professionnel">Professionnel</option>
         </select>
       </label>
+      <Input label="SIREN (pro)" name="siren" />
       <Input label="SIRET (pro)" name="siret" />
+      <Input label="N° TVA intracom (pro assujetti)" name="tva_intracom" />
+      <label className="block text-sm font-medium">
+        Catégorie fiscale
+        <select
+          name="categorie_fiscale"
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          defaultValue="particulier"
+        >
+          <option value="particulier">Particulier</option>
+          <option value="pro_assujetti">Pro assujetti TVA (France)</option>
+          <option value="pro_non_assujetti">Pro non assujetti / franchise</option>
+          <option value="pro_international">Pro à l&apos;étranger / intracom</option>
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="secteur_public" />
+        Client secteur public (marchés publics / Chorus Pro)
+      </label>
+      <Input label="Code service Chorus (optionnel)" name="chorus_service_code" />
       <Textarea label="Notes" name="notes" rows={3} />
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       <div className="flex gap-2">
@@ -114,6 +144,11 @@ export function EditClientFormClient({ clientId, initial }: { clientId: string; 
           adresse: String(fd.get("adresse") || "").trim(),
           type: String(fd.get("type") || "particulier"),
           siret: String(fd.get("siret") || "").trim(),
+          siren: String(fd.get("siren") || "").trim(),
+          tva_intracom: String(fd.get("tva_intracom") || "").trim(),
+          categorie_fiscale: String(fd.get("categorie_fiscale") || "").trim(),
+          secteur_public: fd.get("secteur_public") === "on",
+          chorus_service_code: String(fd.get("chorus_service_code") || "").trim(),
           notes: String(fd.get("notes") || "").trim(),
           inactive: fd.get("inactive") === "on",
         };
@@ -150,7 +185,31 @@ export function EditClientFormClient({ clientId, initial }: { clientId: string; 
           <option value="professionnel">Professionnel</option>
         </select>
       </label>
+      <Input label="SIREN" name="siren" defaultValue={initial.siren ?? ""} />
       <Input label="SIRET" name="siret" defaultValue={initial.siret ?? ""} />
+      <Input label="N° TVA intracom" name="tva_intracom" defaultValue={initial.tva_intracom ?? ""} />
+      <label className="block text-sm font-medium">
+        Catégorie fiscale
+        <select
+          name="categorie_fiscale"
+          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          defaultValue={initial.categorie_fiscale ?? (initial.type === "professionnel" ? "pro_assujetti" : "particulier")}
+        >
+          <option value="particulier">Particulier</option>
+          <option value="pro_assujetti">Pro assujetti TVA (France)</option>
+          <option value="pro_non_assujetti">Pro non assujetti / franchise</option>
+          <option value="pro_international">Pro à l&apos;étranger / intracom</option>
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="secteur_public" defaultChecked={Boolean(initial.secteur_public)} />
+        Secteur public (Chorus Pro)
+      </label>
+      <Input
+        label="Code service Chorus"
+        name="chorus_service_code"
+        defaultValue={initial.chorus_service_code ?? ""}
+      />
       <Textarea label="Notes" name="notes" defaultValue={initial.notes ?? ""} rows={3} />
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="inactive" defaultChecked={Boolean(initial.inactive)} />

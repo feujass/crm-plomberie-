@@ -7,7 +7,6 @@ import {
   FLOWO_EMPTY_LIST_CLASS,
   FLOWO_LIST_CARD_CLASS,
 } from "@/lib/flowo-ui";
-import { RENATO_HERO_CHANTIER } from "@/lib/renato-hero";
 import { cx, focusRing } from "@/lib/utils";
 import type { BackendDevis } from "@/types/backend";
 import { Copy, FileText, MapPin, Trash2, User } from "lucide-react";
@@ -52,7 +51,6 @@ type Props = {
 export function DevisRenatoCards({ devis, clientAddresses, listSegment }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const showChantierHero = listSegment === "termine";
 
   async function duplicateDevis(id: string) {
     const res = await fetch(`/api/devis/${id}/duplicate`, { method: "POST" });
@@ -95,25 +93,12 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment }: Props)
           <li key={d.id} className={FLOWO_LIST_CARD_CLASS}>
             <Link href={`/devis/${d.id}`} className={cx("block transition hover:opacity-[0.98]", focusRing)}>
               <div className={cx("relative h-44 overflow-hidden", FLOWO_CARD_HERO_SURFACE_CLASS)}>
-                {showChantierHero ? (
-                  <>
-                    <Image
-                      src={RENATO_HERO_CHANTIER}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, 50vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" aria-hidden />
-                  </>
-                ) : (
-                  <>
-                    <div className={FLOWO_CARD_HERO_GRADIENT_CLASS} />
-                    <div className="absolute inset-0 flex items-center justify-center text-[color:var(--primary)]/35 dark:text-white/20">
-                      <FileText className="size-16" strokeWidth={1} aria-hidden />
-                    </div>
-                  </>
-                )}
+                <>
+                  <div className={FLOWO_CARD_HERO_GRADIENT_CLASS} />
+                  <div className="absolute inset-0 flex items-center justify-center text-[color:var(--primary)]/35 dark:text-white/20">
+                    <FileText className="size-16" strokeWidth={1} aria-hidden />
+                  </div>
+                </>
                 <div
                   className={cx(
                     "absolute right-3 top-3 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm",
