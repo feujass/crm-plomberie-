@@ -1,6 +1,10 @@
 .env
 .env*.local
+.env.vercel
 node_modules/
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
 # Dossier volumineux d’imports (référence) — ne doit pas impacter Next/TS/Git
 _incoming/
 data/
