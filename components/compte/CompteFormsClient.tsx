@@ -121,6 +121,7 @@ export function CompteEntrepriseFormClient({
         try {
           await postJson("/api/compte/entreprise", {
             entreprise: String(fd.get("entreprise") || ""),
+            metier: String(fd.get("metier") || ""),
             logo_url: String(fd.get("logo_url") || ""),
             siret: String(fd.get("siret") || ""),
             siren: String(fd.get("siren") || ""),
@@ -164,6 +165,24 @@ export function CompteEntrepriseFormClient({
 
         <div className="space-y-3">
           <Input label="NOM" name="entreprise" defaultValue={profile.entreprise ?? ""} />
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Métier principal</label>
+            <select
+              name="metier"
+              defaultValue={profile.metier ?? "artisan_btp"}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            >
+              <option value="plombier">Plombier</option>
+              <option value="electricien">Électricien</option>
+              <option value="carreleur">Carreleur</option>
+              <option value="peintre">Peintre</option>
+              <option value="macon">Maçon</option>
+              <option value="multi_metiers">Multi-métiers</option>
+              <option value="artisan_btp">Artisan BTP (général)</option>
+              <option value="autre">Autre</option>
+            </select>
+          </div>
 
           <div>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Logo</p>

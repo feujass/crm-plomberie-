@@ -1,5 +1,6 @@
 import { backendFetch } from "@/lib/backend/server";
 import { sendDevisEmail } from "@/lib/resend-mail";
+import type { BackendDevisDetail } from "@/types/backend";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -16,18 +17,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const email = String(to ?? "").trim();
   if (!email) return NextResponse.json({ message: "E-mail requis" }, { status: 400 });
 
-  let devis: unknown;
+  let devis: BackendDevisDetail;
   try {
-    devis = await backendFetch(`/api/devis/${id}`);
+    devis = (await backendFetch(`/api/devis/${id}`)) as BackendDevisDetail;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Devis introuvable";
     return NextResponse.json({ message: msg }, { status: 404 });
   }
 
+  const publicToken = devis.public_token?.trim();
+  if (!publicToken) {
+    return NextResponse.json({ message: "Token public manquant sur le devis" }, { status: 500 });
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const publicUrl = `${siteUrl}/devis/${encodeURIComponent(id)}`;
-  const numero =
-    devis && typeof devis === "object" && "numero" in devis ? String((devis as { numero?: unknown }).numero ?? "—") : "—";
+  const publicUrl = `${siteUrl}/devis/public/${encodeURIComponent(publicToken)}`;
+  const numero = devis.numero ?? "—";
 
   const html = `<p>Bonjour,</p>
 <p>Voici votre devis <strong>${numero}</strong>.</p>
@@ -35,12 +40,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const res = await sendDevisEmail({ to: email, subject: `Devis ${numero}`, html });
 
-  // Même en mode "mock" (clé Resend absente), on permet de tester le flux et on marque "envoyé".
+  const now = new Date().toISOString();
   try {
     await backendFetch(`/api/devis/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ statut: "envoye" }),
+      body: JSON.stringify({ statut: "envoye", date_envoi: devis.date_envoi ?? now }),
     });
   } catch {
     // best-effort: l'envoi peut être testé indépendamment du statut
@@ -53,6 +58,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  return NextResponse.json({ ok: true, mode: "resend" });
+  return NextResponse.json({ ok: true, mode: "resend", publicUrl });
 }
-

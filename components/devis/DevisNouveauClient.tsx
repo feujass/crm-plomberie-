@@ -8,6 +8,7 @@ import { cx } from "@/lib/utils";
 import { BookMarked, Euro, FileUp, KeyRound, Mic, Play, Sparkles, Zap } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 
 /** Persona affichée dans l’interface. */
 const ASSISTANT_NAME = "Zeus";
@@ -45,14 +46,14 @@ const CATEGORY_PRESETS: { label: string; snippet: string }[] = [
       "Installation / rénovation cuisine : arrivées eau froide et chaude, évacuation lave-vaisselle et évier, mise à niveau des points électriques (four, plaques, prises dédiées), éventuel percement et raccordements. Indiquer linéaire et équipements fournis par le client ou à fournir.",
   },
   {
-    label: "Plomberie",
+    label: "Électricité",
     snippet:
-      "Intervention plomberie : recherche de fuite / remplacement de pièces (détailler accès), désembouage ou remplacement de radiateurs, création ou déplacement de sorties d’eau. Préciser étages, accès vide sanitaire et contraintes horaires.",
+      "Travaux électricité : mise aux normes tableau, ajout circuits, spots, VMC, radiateurs électriques, raccordements cuisine. Préciser surface, accès et matériel fourni ou à fournir.",
   },
   {
-    label: "Chauffage",
+    label: "Carrelage",
     snippet:
-      "Mise aux normes ou entretien chauffage : remplacement circulateur, purge circuit, équilibrage, ou remplacement ballon / groupe sécurité. Indiquer type d’énergie (gaz / électrique / PAC) et marque du matériel si connu.",
+      "Pose carrelage sol et mural : surface en m², préparation supports, dépose ancien revêtement, joints, plinthes. Préciser type de carrelage et pièce concernée.",
   },
   {
     label: "Dépannage",
@@ -89,7 +90,9 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
 type InputTab = "write" | "voice" | "file";
 
 export function DevisNouveauClient({ clients, initialClientId = "" }: { clients: BackendClient[]; initialClientId?: string }) {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<InputTab>("write");
+  const [showClientFields, setShowClientFields] = useState(false);
   const [clientId, setClientId] = useState(initialClientId);
   const [clientEmail, setClientEmail] = useState("");
   const [clientPrenom, setClientPrenom] = useState("");
@@ -104,6 +107,17 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
   const [fileLabel, setFileLabel] = useState<string | null>(null);
 
   const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "voice") setTab("voice");
+    else if (t === "file") setTab("file");
+    else if (t === "write") setTab("write");
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (initialClientId || clientId) setShowClientFields(true);
+  }, [initialClientId, clientId]);
 
   // Pré-remplir automatiquement l’e-mail si le client sélectionné en a un.
   // Règle: on ne remplace pas si l'utilisateur a déjà tapé autre chose.
@@ -306,31 +320,45 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
             ) : null}
           </div>
 
-          <label className="mt-5 block text-sm font-medium text-[var(--foreground)]">
-            <span className="mb-1.5 block text-[var(--muted-foreground)]">Client (optionnel)</span>
-            <select
-              className={cx(
-                "w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)]",
-                "focus:border-[color:var(--primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--primary)]/25",
-                "dark:bg-zinc-950",
-              )}
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => setShowClientFields((v) => !v)}
+              className="text-sm font-medium text-[color:var(--primary)] hover:underline"
             >
-              <option value="">— Sans client lié —</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            <Input label="E-mail client (optionnel)" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
-            <Input label="Prénom (optionnel)" value={clientPrenom} onChange={(e) => setClientPrenom(e.target.value)} />
-            <Input label="Nom (optionnel)" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
+              {showClientFields ? "Masquer le client" : "Ajouter un client (optionnel)"}
+            </button>
           </div>
+
+          {showClientFields ? (
+            <>
+              <label className="mt-3 block text-sm font-medium text-[var(--foreground)]">
+                <span className="mb-1.5 block text-[var(--muted-foreground)]">Client</span>
+                <select
+                  className={cx(
+                    "w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)]",
+                    "focus:border-[color:var(--primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--primary)]/25",
+                    "dark:bg-zinc-950",
+                  )}
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                >
+                  <option value="">— Sans client lié —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <Input label="E-mail client" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+                <Input label="Prénom" value={clientPrenom} onChange={(e) => setClientPrenom(e.target.value)} />
+                <Input label="Nom" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
+              </div>
+            </>
+          ) : null}
 
           {err ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">

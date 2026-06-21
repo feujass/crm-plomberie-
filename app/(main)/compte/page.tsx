@@ -3,23 +3,7 @@ import { CompteLogoutButton } from "@/components/compte/CompteLogoutButton";
 import { CompteSection } from "@/components/compte/CompteSection";
 import { backendFetch } from "@/lib/backend/server";
 import type { BackendMeResponse } from "@/types/backend";
-import {
-  BarChart3,
-  Bell,
-  Building2,
-  CreditCard,
-  Euro,
-  FileText,
-  HelpCircle,
-  Home,
-  BookOpen,
-  Palette,
-  Shield,
-  SlidersHorizontal,
-  Users,
-  UsersRound,
-  Wrench,
-} from "lucide-react";
+import { Bell, Building2, HelpCircle, Palette, SlidersHorizontal, Users } from "lucide-react";
 
 export default async function CompteHubPage() {
   const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
@@ -39,16 +23,13 @@ export default async function CompteHubPage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold text-[var(--foreground)]">{email}</p>
-            <span className="mt-0.5 inline-flex rounded-full border border-[color:var(--primary)]/35 bg-[color:var(--primary)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--primary)]">
-              Pro
-            </span>
           </div>
         </div>
         <CompteHubRow
-          href="/compte/donnees"
-          title="Abonnement & facturation"
-          subtitle="Voir les offres et le suivi Stripe"
-          Icon={CreditCard}
+          href="/onboarding/step-1"
+          title="Compléter mon profil"
+          subtitle="Entreprise, logo, règles de devis (optionnel)."
+          Icon={Building2}
         />
       </CompteSection>
 
@@ -62,20 +43,8 @@ export default async function CompteHubPage() {
         <CompteHubRow
           href="/compte/entreprise"
           title="Entreprise"
-          subtitle="Nom, logo et spécialités."
+          subtitle="Nom, logo, métier et spécialités."
           Icon={Building2}
-        />
-        <CompteHubRow
-          href="/compte/conformite"
-          title="Conformité facturation"
-          subtitle="PDP, e-reporting, Chorus Pro, audit, archivage."
-          Icon={Shield}
-        />
-        <CompteHubRow
-          href="/compte/equipe"
-          title="Équipe"
-          subtitle="Invitez et gérez vos collaborateurs."
-          Icon={UsersRound}
         />
         <CompteHubRow
           href="/compte/notifications"
@@ -86,8 +55,8 @@ export default async function CompteHubPage() {
         <CompteHubRow
           href="/compte/securite"
           title="Sécurité"
-          subtitle="Face ID et suppression du compte."
-          Icon={Shield}
+          subtitle="Mot de passe et suppression du compte."
+          Icon={Users}
         />
       </CompteSection>
 
@@ -106,14 +75,13 @@ export default async function CompteHubPage() {
         />
       </CompteSection>
 
-      <CompteSection title="Navigation">
-        <CompteHubRow href="/accueil" title="Accueil" subtitle="Tableau de bord" Icon={Home} />
-        <CompteHubRow href="/rentabilite" title="Rentabilité" subtitle="Statistiques et tendances" Icon={BarChart3} />
-        <CompteHubRow href="/devis" title="Devis" subtitle="Devis et propositions" Icon={FileText} />
-        <CompteHubRow href="/chantiers" title="Chantiers" subtitle="Suivi des chantiers" Icon={Wrench} />
-        <CompteHubRow href="/clients" title="Clients" subtitle="Carnet d'adresses" Icon={Users} />
-        <CompteHubRow href="/catalogue" title="Catalogue" subtitle="Ouvrages et prix" Icon={BookOpen} />
-        <CompteHubRow href="/facturation" title="Facturation" subtitle="Factures et paiements" Icon={Euro} />
+      <CompteSection title="Abonnement">
+        <CompteHubRow
+          href="/compte/donnees"
+          title="Données & abonnement"
+          subtitle="Choisir une offre et payer via Stripe."
+          Icon={SlidersHorizontal}
+        />
       </CompteSection>
 
       <CompteSection title="Assistance">

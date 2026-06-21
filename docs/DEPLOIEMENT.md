@@ -2,6 +2,41 @@
 
 Document de référence : ce que le dépôt **ne configure pas** tout seul (secrets, hébergeur, comptes tiers). La CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) valide le build, pas la bonne config de production.
 
+## Périmètre MVP web (phase sas)
+
+**Actif et maintenu :**
+
+- Application web Next.js + backend FastAPI + MongoDB
+- Parcours : inscription → devis vocal/texte → édition → envoi e-mail → page publique client → relances cron
+- Clients, catalogue ouvrages, facturation basique, graphiques CA (accueil + rentabilité)
+- Auth web : cookie JWT FastAPI (`access_token`)
+
+**En pause (code conservé, hors navigation principale) :**
+
+- App mobile Expo (`mobile/`) — pas de publication App Store pour l’instant
+- Projet Swift natif (`Flowo/`)
+- Dossier legacy (`_legacy/`)
+- Chantiers, conformité PDP avancée, équipe multi-utilisateurs, Stripe visible
+- Assistant chat séparé (`/assistant`) — Zeus est intégré au flux « Nouveau devis »
+
+**Supabase (périmètre réduit) :** upload logo (fallback data URL), webhooks Stripe (masqué UI). Le flux devis/clients/relances ne dépend plus de Supabase.
+
+## Checklist mise en production (MVP)
+
+Variables **obligatoires** :
+
+| Couche | Variables |
+|--------|-----------|
+| Next | `BACKEND_URL`, `NEXT_PUBLIC_SITE_URL`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `RESEND_FROM`, `CRON_SECRET` |
+| Backend | `MONGO_URL`, `DB_NAME`, `JWT_SECRET` (≥ 32 car.), `CRON_SECRET` (identique à Next), `CORS_ALLOW_ORIGINS` en prod |
+
+Tests manuels recommandés :
+
+1. Inscription → `/devis/nouveau?tab=voice` → génération → envoi → ouvrir le lien public en navigation privée
+2. Cron relance devis : `curl -H "Authorization: Bearer $CRON_SECRET" "$NEXT_PUBLIC_SITE_URL/api/cron/relances-devis"`
+3. Safari iOS : micro + enregistrement vocal
+4. Devis accepté → facture → lien public `/f/{token}`
+
 ## 1. Agents IA (Next.js) — OpenAI et option Claude (web)
 
 Les routes d’**inférence** tournent dans **Next.js**, pas sur le FastAPI `server.py` (`/api/ai/*` en **501** — désactivées). La logique partagée du chat **web** est dans [`lib/llm/flowoChatCompletion.ts`](../lib/llm/flowoChatCompletion.ts).
@@ -31,7 +66,7 @@ Copier [`.env.example`](../.env.example) → `.env.local` (jamais commité).
 | Supabase (auth / flows) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` ; côté serveur admin : `SUPABASE_SERVICE_ROLE_KEY` |
 | E-mails | `RESEND_API_KEY`, `RESEND_FROM` |
 | Paiement | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, etc. + URL webhook = déploiement actuel |
-| Crons (Vercel, etc.) | `CRON_SECRET` identique à l’en-tête `Authorization: Bearer …` appelant `/api/cron/*` |
+| Crons (Vercel, etc.) | `CRON_SECRET` identique à l’en-tête `Authorization: Bearer …` appelant `/api/cron/*` **et** côté `backend/.env` pour les endpoints `/api/cron/devis-a-relancer` |
 
 ## 3. Backend FastAPI (Mongo)
 
@@ -41,19 +76,14 @@ Fichier local : `backend/.env` (voir [`backend/.env.example`](../backend/.env.ex
 - `JWT_SECRET` : **au moins 32 caractères** en production (clé faible = warnings PyJWT + risque).
 - `CORS_ALLOW_ORIGINS` (optionnel) : si défini, liste d’origines séparées par des **virgules** (ex. l’URL HTTPS du site Next). Sinon le serveur garde le comportement par défaut `*` (développement).
 
-## 4. Application mobile (Expo)
+## 4. Application mobile (Expo) — en pause
 
-Voir [`mobile/.env.example`](../mobile/.env.example) et [`mobile/APP_STORE_CHECKLIST.txt`](../mobile/APP_STORE_CHECKLIST.txt).
+Voir [`mobile/.env.example`](../mobile/.env.example). Non requis pour le MVP web sas.
 
-- `EXPO_PUBLIC_SUPABASE_*` : authentification.
-- `EXPO_PUBLIC_SITE_URL` : URL **HTTPS** du **Next** en production — le client appelle `/api/assistant/chat` sur ce host ; la clé `OPENAI_API_KEY` est sur **le serveur Next**, pas sur le téléphone.
+## 5. Authentification web
 
-## 5. Deux canaux d’authentification
-
-- **Web** : principalement **FastAPI + cookie** (`access_token`), données **Mongo** via l’API.
-- **Mobile** : **Supabase** ; le chat cible le Next avec contexte Supabase.
-
-Un déploiement « prêt pour les utilisateurs » exige : stack **web** (Next + clés LLM : `OPENAI_API_KEY` et/ou `ANTHROPIC_API_KEY` selon `FLOWO_LLM`, + `BACKEND_URL` + backend + Mongo) **et** stack **mobile** (Supabase + bons `EXPO_PUBLIC_*` + `OPENAI_API_KEY` côté Next pour `/api/assistant/chat`) si vous publiez l’app native.
+- **Web MVP** : **FastAPI + cookie** (`access_token`), données **Mongo** via l'API.
+- Supabase : optionnel (logo, Stripe webhook legacy).
 
 ## 6. Contrôles hors code (recommandé)
 

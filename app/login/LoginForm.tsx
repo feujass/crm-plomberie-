@@ -212,9 +212,11 @@ const DotMap = () => {
 export function LoginForm({
   redirectTo,
   backendConfigured,
+  passwordResetOk = false,
 }: {
   redirectTo: string;
   backendConfigured: boolean;
+  passwordResetOk?: boolean;
 }) {
   const router = useRouter();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -231,7 +233,7 @@ export function LoginForm({
     setError(null);
     if (authDisabled) {
       setError(
-        "BACKEND_URL manquant : copiez .env.example vers .env.local, renseignez l’URL du backend FastAPI (ex: http://localhost:8000), puis redémarrez le serveur de dev."
+        "Auth indisponible : configurez Supabase (NEXT_PUBLIC_SUPABASE_*) ou BACKEND_URL dans les variables d'environnement."
       );
       return;
     }
@@ -299,15 +301,25 @@ export function LoginForm({
         <div className="flex w-full flex-col justify-center p-8 md:w-1/2 md:p-10">
           <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
             <h1 className="mb-1 text-2xl font-bold text-gray-900 md:text-3xl dark:text-gray-50">Bon retour</h1>
-            <p className="mb-8 text-gray-600 dark:text-gray-400">Connectez-vous à votre compte</p>
+            <p className="mb-2 text-gray-600 dark:text-gray-400">Connectez-vous à votre compte</p>
+            <p className="mb-8 text-sm">
+              <Link href="/" className="text-blue-500 hover:text-blue-400">
+                ← Découvrir Flowo sans se connecter
+              </Link>
+            </p>
 
             {authDisabled ? (
               <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                Connexion indisponible : le fichier <code className="rounded bg-black/30 px-1">.env.local</code> ne contient pas{" "}
-                <code className="rounded bg-black/30 px-1">BACKEND_URL</code>. Copiez{" "}
-                <code className="rounded bg-black/30 px-1">.env.example</code>, renseignez l’URL du backend FastAPI (ex:{" "}
-                <code className="rounded bg-black/30 px-1">http://localhost:8000</code>), puis relancez{" "}
-                <code className="rounded bg-black/30 px-1">npm run dev</code>.
+                Connexion indisponible : configurez{" "}
+                <code className="rounded bg-black/30 px-1">NEXT_PUBLIC_SUPABASE_URL</code> et{" "}
+                <code className="rounded bg-black/30 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> sur Vercel, ou{" "}
+                <code className="rounded bg-black/30 px-1">BACKEND_URL</code> pour le mode FastAPI local.
+              </p>
+            ) : null}
+
+            {passwordResetOk ? (
+              <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                Mot de passe réinitialisé. Tu peux te connecter avec ton nouveau mot de passe.
               </p>
             ) : null}
 

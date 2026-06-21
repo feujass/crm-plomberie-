@@ -28,6 +28,11 @@ def test_register_me_chantiers(client: TestClient) -> None:
         "password": "s3cure-Test-Pass",
         "nom": "Test",
         "prenom": "CI",
+        "tel": "0612345678",
+        "entreprise": "Entreprise Test",
+        "metier": "plombier",
+        "siret": "12345678901234",
+        "adresse": "1 rue de Test, 75001 Paris",
     }
     r = client.post("/api/auth/register", json=body)
     assert r.status_code == 200, r.text
@@ -50,3 +55,41 @@ def test_register_me_chantiers(client: TestClient) -> None:
 
     pub = client.get("/api/public/factures/00000000-0000-0000-0000-000000000000")
     assert pub.status_code == 404
+
+
+def test_devis_public_token(client: TestClient) -> None:
+    email = f"ci_{uuid.uuid4().hex}@flowo.test"
+    body = {
+        "email": email,
+        "password": "s3cure-Test-Pass",
+        "nom": "Test",
+        "prenom": "CI",
+        "tel": "0612345678",
+        "entreprise": "Entreprise Test",
+        "metier": "plombier",
+        "siret": "12345678901234",
+        "adresse": "1 rue de Test, 75001 Paris",
+    }
+    r = client.post("/api/auth/register", json=body)
+    assert r.status_code == 200, r.text
+    token = r.json().get("token")
+    assert token
+    h = {"Authorization": f"Bearer {token}"}
+
+    devis = client.post(
+        "/api/devis",
+        headers=h,
+        json={"client_id": None, "notes": "", "lignes": [{"designation": "Test", "quantite": 1, "prix_ht": 100, "tva": 10}]},
+    )
+    assert devis.status_code == 200, devis.text
+    devis_id = devis.json().get("id")
+    public_token = devis.json().get("public_token")
+    assert devis_id
+    assert public_token
+
+    pub = client.get(f"/api/public/devis/{public_token}")
+    assert pub.status_code == 200, pub.text
+    assert pub.json().get("numero")
+
+    missing = client.get("/api/public/devis/00000000-0000-0000-0000-000000000000")
+    assert missing.status_code == 404

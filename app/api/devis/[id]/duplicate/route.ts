@@ -21,6 +21,7 @@ export async function POST(_: Request, ctx: Ctx) {
         unite?: string;
         prix_ht?: number;
         tva?: number;
+        ligne_type?: string;
       }>;
     };
 
@@ -41,6 +42,10 @@ export async function POST(_: Request, ctx: Ctx) {
           unite: String(l.unite ?? "u"),
           prix_ht: Number(l.prix_ht ?? 0),
           tva: Number(l.tva ?? 10),
+          ligne_type:
+            l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
+              ? l.ligne_type
+              : "prestation",
         })),
       }),
     })) as { id: string };

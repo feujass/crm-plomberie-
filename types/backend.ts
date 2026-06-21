@@ -41,6 +41,11 @@ export type BackendProfile = {
   feature_flag_ereporting?: boolean;
   feature_flag_chorus?: boolean;
   feature_flag_esign_advanced?: boolean;
+  relance_devis_jours?: number;
+  metier?: string;
+  stripe_customer_id?: string | null;
+  subscription_plan?: "free" | "pro" | "pro_plus" | "pme";
+  subscription_status?: string | null;
 };
 
 export type BackendMeResponse = BackendUser & {
@@ -56,6 +61,9 @@ export type BackendDevis = {
   total_ht?: number;
   total_ttc?: number;
   created_at?: string;
+  public_token?: string;
+  date_envoi?: string;
+  derniere_relance_at?: string;
 };
 
 export type BackendDashboardStats = {
@@ -166,6 +174,7 @@ export type BackendDevisLine = {
   prix_ht?: number;
   tva?: number;
   total_ht?: number;
+  ligne_type?: "prestation" | "fourniture" | "pose" | string;
 };
 
 export type BackendDevisDetail = BackendDevis & {
@@ -180,6 +189,9 @@ export type BackendDevisDetail = BackendDevis & {
   total_ht?: number;
   total_tva?: number;
   adresse_chantier?: string;
+  public_token?: string;
+  date_envoi?: string;
+  derniere_relance_at?: string;
   esign_provider?: string;
   esign_envelope_id?: string;
   esign_status?: string;

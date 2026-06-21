@@ -1,5 +1,8 @@
 import { cookies } from "next/headers";
 
+import { isSupabaseDataMode } from "@/lib/supabase/env";
+import { supabaseBackendFetch } from "@/lib/supabase/backend-bridge";
+
 import { backendBaseUrl } from "./config";
 
 export type BackendFetchOptions = Omit<RequestInit, "headers"> & {
@@ -8,6 +11,10 @@ export type BackendFetchOptions = Omit<RequestInit, "headers"> & {
 };
 
 export async function backendFetch(path: string, opts: BackendFetchOptions = {}) {
+  if (isSupabaseDataMode()) {
+    return supabaseBackendFetch(path, opts);
+  }
+
   const base = backendBaseUrl();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -25,11 +32,21 @@ export async function backendFetch(path: string, opts: BackendFetchOptions = {})
     if (token) hdrs.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
-    ...opts,
-    headers: hdrs,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...opts,
+      headers: hdrs,
+      cache: "no-store",
+    });
+  } catch (e) {
+    const cause = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Connexion à l'API Flowo impossible (${base}). ${cause} — Vérifie BACKEND_URL dans .env.local et que FastAPI tourne : ` +
+        `cd backend && uvicorn server:app --reload --host 127.0.0.1 --port 8000 (MongoDB sur 27017).`,
+      { cause: e },
+    );
+  }
 
   const text = await res.text();
   const json = text ? safeJson(text) : null;

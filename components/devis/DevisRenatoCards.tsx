@@ -10,7 +10,6 @@ import {
 import { cx, focusRing } from "@/lib/utils";
 import type { BackendDevis } from "@/types/backend";
 import { Copy, FileText, MapPin, Trash2, User } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -48,7 +47,7 @@ type Props = {
   listSegment: DevisListSegment;
 };
 
-export function DevisRenatoCards({ devis, clientAddresses, listSegment }: Props) {
+export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSegment }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -99,14 +98,7 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment }: Props)
                     <FileText className="size-16" strokeWidth={1} aria-hidden />
                   </div>
                 </>
-                <div
-                  className={cx(
-                    "absolute right-3 top-3 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm",
-                    showChantierHero
-                      ? "bg-white/95 text-slate-800 dark:bg-slate-950/90 dark:text-slate-100"
-                      : "bg-white/95 text-slate-800 dark:bg-slate-950/90 dark:text-slate-100",
-                  )}
-                >
+                <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:bg-slate-950/90 dark:text-slate-100">
                   <span className={cx("size-2 shrink-0 rounded-full", dot)} aria-hidden />
                   {labelStatut(statut)}
                 </div>

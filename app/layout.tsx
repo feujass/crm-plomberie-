@@ -12,6 +12,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: APP_NAME,
   description: APP_DESCRIPTION,
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
+    statusBarStyle: "default",
+  },
+  manifest: "/manifest.webmanifest",
+  icons: [{ rel: "apple-touch-icon", url: "/zeus-avatar.png" }],
 };
 
 /** Debug session : exécuter le root layout à chaque requête HTTP (pas de cache shell) pour `server-root-layout-hit` NDJSON. */

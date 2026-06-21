@@ -33,21 +33,49 @@ function todayMidnight() {
 function computeChantierAlerts(rows: Chantier[]) {
   const items: { id: string; chantierId: string; type: "warning" | "danger"; message: string }[] = [];
   const today = todayMidnight();
+  const seen = new Set<string>();
   for (const p of rows) {
     if (isChantierInTermineListSegment(p)) continue;
     if (p.a_relancer) {
-      items.push({ id: `rel-${p.id}`, chantierId: p.id, type: "danger", message: `À relancer · ${p.name}` });
+      const id = `rel-${p.id}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        items.push({ id, chantierId: p.id, type: "danger", message: `À relancer · ${p.name}` });
+      }
     }
     if (p.due_date) {
       const due = new Date(`${p.due_date}T12:00:00`);
       const diff = Math.ceil((due.getTime() - today.getTime()) / 86400000);
       if (diff >= 0 && diff <= 7) {
-        items.push({
-          id: `due-${p.id}`,
-          chantierId: p.id,
-          type: "warning",
-          message: `Échéance ${diff <= 0 ? "aujourd'hui" : `dans ${diff} j`} · ${p.name}`,
-        });
+        const id = `due-${p.id}`;
+        if (!seen.has(id)) {
+          seen.add(id);
+          items.push({
+            id,
+            chantierId: p.id,
+            type: "warning",
+            message: `Échéance ${diff <= 0 ? "aujourd'hui" : `dans ${diff} j`} · ${p.name}`,
+          });
+        }
+      }
+    }
+    const na = (p.next_action_label ?? "").trim();
+    if (na && p.next_action_date) {
+      const due = new Date(`${p.next_action_date}T12:00:00`);
+      if (!Number.isNaN(due.getTime())) {
+        const diff = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+        if (diff >= 0 && diff <= 7) {
+          const id = `na-${p.id}`;
+          if (!seen.has(id)) {
+            seen.add(id);
+            items.push({
+              id,
+              chantierId: p.id,
+              type: diff <= 2 ? "danger" : "warning",
+              message: `À faire : ${na}${diff <= 0 ? " · aujourd'hui" : ` · dans ${diff} j`} · ${p.name}`,
+            });
+          }
+        }
       }
     }
   }

@@ -1,4 +1,6 @@
+import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import type { BackendMeResponse, BackendProfile } from "@/types/backend";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -48,19 +50,41 @@ export async function POST(req: Request) {
       const notes = typeof raw.notes === "string" ? raw.notes : raw.notes == null ? "" : "";
       const lignesIn = Array.isArray(raw.lignes) ? (raw.lignes as LigneIn[]) : [];
 
+      let profile: BackendProfile | undefined;
+      try {
+        const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+        profile = me.profile;
+      } catch {
+        profile = undefined;
+      }
+
+      const normalized = normalizeLignesWithProfile(
+        lignesIn.map((l, i) => ({
+          section: l.section,
+          designation: l.designation,
+          quantite: l.quantite,
+          unite: l.unite,
+          prix_ht: l.prix_ht,
+          tva: l.tva,
+          ordre: i,
+        })),
+        profile,
+      );
+
       const devis = (await backendFetch("/api/devis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_id,
           notes,
-          lignes: lignesIn.map((l) => ({
+          lignes: normalized.map((l) => ({
             section: l.section ?? "",
             designation: l.designation,
-            quantite: Number(l.quantite ?? 1),
-            unite: String(l.unite ?? "u"),
-            prix_ht: Number(l.prix_ht ?? 0),
-            tva: Number(l.tva ?? 10),
+            quantite: l.quantite,
+            unite: l.unite,
+            prix_ht: l.prix_ht,
+            tva: l.tva,
+            ligne_type: l.ligne_type,
           })),
         }),
       })) as { id: string };

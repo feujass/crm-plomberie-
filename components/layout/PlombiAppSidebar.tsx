@@ -1,9 +1,5 @@
 "use client";
 
-import { BarChart3, BookOpen, Euro, FileText, Home, type LucideIcon, UserCircle, Users, Wrench } from "lucide-react";
-import type { ComponentType } from "react";
-
-import { AssistantNavZIcon } from "@/components/layout/AssistantNavZIcon";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,33 +15,13 @@ import {
   SidebarMenuItem,
 } from "@/components/planner/Sidebar";
 import { APP_NAME } from "@/lib/app-branding";
+import { NAV_DESKTOP } from "@/lib/app-nav";
 import { cx, focusRing } from "@/lib/utils";
 
 import { PlombiUserProfile } from "./PlombiUserProfile";
+import type { NavItem } from "@/lib/app-nav";
 
-type NavGlyph = LucideIcon | ComponentType<{ className?: string }>;
-
-const NAV: { href: string; label: string; Icon: NavGlyph }[] = [
-  { href: "/accueil", label: "Accueil", Icon: Home },
-  { href: "/rentabilite", label: "Rentabilité", Icon: BarChart3 },
-  { href: "/devis", label: "Devis", Icon: FileText },
-  { href: "/chantiers", label: "Chantiers", Icon: Wrench },
-  { href: "/clients", label: "Clients", Icon: Users },
-  { href: "/catalogue", label: "Catalogue", Icon: BookOpen },
-  { href: "/assistant", label: "Assistant IA", Icon: AssistantNavZIcon },
-  { href: "/facturation", label: "Facturation", Icon: Euro },
-  { href: "/compte", label: "Mon compte", Icon: UserCircle },
-];
-
-function NavLink({
-  href,
-  label,
-  Icon,
-}: {
-  href: string;
-  label: string;
-  Icon: NavGlyph;
-}) {
+function NavLink({ href, label, Icon }: { href: string; label: string; Icon: NavItem["Icon"] }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
@@ -94,7 +70,7 @@ export function PlombiAppSidebar({
         <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {NAV.map((item) => (
+              {NAV_DESKTOP.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <NavLink href={item.href} label={item.label} Icon={item.Icon} />
                 </SidebarMenuItem>

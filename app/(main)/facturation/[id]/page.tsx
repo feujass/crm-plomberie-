@@ -71,6 +71,16 @@ export default async function FactureDetailPage({ params }: Props) {
       <p className="text-sm text-slate-600">
         Émission {formatDateFr(facture.date_emission)} — Échéance {formatDateFr(facture.date_echeance)}
       </p>
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={`/api/factures/${encodeURIComponent(id)}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+        >
+          Télécharger PDF facture
+        </a>
+      </div>
       {mismatch ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
           Attention : le total stocké de la facture ({formatCurrencyEUR(storedTtc)}) ne correspond pas au total recalculé à partir des lignes ({formatCurrencyEUR(computedTtc)}).

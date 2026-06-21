@@ -112,7 +112,7 @@ export function DevisPdfDocument({
 
         {notes ? (
           <View style={{ marginTop: 12 }}>
-            <Text style={{ fontWeight: "bold" }}>Notes</Text>
+            <Text style={{ fontWeight: "bold" }}>Notes et conditions (visibles client)</Text>
             <Text>{notes}</Text>
           </View>
         ) : null}

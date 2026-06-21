@@ -8,6 +8,7 @@ import { useState } from "react";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [devLink, setDevLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -15,10 +16,27 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    setDevLink(null);
     setLoading(true);
     try {
-      await Promise.resolve();
-      setError("Réinitialisation non disponible : le backend FastAPI ne gère pas encore les emails de reset.");
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok) {
+        setError(typeof json?.error === "string" ? json.error : "Demande impossible");
+        return;
+      }
+      if (typeof json?.message === "string") {
+        setMessage(json.message);
+      } else {
+        setMessage("Si un compte existe, un e-mail de réinitialisation a été envoyé.");
+      }
+      if (typeof json?.dev_reset_url === "string") {
+        setDevLink(json.dev_reset_url);
+      }
     } finally {
       setLoading(false);
     }
@@ -33,7 +51,16 @@ export default function ForgotPasswordPage() {
       >
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
         {message ? <p className="text-sm text-emerald-700 dark:text-emerald-400">{message}</p> : null}
-        <Input label="Email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        {devLink ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-semibold">Mode développement</p>
+            <p className="mt-1">Aucun e-mail configuré (Resend) : ouvre ce lien pour définir un nouveau mot de passe.</p>
+            <a href={devLink} className="mt-2 block break-all font-mono text-[11px] text-blue-700 underline dark:text-blue-400">
+              {devLink}
+            </a>
+          </div>
+        ) : null}
+        <Input label="Email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Envoi…" : "Recevoir le lien"}
         </Button>

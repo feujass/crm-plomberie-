@@ -45,10 +45,10 @@ export function AccueilLanding({ displayName }: { displayName: string }) {
           </div>
         </div>
         <Link
-          href="/devis/nouveau"
+          href="/devis/nouveau?tab=voice"
           className="mt-8 flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-4 text-center text-base font-semibold text-white shadow-md transition hover:opacity-95 active:opacity-90"
         >
-          Démarrer un devis
+          Créer un devis vocal
         </Link>
       </section>
 

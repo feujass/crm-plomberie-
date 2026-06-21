@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Header
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -102,6 +102,56 @@ def _iso_date(val):
     return val
 
 
+def _parse_dt(val):
+    if val is None or val == "":
+        return None
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val
+    try:
+        s = str(val).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (TypeError, ValueError):
+        return None
+
+
+async def ensure_devis_public_token(devis_id: str, doc: dict | None = None) -> str:
+    if doc is None:
+        doc = await db.devis.find_one({"_id": ObjectId(devis_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Devis non trouvé")
+    tok = doc.get("public_token")
+    if tok:
+        return str(tok)
+    tok = str(uuid.uuid4())
+    await db.devis.update_one({"_id": ObjectId(devis_id)}, {"$set": {"public_token": tok}})
+    return tok
+
+
+def verify_cron_secret(request: Request) -> None:
+    expected = os.environ.get("CRON_SECRET", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="CRON_SECRET non configuré")
+    auth = request.headers.get("authorization") or ""
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else (request.query_params.get("secret") or "").strip()
+    if token != expected:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+
+
+def verify_internal_api_secret(request: Request) -> None:
+    expected = (os.environ.get("INTERNAL_API_SECRET") or os.environ.get("CRON_SECRET") or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="INTERNAL_API_SECRET non configuré")
+    auth = request.headers.get("authorization") or ""
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if token != expected:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+
+
 async def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
     token = None
@@ -197,8 +247,29 @@ async def create_transmissions_for_facture(user_id: str, facture_id: str, factur
 class RegisterInput(BaseModel):
     email: str
     password: str
-    nom: str = ""
-    prenom: str = ""
+    nom: str
+    prenom: str
+    tel: str = ""
+    entreprise: str = ""
+    metier: str = "artisan_btp"
+    siret: str = ""
+    adresse: str = ""
+    siren: str = ""
+    forme_juridique: str = ""
+    capital_social: str = ""
+    rcs_ville: str = ""
+    numero_tva_intracom: str = ""
+    email_facturation: str = ""
+
+
+class ForgotPasswordInput(BaseModel):
+    email: str
+
+
+class ResetPasswordInput(BaseModel):
+    token: str
+    password: str
+
 
 class LoginInput(BaseModel):
     email: str
@@ -243,6 +314,15 @@ class ProfileUpdate(BaseModel):
     feature_flag_ereporting: Optional[bool] = None
     feature_flag_chorus: Optional[bool] = None
     feature_flag_esign_advanced: Optional[bool] = None
+    relance_devis_jours: Optional[int] = None
+    metier: Optional[str] = None
+
+
+class StripeSubscriptionSync(BaseModel):
+    user_id: Optional[str] = None
+    stripe_customer_id: str
+    subscription_plan: str = "pro"
+    subscription_status: str = "active"
 
 class ChantierInput(BaseModel):
     name: str
@@ -260,6 +340,8 @@ class ChantierInput(BaseModel):
     etape_metier: Optional[str] = "terrassement"
     photo_urls: Optional[List[str]] = []
     a_relancer: Optional[bool] = False
+    next_action_label: Optional[str] = ""
+    next_action_date: Optional[str] = None  # YYYY-MM-DD — prochaine étape / relance
 
 
 class ChantierUpdateInput(BaseModel):
@@ -278,6 +360,8 @@ class ChantierUpdateInput(BaseModel):
     etape_metier: Optional[str] = None
     photo_urls: Optional[List[str]] = None
     a_relancer: Optional[bool] = None
+    next_action_label: Optional[str] = None
+    next_action_date: Optional[str] = None
 
 class ClientInput(BaseModel):
     nom: str
@@ -312,6 +396,8 @@ class DevisLineInput(BaseModel):
     unite: Optional[str] = "u"
     prix_ht: Optional[float] = 0
     tva: Optional[float] = 10
+    ligne_type: Optional[str] = "prestation"
+    """prestation | fourniture | pose — affichage / exports (séparation fourniture-pose)."""
 
 class DevisInput(BaseModel):
     client_id: Optional[str] = None
@@ -337,6 +423,8 @@ class DevisUpdateInput(BaseModel):
     esign_status: Optional[str] = None
     esign_signed_at: Optional[str] = None
     esign_proof: Optional[dict] = None
+    date_envoi: Optional[str] = None
+    derniere_relance_at: Optional[str] = None
 
 
 class InternalNoteAppendInput(BaseModel):
@@ -374,16 +462,42 @@ class AIChatInput(BaseModel):
     session_id: Optional[str] = None
 
 # ─── AUTH ENDPOINTS ───────────────────────────────────────────────
+def _digits_only(value: str) -> str:
+    return "".join(ch for ch in value if ch.isdigit())
+
+
 @api.post("/auth/register")
 async def register(input: RegisterInput):
     email = input.email.lower().strip()
+    prenom = input.prenom.strip()
+    nom = input.nom.strip()
+    tel = input.tel.strip()
+    entreprise = input.entreprise.strip()
+    metier = input.metier.strip() or "artisan_btp"
+    siret = _digits_only(input.siret.strip())
+    adresse = input.adresse.strip()
+    siren = _digits_only(input.siren.strip()) or (siret[:9] if len(siret) >= 9 else "")
+    forme_juridique = input.forme_juridique.strip()
+    capital_social = input.capital_social.strip()
+    rcs_ville = input.rcs_ville.strip()
+    numero_tva_intracom = input.numero_tva_intracom.strip()
+    email_facturation = input.email_facturation.strip() or email
+
+    if not prenom or not nom or not tel:
+        raise HTTPException(status_code=400, detail="Prénom, nom et numéro de téléphone sont requis.")
+    if not entreprise or not siret or not adresse:
+        raise HTTPException(status_code=400, detail="Nom de l'entreprise, SIRET et adresse sont requis.")
+    if len(siret) != 14:
+        raise HTTPException(status_code=400, detail="Le SIRET doit contenir 14 chiffres.")
+    if len(input.password) < 6:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères.")
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
     user_doc = {
         "email": email,
         "password_hash": hash_password(input.password),
-        "nom": input.nom,
-        "prenom": input.prenom,
+        "nom": nom,
+        "prenom": prenom,
         "role": "user",
         "created_at": datetime.now(timezone.utc),
     }
@@ -392,30 +506,82 @@ async def register(input: RegisterInput):
     # Create profile
     await db.profiles.insert_one({
         "user_id": user_id,
-        "entreprise": "",
-        "siret": "",
-        "siren": "",
-        "adresse": "",
-        "tel": "",
-        "email_facturation": email,
+        "entreprise": entreprise,
+        "siret": siret,
+        "siren": siren,
+        "forme_juridique": forme_juridique,
+        "capital_social": capital_social,
+        "rcs_ville": rcs_ville,
+        "numero_tva_intracom": numero_tva_intracom,
+        "adresse": adresse,
+        "tel": tel,
+        "email_facturation": email_facturation,
         "logo_url": "",
         "tva_defaut": 10,
         "sep_fourniture_pose": False,
         "structure_devis": "libre",
         "mention_legale": default_b2b_mentions_footer(),
         "conditions_paiement": "Paiement à 30 jours",
-        "onboarding_step": 0,
-        "onboarding_complete": False,
+        "onboarding_step": 3,
+        "onboarding_complete": True,
+        "metier": metier,
+        "relance_devis_jours": 5,
         "tva_sur_encaissements": True,
         "tva_sur_debits_opt_in": False,
         "feature_flag_pdp": True,
         "feature_flag_ereporting": True,
         "feature_flag_chorus": True,
         "feature_flag_esign_advanced": True,
+        "subscription_plan": "free",
+        "subscription_status": None,
+        "stripe_customer_id": None,
     })
     token = create_access_token(user_id, email)
     refresh = create_refresh_token(user_id)
-    return {"token": token, "refresh_token": refresh, "user": {"id": user_id, "email": email, "nom": input.nom, "prenom": input.prenom, "role": "user"}}
+    return {"token": token, "refresh_token": refresh, "user": {"id": user_id, "email": email, "nom": nom, "prenom": prenom, "role": "user"}}
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(input: ForgotPasswordInput):
+    """Crée un jeton de reset (1 h). Réponse identique si l’email n’existe pas (anti-énumération côté métier)."""
+    email = input.email.lower().strip()
+    user = await db.users.find_one({"email": email})
+    if not user:
+        return {"ok": True, "token": None}
+    await db.password_resets.delete_many({"user_id": str(user["_id"]), "used": False})
+    raw_token = secrets.token_urlsafe(32)
+    await db.password_resets.insert_one(
+        {
+            "user_id": str(user["_id"]),
+            "email": email,
+            "token": raw_token,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "used": False,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    logger.info("Password reset token created for %s", email)
+    return {"ok": True, "token": raw_token}
+
+
+@api.post("/auth/reset-password")
+async def reset_password(input: ResetPasswordInput):
+    if len(input.password) < 6:
+        raise HTTPException(status_code=400, detail="Mot de passe trop court (6 caractères minimum)")
+    token = input.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Jeton manquant")
+    doc = await db.password_resets.find_one({"token": token, "used": False})
+    if not doc:
+        raise HTTPException(status_code=400, detail="Lien invalide ou déjà utilisé")
+    if doc["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Lien expiré — redemande une réinitialisation")
+    uid = doc["user_id"]
+    await db.users.update_one({"_id": ObjectId(uid)}, {"$set": {"password_hash": hash_password(input.password)}})
+    await db.password_resets.update_one({"_id": doc["_id"]}, {"$set": {"used": True}})
+    logger.info("Password reset completed for user_id=%s", uid)
+    return {"ok": True}
+
 
 @api.post("/auth/login")
 async def login(input: LoginInput):
@@ -467,6 +633,27 @@ async def update_profile(input: ProfileUpdate, user=Depends(get_current_user)):
         await db.profiles.update_one({"user_id": user["id"]}, {"$set": update_data}, upsert=True)
     profile = await db.profiles.find_one({"user_id": user["id"]}, {"_id": 0})
     return profile
+
+
+@api.post("/internal/stripe-subscription")
+async def stripe_subscription_sync(body: StripeSubscriptionSync, request: Request):
+    verify_internal_api_secret(request)
+    allowed_plans = {"free", "pro", "pro_plus", "pme"}
+    plan = body.subscription_plan if body.subscription_plan in allowed_plans else "pro"
+    update = {
+        "stripe_customer_id": body.stripe_customer_id,
+        "subscription_plan": plan,
+        "subscription_status": body.subscription_status,
+    }
+    if body.user_id:
+        result = await db.profiles.update_one({"user_id": body.user_id}, {"$set": update})
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Profil introuvable")
+    else:
+        result = await db.profiles.update_one({"stripe_customer_id": body.stripe_customer_id}, {"$set": update})
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Profil introuvable pour ce client Stripe")
+    return {"ok": True}
 
 # ─── CHANTIERS ENDPOINTS ─────────────────────────────────────────
 @api.get("/chantiers")
@@ -745,6 +932,9 @@ async def create_devis(input: DevisInput, user=Depends(get_current_user)):
         "remise_type": input.remise_type or "",
         "remise_valeur": input.remise_valeur or 0,
         "adresse_chantier": (input.adresse_chantier or "").strip(),
+        "public_token": str(uuid.uuid4()),
+        "date_envoi": None,
+        "derniere_relance_at": None,
         "created_at": datetime.now(timezone.utc),
     }
     result = await db.devis.insert_one(doc)
@@ -757,17 +947,27 @@ async def get_devis(devis_id: str, user=Depends(get_current_user)):
     d = await db.devis.find_one({"_id": ObjectId(devis_id), "user_id": user["id"]})
     if not d:
         raise HTTPException(status_code=404, detail="Devis non trouvé")
+    if not d.get("public_token"):
+        await ensure_devis_public_token(devis_id, d)
+        d = await db.devis.find_one({"_id": ObjectId(devis_id)})
     return serialize_doc(d)
 
 @api.put("/devis/{devis_id}")
 async def update_devis(devis_id: str, input: DevisUpdateInput, user=Depends(get_current_user)):
     update_data = {k: v for k, v in input.dict().items() if v is not None}
+    if update_data.get("statut") == "envoye" and "date_envoi" not in update_data:
+        existing = await db.devis.find_one({"_id": ObjectId(devis_id), "user_id": user["id"]})
+        if existing and not existing.get("date_envoi"):
+            update_data["date_envoi"] = datetime.now(timezone.utc).isoformat()
     if "client_id" in update_data and update_data["client_id"]:
         c = await db.clients.find_one({"_id": ObjectId(update_data["client_id"])})
         if c:
             update_data["client_nom"] = (c.get("nom", "") + " " + c.get("prenom", "")).strip()
     await db.devis.update_one({"_id": ObjectId(devis_id), "user_id": user["id"]}, {"$set": update_data})
     d = await db.devis.find_one({"_id": ObjectId(devis_id)})
+    if d and not d.get("public_token"):
+        await ensure_devis_public_token(devis_id, d)
+        d = await db.devis.find_one({"_id": ObjectId(devis_id)})
     return serialize_doc(d)
 
 
@@ -865,6 +1065,7 @@ async def create_facture_from_devis(
         "paiements": [],
         "montant_paye": 0,
         "public_token": str(uuid.uuid4()),
+        "derniere_relance_at": None,
         "created_at": now,
         "operations_type": body.operations_type or "services",
         "facture_type": body.facture_type or "standard",
@@ -924,6 +1125,129 @@ async def get_public_facture(public_token: str):
         "date_emission": _iso_date(f.get("date_emission")),
         "date_echeance": _iso_date(f.get("date_echeance")),
     }
+
+
+@api.get("/public/devis/{public_token}")
+async def get_public_devis(public_token: str):
+    """Consultation sans compte : lien partagé (UUID non devinable)."""
+    d = await db.devis.find_one({"public_token": public_token.strip()})
+    if not d:
+        raise HTTPException(status_code=404, detail="Devis introuvable")
+    lignes = d.get("lignes", [])
+    for ln in lignes:
+        q = float(ln.get("quantite") or 1)
+        pu = float(ln.get("prix_ht") or 0)
+        if "total_ht" not in ln:
+            ln["total_ht"] = round(q * pu, 2)
+    return {
+        "numero": d.get("numero"),
+        "client_nom": d.get("client_nom"),
+        "statut": d.get("statut"),
+        "lignes": lignes,
+        "total_ht": d.get("total_ht"),
+        "total_tva": d.get("total_tva"),
+        "total_ttc": d.get("total_ttc"),
+        "notes": d.get("notes"),
+        "date_creation": _iso_date(d.get("created_at")),
+    }
+
+
+@api.get("/cron/devis-a-relancer")
+async def cron_devis_a_relancer(request: Request):
+    verify_cron_secret(request)
+    now = datetime.now(timezone.utc)
+    cursor = db.devis.find({"statut": "envoye"})
+    items = []
+    async for d in cursor:
+        if d.get("derniere_relance_at"):
+            continue
+        sent_at = _parse_dt(d.get("date_envoi"))
+        if not sent_at:
+            continue
+        prof = await db.profiles.find_one({"user_id": d.get("user_id")})
+        jours = int(prof.get("relance_devis_jours") or 5) if prof else 5
+        if now < sent_at + timedelta(days=jours):
+            continue
+        client_email = None
+        cid = d.get("client_id")
+        if cid:
+            try:
+                c = await db.clients.find_one({"_id": ObjectId(str(cid))})
+                if c:
+                    client_email = (c.get("email") or "").strip() or None
+            except Exception:
+                client_email = None
+        devis_id = str(d["_id"])
+        public_token = d.get("public_token") or await ensure_devis_public_token(devis_id, d)
+        items.append(
+            {
+                "id": devis_id,
+                "numero": d.get("numero"),
+                "public_token": public_token,
+                "client_email": client_email,
+            }
+        )
+    return {"items": items}
+
+
+@api.post("/cron/devis/{devis_id}/relance-envoyee")
+async def cron_devis_relance_envoyee(devis_id: str, request: Request):
+    verify_cron_secret(request)
+    res = await db.devis.update_one(
+        {"_id": ObjectId(devis_id), "statut": "envoye"},
+        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Devis introuvable")
+    return {"ok": True}
+
+
+@api.get("/cron/factures-a-relancer")
+async def cron_factures_a_relancer(request: Request):
+    verify_cron_secret(request)
+    today = datetime.now(timezone.utc).date()
+    cursor = db.factures.find({"statut": {"$in": ["emise", "partiellement_payee"]}})
+    items = []
+    async for f in cursor:
+        if f.get("derniere_relance_at"):
+            continue
+        due = _parse_dt(f.get("date_echeance"))
+        if not due or due.date() > today:
+            continue
+        client_email = None
+        cid = f.get("client_id")
+        if cid:
+            try:
+                c = await db.clients.find_one({"_id": ObjectId(str(cid))})
+                if c:
+                    client_email = (c.get("email") or "").strip() or None
+            except Exception:
+                client_email = None
+        public_token = f.get("public_token")
+        if not public_token:
+            public_token = str(uuid.uuid4())
+            await db.factures.update_one({"_id": f["_id"]}, {"$set": {"public_token": public_token}})
+        items.append(
+            {
+                "id": str(f["_id"]),
+                "numero": f.get("numero"),
+                "public_token": public_token,
+                "client_email": client_email,
+            }
+        )
+    return {"items": items}
+
+
+@api.post("/cron/factures/{facture_id}/relance-envoyee")
+async def cron_facture_relance_envoyee(facture_id: str, request: Request):
+    verify_cron_secret(request)
+    res = await db.factures.update_one(
+        {"_id": ObjectId(facture_id), "statut": {"$in": ["emise", "partiellement_payee", "retard"]}},
+        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat(), "statut": "retard"}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    return {"ok": True}
 
 @api.post("/factures/{facture_id}/paiements")
 async def add_paiement(facture_id: str, input: PaiementInput, user=Depends(get_current_user)):
@@ -1299,10 +1623,12 @@ async def startup():
     await db.ouvrages.create_index([("user_id", 1), ("nom", 1)])
     await db.factures.create_index([("user_id", 1), ("created_at", -1)])
     await db.factures.create_index("public_token", unique=True, sparse=True)
+    await db.devis.create_index("public_token", unique=True, sparse=True)
     await db.chantiers.create_index([("user_id", 1), ("due_date", 1)])
     await db.audit_events.create_index([("user_id", 1), ("created_at", -1)])
     await db.transmissions.create_index([("user_id", 1), ("created_at", -1)])
     await db.transmissions.create_index([("user_id", 1), ("facture_id", 1)])
+    await db.password_resets.create_index("token", unique=True)
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@plombicrm.com")

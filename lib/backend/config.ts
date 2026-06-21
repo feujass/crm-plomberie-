@@ -1,4 +1,9 @@
+import { isSupabaseDataMode } from "@/lib/supabase/env";
+
 export function backendBaseUrl() {
+  if (isSupabaseDataMode()) {
+    return "";
+  }
   const url = process.env.BACKEND_URL?.trim();
   if (!url) {
     throw new Error(

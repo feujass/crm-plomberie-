@@ -30,6 +30,7 @@ type Body = {
   mention_legale?: string | null;
   conditions_paiement?: string | null;
   specialites?: string | null;
+  metier?: string | null;
   feature_flag_pdp?: boolean | null;
   feature_flag_ereporting?: boolean | null;
   feature_flag_chorus?: boolean | null;
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
         mention_legale: String(raw.mention_legale ?? "").trim() || null,
         conditions_paiement: String(raw.conditions_paiement ?? "").trim() || null,
         specialites: String(raw.specialites ?? "").trim() || null,
+        metier: String(raw.metier ?? "").trim() || null,
         feature_flag_pdp: typeof raw.feature_flag_pdp === "boolean" ? raw.feature_flag_pdp : undefined,
         feature_flag_ereporting:
           typeof raw.feature_flag_ereporting === "boolean" ? raw.feature_flag_ereporting : undefined,

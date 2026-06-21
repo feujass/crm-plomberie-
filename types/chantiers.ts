@@ -17,6 +17,10 @@ export type Chantier = {
   etape_metier?: EtapeMetier | string | null;
   photo_urls?: string[] | null;
   a_relancer?: boolean | null;
+  /** Prochaine étape métier (relance, passage, facture d’acompte…) — affichée sur listes et accueil. */
+  next_action_label?: string | null;
+  /** Date cible YYYY-MM-DD pour la prochaine étape. */
+  next_action_date?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };

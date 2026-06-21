@@ -65,6 +65,10 @@ export async function POST(req: Request, ctx: Ctx) {
           unite: l.unite,
           prix_ht: Number(l.prix_ht ?? 0),
           tva: Number(l.tva ?? 10),
+          ligne_type:
+            l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
+              ? l.ligne_type
+              : "prestation",
         })),
       ),
     });

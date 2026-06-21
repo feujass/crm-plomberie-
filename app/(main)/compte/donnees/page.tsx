@@ -1,48 +1,52 @@
-import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
 import { CompteAbonnementClient } from "@/components/compte/CompteAbonnementClient";
-import { Download } from "lucide-react";
-import { StripeButtons } from "@/components/parametres/StripeButtons";
+import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
+import { StripeBillingPortalButton } from "@/components/stripe/StripeBillingPortalButton";
+import { StripeCheckoutAutoRedirect } from "@/components/stripe/StripeCheckoutAutoRedirect";
+import { backendFetch } from "@/lib/backend/server";
+import type { BackendMeResponse } from "@/types/backend";
 
-export default function CompteDonneesPage() {
+type Search = {
+  stripe?: string;
+  checkout?: string;
+  plan?: string;
+  billing?: string;
+};
+
+export default async function CompteDonneesPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const sp = await searchParams;
+  const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+  const profile = me.profile;
+  const hasStripeCustomer = Boolean(profile?.stripe_customer_id);
+  const planLabel = profile?.subscription_plan && profile.subscription_plan !== "free" ? profile.subscription_plan : null;
+
   return (
-    <CompteSubLayout
-      title="Données & abonnement"
-      description="Exportez vos données et gérez votre abonnement."
-    >
-      <div className="space-y-4">
-        <CompteAbonnementClient />
+    <CompteSubLayout title="Données & abonnement" description="Gérez votre offre Flowo et vos paiements Stripe.">
+      {sp.stripe === "success" ? (
+        <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+          Paiement confirmé — votre abonnement sera actif dans quelques instants.
+        </p>
+      ) : null}
+      {sp.stripe === "cancel" ? (
+        <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+          Paiement annulé. Vous pouvez réessayer quand vous voulez.
+        </p>
+      ) : null}
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <p className="mb-2 font-semibold text-[var(--foreground)]">Paiement & facturation</p>
-          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-            Portail Stripe (si activé). Sinon, tu peux continuer à utiliser Flowo en local.
-          </p>
-          <StripeButtons hasStripeCustomer={false} />
+      {planLabel ? (
+        <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+          Offre actuelle : <span className="font-semibold text-[var(--foreground)]">{planLabel.toUpperCase()}</span>
+          {profile?.subscription_status ? ` · ${profile.subscription_status}` : null}
+        </p>
+      ) : null}
+
+      <CompteAbonnementClient />
+      {hasStripeCustomer ? (
+        <div className="mt-4">
+          <StripeBillingPortalButton />
         </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <p className="mb-2 flex items-center gap-2 font-semibold text-[var(--foreground)]">
-            <Download className="size-4" aria-hidden />
-            Export RGPD
-          </p>
-          <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-            Téléchargez une copie de vos données. Conservation des factures : obligations légales (souvent plusieurs
-            années) — voir <code className="text-xs">docs/RGPD-FLOWO.md</code>.
-          </p>
-          <a
-            href="/api/export/me"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 py-3.5 text-sm font-semibold text-[var(--foreground)] dark:border-gray-700 dark:bg-gray-800"
-          >
-            Télécharger JSON
-          </a>
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            Export conformité (factures + transmissions + audit) : onglet{" "}
-            <a href="/compte/conformite" className="text-sky-600 hover:underline">
-              Conformité facturation
-            </a>
-            .
-          </p>
-        </div>
-      </div>
+      ) : null}
+
+      <StripeCheckoutAutoRedirect plan={sp.plan} billing={sp.billing} autoCheckout={sp.checkout === "1"} />
     </CompteSubLayout>
   );
 }

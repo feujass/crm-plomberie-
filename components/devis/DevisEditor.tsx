@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { computeDevisTotals, ligneTotalHt } from "@/lib/devis-math";
 import { formatCurrencyEUR } from "@/lib/format";
-import type { BackendClient, BackendDevisDetail, BackendDevisLine } from "@/types/backend";
+import { cx, focusRing } from "@/lib/utils";
+import { defaultSectionForStructure, defaultTvaFromProfile } from "@/lib/devis-ouvrage-mode";
+import type { BackendClient, BackendDevisDetail, BackendDevisLine, BackendProfile } from "@/types/backend";
 import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -39,10 +41,12 @@ function SortableLigne({
   ligne,
   onChange,
   onRemove,
+  showLigneTypes,
 }: {
   ligne: LigneState;
   onChange: (id: string, patch: Partial<LigneState>) => void;
   onRemove: (id: string) => void;
+  showLigneTypes: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ligne.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
@@ -58,6 +62,24 @@ function SortableLigne({
         value={ligne.designation}
         onChange={(e) => onChange(ligne.id, { designation: e.target.value })}
       />
+      {showLigneTypes ? (
+        <div className="w-full min-w-[140px] sm:w-36">
+          <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
+          <select
+            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            value={ligne.ligne_type}
+            onChange={(e) =>
+              onChange(ligne.id, {
+                ligne_type: e.target.value as DevisLigneInput["ligne_type"],
+              })
+            }
+          >
+            <option value="prestation">Prestation</option>
+            <option value="fourniture">Fourniture</option>
+            <option value="pose">Pose</option>
+          </select>
+        </div>
+      ) : null}
       <div className="w-20">
         <Input label="Qté" type="number" value={ligne.quantite} onChange={(e) => onChange(ligne.id, { quantite: Number(e.target.value) })} />
       </div>
@@ -83,9 +105,12 @@ function SortableLigne({
 export function DevisEditor({
   devis,
   clients,
+  profile = {},
 }: {
   devis: BackendDevisDetail;
   clients: BackendClient[];
+  /** Profil entreprise (TVA par défaut, structure des lignes, séparation fourniture/pose) — aligné Assistant / Compte. */
+  profile?: BackendProfile;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -114,7 +139,10 @@ export function DevisEditor({
       prix_ht: Number(l.prix_ht ?? 0),
       tva: Number(l.tva ?? 10),
       ordre: i,
-      ligne_type: "prestation",
+      ligne_type:
+        l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
+          ? l.ligne_type
+          : "prestation",
     })),
   );
   const [internalNotesHist, setInternalNotesHist] = useState(devis.internal_notes ?? "");
@@ -150,20 +178,26 @@ export function DevisEditor({
   }
 
   function addLigne() {
-    setLignes((ls) => [
-      ...ls,
-      {
-        id: `n-${clientRandomId()}`,
-        section: null,
-        designation: "Nouvelle ligne",
-        quantite: 1,
-        unite: "u",
-        prix_ht: 0,
-        tva: 10,
-        ordre: ls.length,
-        ligne_type: "prestation",
-      },
-    ]);
+    setLignes((ls) => {
+      const struct = profile?.structure_devis ?? "libre";
+      const idx = ls.length;
+      const sectionDefault =
+        struct !== "libre" ? defaultSectionForStructure(struct, idx) || null : null;
+      return [
+        ...ls,
+        {
+          id: `n-${clientRandomId()}`,
+          section: sectionDefault,
+          designation: "Nouvelle ligne",
+          quantite: 1,
+          unite: "u",
+          prix_ht: 0,
+          tva: defaultTvaFromProfile(profile),
+          ordre: ls.length,
+          ligne_type: "prestation",
+        },
+      ];
+    });
   }
 
   function removeLigne(id: string) {
@@ -332,6 +366,23 @@ export function DevisEditor({
           {bannerErr}
         </div>
       ) : null}
+      {statut === "accepte" || statut === "facture" ? (
+        <div className="rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-4 dark:border-emerald-800/50 dark:bg-emerald-950/30">
+          <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Étape suivante : suivi chantier</p>
+          <p className="mt-1 text-xs text-emerald-900/90 dark:text-emerald-200/90">
+            Crée un chantier avec le client, l&apos;adresse chantier et le montant préremplis — le devis n&apos;est pas modifié.
+          </p>
+          <Link
+            href={`/chantiers/nouveau?devis=${encodeURIComponent(devis.id)}`}
+            className={cx(
+              "mt-3 inline-flex w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:opacity-95 sm:w-auto",
+              focusRing,
+            )}
+          >
+            Créer le chantier à partir de ce devis
+          </Link>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
@@ -417,52 +468,6 @@ export function DevisEditor({
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs opacity-80">Signature (avancé)</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => {
-                  start(async () => {
-                    setBannerErr(null);
-                    const res = await fetch(`/api/devis/${devis.id}/esign-stub`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "same-origin",
-                      body: JSON.stringify({ action: "init" }),
-                    });
-                    const data = await res.json().catch(() => ({} as { message?: string }));
-                    if (!res.ok) {
-                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                      return;
-                    }
-                    router.refresh();
-                  });
-                }}
-                className="cursor-pointer"
-              >
-                Initier la signature (test)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  start(async () => {
-                    setBannerErr(null);
-                    const res = await fetch(`/api/devis/${devis.id}/esign-stub`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "same-origin",
-                      body: JSON.stringify({ action: "mark_signed" }),
-                    });
-                    const data = await res.json().catch(() => ({} as { message?: string }));
-                    if (!res.ok) {
-                      setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                      return;
-                    }
-                    router.refresh();
-                  });
-                }}
-                className="cursor-pointer"
-              >
-                Marquer comme signé (test)
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
                   if (!confirm("Archiver ce devis ?")) return;
@@ -506,8 +511,11 @@ export function DevisEditor({
           </span>
         </div>
 
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          TVA et structure des lignes suivent vos réglages Assistant / Compte (ex. TVA {defaultTvaFromProfile(profile)} %).
+        </p>
         <div className="grid gap-3 md:grid-cols-2">
-          <Card title="Client">
+          <Card title="Client" className="p-3 sm:p-4">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Sélectionne le client
               <select
@@ -525,16 +533,16 @@ export function DevisEditor({
             </label>
           </Card>
 
-          <Card title="Adresse chantier / intervention">
+          <Card title="Adresse chantier" className="p-3 sm:p-4">
             <Textarea
-              label="Adresse du chantier"
+              label="Lieu d’intervention"
               value={adresseChantier}
               onChange={(e) => setAdresseChantier(e.target.value)}
               rows={3}
             />
           </Card>
 
-          <Card title="Validité & conditions" className="md:col-span-2">
+          <Card title="Validité & remise" className="md:col-span-2 p-3 sm:p-4">
             <div className="grid gap-3 md:grid-cols-3">
               <Input label="Validité (date)" type="date" value={dateExp} onChange={(e) => setDateExp(e.target.value)} />
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -556,18 +564,34 @@ export function DevisEditor({
                 onChange={(e) => setRemiseValue(e.target.value === "" ? "" : Number(e.target.value))}
               />
             </div>
-            <div className="mt-3">
-              <Textarea label="Notes / conditions (visibles client)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-            </div>
+          </Card>
+
+          <Card title="Notes visibles client" className="md:col-span-2 p-3 sm:p-4">
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Ce bloc apparaît sur le PDF devis et sur les aperçus destinés au client — idéal pour conditions générales,
+              délais ou mentions légales courtes.
+            </p>
+            <Textarea
+              label="Notes / conditions (PDF & client)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+            />
           </Card>
         </div>
       </div>
 
-      <Card title="Lignes">
+      <Card title="Lignes du devis" className="p-3 sm:p-4">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={lignes.map((l) => l.id)} strategy={verticalListSortingStrategy}>
             {lignes.map((l) => (
-              <SortableLigne key={l.id} ligne={l} onChange={patchLigne} onRemove={removeLigne} />
+              <SortableLigne
+                key={l.id}
+                ligne={l}
+                onChange={patchLigne}
+                onRemove={removeLigne}
+                showLigneTypes={Boolean(profile?.sep_fourniture_pose)}
+              />
             ))}
           </SortableContext>
         </DndContext>
@@ -581,7 +605,17 @@ export function DevisEditor({
         </div>
       </Card>
 
-      <Card title="Note interne">
+      <Card
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Note interne
+            <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Non visible client
+            </span>
+          </span>
+        }
+        className="p-3 sm:p-4"
+      >
         {internalNotesHist.trim() ? (
           <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">
             {internalNotesHist}

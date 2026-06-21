@@ -1,0 +1,13 @@
+/backend
+/mobile
+/Flowo
+/_legacy
+/video_edit
+/agent-transcripts
+/.cursor
+*.ndjson
+.git
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/node_modules

@@ -1,7 +1,7 @@
 import { DevisEditor } from "@/components/devis/DevisEditor";
 import { backendFetch } from "@/lib/backend/server";
 import { notFound } from "next/navigation";
-import type { BackendClient, BackendDevisDetail } from "@/types/backend";
+import type { BackendClient, BackendDevisDetail, BackendProfile } from "@/types/backend";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -20,10 +20,12 @@ export default async function DevisDetailPage({ params }: Props) {
     (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }),
   );
 
-  return (
-    <DevisEditor
-      devis={devis}
-      clients={sortedClients}
-    />
-  );
+  let profile: BackendProfile = {};
+  try {
+    profile = (await backendFetch("/api/profile")) as BackendProfile;
+  } catch {
+    profile = {};
+  }
+
+  return <DevisEditor devis={devis} clients={sortedClients} profile={profile} />;
 }

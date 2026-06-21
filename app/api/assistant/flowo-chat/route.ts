@@ -1,4 +1,5 @@
 import { backendFetch } from "@/lib/backend/server";
+import { buildAssistantChatPrompt } from "@/lib/llm/artisanSystemPrompt";
 import { completeFlowoChatLlm, type FlowoChatMessage } from "@/lib/llm/flowoChatCompletion";
 import type { BackendMeResponse } from "@/types/backend";
 import { NextResponse } from "next/server";
@@ -17,9 +18,7 @@ export async function POST(req: Request) {
 
   const profile = me.profile ?? {};
   const name = profile.assistant_name || "Zeus";
-  const system = `Tu es ${name}, assistant spécialisé plomberie pour artisans TPE.
-Réponds en français, de façon concise et professionnelle.
-Contexte utilisateur : TVA par défaut ${profile.tva_defaut ?? 10}%.`;
+  const system = buildAssistantChatPrompt(profile, name);
 
   try {
     const result = await completeFlowoChatLlm(system, body.messages);

@@ -1,4 +1,6 @@
+import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
 import { backendFetch } from "@/lib/backend/server";
+import { buildDevisGeneratePrompt } from "@/lib/llm/artisanSystemPrompt";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
@@ -34,11 +36,7 @@ export async function POST(req: Request) {
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const catalogue = JSON.stringify(ouvrages ?? [], null, 0);
-  const system = `Tu es un assistant expert en plomberie. À partir de la description des travaux, génère un devis structuré en JSON avec la forme stricte:
-{"lignes":[{"designation":"string","quantite":number,"unite":"string","prix_ht":number,"tva":number,"section":"string optionnel","ligne_type":"prestation"|"fourniture"|"pose"}]}
-Utilise la bibliothèque d'ouvrages si pertinent. TVA par défaut=${profile?.tva_defaut ?? 10}%. Séparation fourniture/pose=${profile?.sep_fourniture_pose ? "oui" : "non"}. Structure=${profile?.structure_devis ?? "libre"}.
-Ouvrages JSON: ${catalogue}`;
+  const system = buildDevisGeneratePrompt(profile, ouvrages ?? []);
 
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4o",
@@ -62,16 +60,19 @@ Ouvrages JSON: ${catalogue}`;
   const z = devisIaResponseSchema.safeParse(parsed);
   if (!z.success) return NextResponse.json({ message: "Schéma invalide", details: z.error.flatten() }, { status: 422 });
 
-  const lignes = z.data.lignes.map((l, i) => ({
-    section: l.section ?? null,
-    designation: l.designation,
-    quantite: l.quantite,
-    unite: l.unite,
-    prix_ht: l.prix_ht,
-    tva: l.tva,
-    ordre: i,
-    ligne_type: (l.ligne_type ?? "prestation") as "prestation" | "fourniture" | "pose",
-  }));
+  const lignes = normalizeLignesWithProfile(
+    z.data.lignes.map((l, i) => ({
+      section: l.section,
+      designation: l.designation,
+      quantite: l.quantite,
+      unite: l.unite,
+      prix_ht: l.prix_ht,
+      tva: l.tva,
+      ordre: i,
+      ligne_type: l.ligne_type,
+    })),
+    profile,
+  );
 
   return NextResponse.json({ lignes });
 }

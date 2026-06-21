@@ -241,7 +241,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
         </div>
         <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
           Ajustez les réglages (identité, TVA, structure des devis, bibliothèque) puis discutez avec l’assistant pour des réponses
-          adaptées à la plomberie et à vos devis.
+          adaptées à votre métier du BTP et à vos devis.
         </p>
       </header>
 
@@ -495,6 +495,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
   );
 }
 
+/** Interrupteur compact type Renalto / iOS : ~51×28 px, rond ~22 px. Non / piste / Oui = trois boutons (clic « Oui » explicite). */
 function ToggleBlock({
   label,
   sub,
@@ -510,36 +511,49 @@ function ToggleBlock({
     <div className="mt-5">
       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</p>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{sub}</p>
-      <div className="mt-3 flex items-center justify-center gap-4">
-        <span
-          className={cx("min-w-[2rem] text-center text-sm font-bold", !value ? "text-[color:var(--primary)]" : "text-slate-400 dark:text-slate-500")}
+      <div className="relative z-20 mt-3 flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={cx(
+            focusRing,
+            "min-h-[44px] min-w-[44px] shrink-0 rounded-lg px-2 text-sm font-semibold transition-colors",
+            !value ? "text-[color:var(--primary)]" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400",
+          )}
         >
           Non
-        </span>
+        </button>
         <button
           type="button"
           role="switch"
           aria-checked={value}
+          aria-label={value ? "Désactiver" : "Activer"}
           onClick={() => onChange(!value)}
           className={cx(
-            "relative h-8 w-14 shrink-0 rounded-full transition-colors",
-            value ? "bg-[color:var(--primary)]" : "bg-slate-300 dark:bg-slate-600",
             focusRing,
+            "relative z-20 h-[28px] w-[51px] shrink-0 touch-manipulation overflow-hidden rounded-full transition-colors duration-150 ease-out",
+            value ? "bg-[color:var(--primary)]" : "bg-slate-300 dark:bg-slate-600",
           )}
         >
           <span
             className={cx(
-              "pointer-events-none absolute left-0.5 top-0.5 size-7 rounded-full bg-white shadow transition-transform duration-200",
-              value ? "translate-x-6" : "translate-x-0",
+              "pointer-events-none absolute top-1/2 size-[22px] -translate-y-1/2 rounded-full bg-white shadow ring-1 ring-black/10 transition-[left] duration-150 ease-out dark:ring-white/15",
+              value ? "left-[26px]" : "left-[3px]",
             )}
             aria-hidden
           />
         </button>
-        <span
-          className={cx("min-w-[2rem] text-center text-sm font-bold", value ? "text-[color:var(--primary)]" : "text-slate-400 dark:text-slate-500")}
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={cx(
+            focusRing,
+            "min-h-[44px] min-w-[44px] shrink-0 rounded-lg px-2 text-sm font-semibold transition-colors",
+            value ? "text-[color:var(--primary)]" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400",
+          )}
         >
           Oui
-        </span>
+        </button>
       </div>
     </div>
   );

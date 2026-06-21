@@ -1,9 +1,5 @@
 "use client";
 
-import { BookOpen, Euro, FileText, HelpCircle, Home, type LucideIcon, Wrench } from "lucide-react";
-import type { ComponentType } from "react";
-
-import { AssistantNavZIcon } from "@/components/layout/AssistantNavZIcon";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -11,36 +7,16 @@ import type { ReactNode } from "react";
 
 import { PlombiAppSidebar } from "@/components/layout/PlombiAppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/planner/Sidebar";
+import { NAV_MOBILE } from "@/lib/app-nav";
 import { useIsMobile } from "@/lib/useMobile";
 import { cx, focusRing } from "@/lib/utils";
 
 import { APP_LOGO_MARK_SRC, APP_NAME } from "@/lib/app-branding";
 
 import { AppBreadcrumbs } from "./AppBreadcrumbs";
+import type { NavItem } from "@/lib/app-nav";
 
-type NavGlyph = LucideIcon | ComponentType<{ className?: string }>;
-
-/** Barre du bas mobile (profil → /compte dans l’en-tête). */
-const NAV_MOBILE: { href: string; label: string; short: string; Icon: NavGlyph }[] = [
-  { href: "/accueil", label: "Accueil", short: "Accueil", Icon: Home },
-  { href: "/devis", label: "Devis", short: "Devis", Icon: FileText },
-  { href: "/chantiers", label: "Chantiers", short: "Chant.", Icon: Wrench },
-  { href: "/catalogue", label: "Catalogue", short: "Ouvrages", Icon: BookOpen },
-  { href: "/facturation", label: "Facturation", short: "Fact.", Icon: Euro },
-  { href: "/assistant", label: "Assistant IA", short: "Assistant", Icon: AssistantNavZIcon },
-];
-
-function MobileNavLink({
-  href,
-  label,
-  title,
-  Icon,
-}: {
-  href: string;
-  label: string;
-  title?: string;
-  Icon: NavGlyph;
-}) {
+function MobileNavLink({ href, label, title, Icon }: { href: string; label: string; title?: string; Icon: NavItem["Icon"] }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
@@ -106,58 +82,56 @@ function MobileChrome({
     <div className="flex min-h-dvh flex-col bg-[var(--background)]">
       <header className="sticky top-0 z-10 border-b border-[color:var(--primary)] bg-[color:var(--primary)] text-white shadow-sm">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))]">
-        <Link
-          href="/accueil"
-          aria-label={`${APP_NAME} — accueil`}
-          className={cx(
-            "relative block size-10 shrink-0 overflow-hidden rounded-sm text-chart-1 outline-offset-2",
-            "bg-transparent",
-            focusRing,
-          )}
-        >
-          {/* PNG 500×500 avec beaucoup de marge transparente : image agrandie + masque = picto lisible, sans fond ni cadre sur la barre bleue. */}
-          <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <Image
-              src={APP_LOGO_MARK_SRC}
-              alt=""
-              width={500}
-              height={500}
-              sizes="40px"
-              className="max-h-none max-w-none object-contain [height:310%] [width:310%]"
-              priority
-            />
-          </span>
-        </Link>
-        <div className="flex min-w-0 items-center justify-center">
           <Link
-            href="/assistant"
+            href="/accueil"
+            aria-label={`${APP_NAME} — accueil`}
             className={cx(
-              "touch-target inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-white/30 bg-black/10 px-3 py-1.5 text-xs font-medium text-white/95 hover:bg-white/10",
+              "relative block size-10 shrink-0 overflow-hidden rounded-sm text-chart-1 outline-offset-2",
+              "bg-transparent",
               focusRing,
             )}
           >
-            <HelpCircle className="size-3.5 shrink-0 opacity-95" aria-hidden />
-            Support
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <Image
+                src={APP_LOGO_MARK_SRC}
+                alt=""
+                width={500}
+                height={500}
+                sizes="40px"
+                className="max-h-none max-w-none object-contain [height:310%] [width:310%]"
+                priority
+              />
+            </span>
           </Link>
-        </div>
-        <div className="flex items-center justify-end">
-          <Link
-            href="/compte"
-            aria-label="Mon compte"
-            className={cx(
-              "flex size-9 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/15 text-sm font-semibold text-white hover:bg-white/25",
-              focusRing,
-            )}
-          >
-            {initial}
-          </Link>
-        </div>
+          <div className="flex min-w-0 items-center justify-center">
+            <Link
+              href="/devis/nouveau?tab=voice"
+              className={cx(
+                "touch-target inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-white/30 bg-black/10 px-3 py-1.5 text-xs font-medium text-white/95 hover:bg-white/10",
+                focusRing,
+              )}
+            >
+              Nouveau devis
+            </Link>
+          </div>
+          <div className="flex items-center justify-end">
+            <Link
+              href="/compte"
+              aria-label="Mon compte"
+              className={cx(
+                "flex size-9 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/15 text-sm font-semibold text-white hover:bg-white/25",
+                focusRing,
+              )}
+            >
+              {initial}
+            </Link>
+          </div>
         </div>
       </header>
       <main className="flex-1 overflow-auto overflow-x-hidden p-3 pb-20 md:p-6 md:pb-6">{children}</main>
       <nav className="fixed bottom-0 left-0 right-0 z-20 flex border-t border-white/15 bg-[color:var(--primary)] pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-6px_24px_rgba(0,0,0,0.12)]">
         {NAV_MOBILE.map((item) => (
-          <MobileNavLink key={item.href} href={item.href} label={item.short} title={item.label} Icon={item.Icon} />
+          <MobileNavLink key={item.href} href={item.href} label={item.short ?? item.label} title={item.label} Icon={item.Icon} />
         ))}
       </nav>
     </div>
