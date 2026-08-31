@@ -1,97 +1,81 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { APP_NAME } from "@/lib/app-branding";
+import { useScrollHideHeader } from "@/lib/use-scroll-hide-header";
 import { cx } from "@/lib/utils";
 
-function getScrollY(): number {
-  if (typeof window === "undefined") return 0;
-  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-}
-
 export function MarketingHeader() {
-  const [visible, setVisible] = useState(true);
-  const lastY = useRef(0);
-  const ticking = useRef(false);
-
-  useEffect(() => {
-    lastY.current = getScrollY();
-
-    function applyScroll(y: number) {
-      if (y <= 40) {
-        setVisible(true);
-        lastY.current = y;
-        return;
-      }
-      const delta = y - lastY.current;
-      if (delta > 6) setVisible(false);
-      else if (delta < -6) setVisible(true);
-      lastY.current = y;
-    }
-
-    function onScroll() {
-      if (ticking.current) return;
-      ticking.current = true;
-      requestAnimationFrame(() => {
-        applyScroll(getScrollY());
-        ticking.current = false;
-      });
-    }
-
-    function onWheel(e: WheelEvent) {
-      const y = getScrollY();
-      if (y <= 40) {
-        setVisible(true);
-        return;
-      }
-      if (Math.abs(e.deltaY) > 8) {
-        setVisible(e.deltaY < 0);
-      }
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    document.addEventListener("scroll", onScroll, { passive: true, capture: true });
-    window.addEventListener("wheel", onWheel, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      document.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("wheel", onWheel);
-    };
-  }, []);
+  const pathname = usePathname();
+  const visible = useScrollHideHeader({ wheel: true });
+  const isAffiliation = pathname === "/affiliation";
+  const partnersHref = "/affiliation";
 
   return (
     <header
       className={cx(
-        "sticky top-0 z-50 border-b border-slate-200 bg-[var(--background)] shadow-sm transition-transform duration-300 ease-out dark:border-slate-800 dark:bg-gray-950",
+        "sticky top-0 z-50 bg-[var(--background)] shadow-sm transition-transform duration-300 ease-out dark:bg-gray-950",
+        !isAffiliation && "border-b border-slate-200 dark:border-slate-800",
         visible ? "translate-y-0" : "-translate-y-full",
       )}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6 lg:max-w-7xl lg:gap-6 lg:px-8 lg:py-4">
         <Link href="/" className="inline-flex items-center py-0.5 pl-0.5">
-          <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
+          <span className="text-xl font-bold tracking-tight lg:text-2xl">{APP_NAME}</span>
         </Link>
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
           <Link
-            href="/#tarifs"
-            className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:inline dark:text-slate-300"
+            href={partnersHref}
+            className={cx(
+              "hidden rounded-lg px-3 py-2 text-sm font-semibold sm:inline lg:px-4 lg:text-[15px]",
+              isAffiliation
+                ? "bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
+                : "text-slate-600 dark:text-slate-300",
+            )}
           >
-            Tarifs
+            Partenaires
           </Link>
-          <Link
-            href="/login"
-            className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:inline dark:text-slate-300"
-          >
-            Connexion
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-md md:px-5"
-          >
-            Essayer gratuitement
-          </Link>
+          {!isAffiliation ? (
+            <Link
+              href="/#tarifs"
+              className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:inline dark:text-slate-300 lg:px-4 lg:text-[15px]"
+            >
+              Tarifs
+            </Link>
+          ) : null}
+          {!isAffiliation ? (
+            <Link
+              href="/login"
+              className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:inline dark:text-slate-300 lg:px-4 lg:text-[15px]"
+            >
+              Connexion CRM
+            </Link>
+          ) : (
+            <Link
+              href="/partenaire/connexion"
+              className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-violet-700 sm:inline dark:text-violet-300 lg:px-4 lg:text-[15px]"
+            >
+              Connexion partenaire
+            </Link>
+          )}
+          {!isAffiliation ? (
+            <Link
+              href="/register"
+              data-cta-location="header"
+              className="rounded-xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-md md:px-5 lg:px-6 lg:py-3 lg:text-base"
+            >
+              Essayer gratuitement — sans CB
+            </Link>
+          ) : (
+            <Link
+              href="/"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm md:px-5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            >
+              Retour à {APP_NAME}
+            </Link>
+          )}
         </div>
       </div>
     </header>

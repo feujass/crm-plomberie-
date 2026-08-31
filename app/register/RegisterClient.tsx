@@ -6,6 +6,8 @@ import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { Button } from "@/components/ui/Button";
 import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
+import { trackFunnelEvent } from "@/lib/analytics/funnel";
+import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { FREE_TRIAL_DAYS } from "@/lib/plans/trial";
@@ -53,6 +55,7 @@ export function RegisterClient() {
     }
 
     setLoading(true);
+    trackFunnelEvent("register_submit");
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,6 +75,8 @@ export function RegisterClient() {
 
     if (!res.ok) {
       const msg = translateSupabaseAuthError(json?.error ?? json?.message ?? "Inscription impossible");
+      const field = /mot de passe|password/i.test(msg) ? "password" : /e-mail|email|mail/i.test(msg) ? "email" : "form";
+      trackFunnelEvent("register_error", { properties: { field, message: msg } });
       if (/e-mail|email|mail/i.test(msg)) {
         setEmailError(msg);
       } else if (/mot de passe|password/i.test(msg)) {
@@ -81,6 +86,9 @@ export function RegisterClient() {
       }
       return;
     }
+
+    trackFunnelEvent("register_success");
+    trackMetaEvent("CompleteRegistration");
 
     if (json?.needsEmailConfirmation) {
       router.replace(`/login?registered=confirm&message=${encodeURIComponent(json.message ?? "Confirme ton e-mail.")}`);

@@ -102,6 +102,15 @@ function serverActionsAllowedOrigins(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
   /** Accessible côté serveur Route Handlers pour `resolveDebugLogAbsolutePath()` sans dépendre du cwd. */
   env: {
     CRM_SESSION_DEBUG_FILE_ABS: SESSION_DEBUG_ABS,
@@ -136,9 +145,16 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",
-      /** localhost vs 127.0.0.1, LAN, proxy — sinon vérif. CSRF (Server Actions / protocoles internes) peut renvoyer une réponse non‑Flight (E394). */
       allowedOrigins: serverActionsAllowedOrigins(),
     },
+  },
+  async headers() {
+    return [
+      {
+        source: "/videos/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+    ];
   },
 };
 

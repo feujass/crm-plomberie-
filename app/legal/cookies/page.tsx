@@ -21,9 +21,13 @@ export default function CookiesPage() {
       <h1 className="mt-6 text-2xl font-bold">Politique cookies</h1>
       <div className="prose prose-slate mt-6 space-y-6 text-sm leading-relaxed dark:prose-invert">
         <p>
-          Cette page décrit les traceurs utilisés sur {APP_NAME}. Vous pouvez modifier vos préférences à tout moment
-          depuis <strong>Compte → Sécurité → Données personnelles</strong> ou via la bannière affichée lors de votre
-          première visite.
+          Cette page décrit les traceurs utilisés sur {APP_NAME}. Tu peux modifier tes préférences à tout moment depuis{" "}
+          <strong>Compte → Sécurité → Données personnelles</strong> ou via la bannière affichée lors de ta première visite.
+        </p>
+        <p>
+          <strong>Mesure d&apos;audience exemptée.</strong> Flowo compte les pages vues via un endpoint first-party (
+          <code>/api/track</code>), sans cookie tiers ni identifiant publicitaire, même si tu refuses l&apos;analytique PostHog.
+          Ce comptage nous permet d&apos;améliorer le site sans te profiler (recommandation CNIL, audience exemptée).
         </p>
 
         {(["essential", "analytics"] as const).map((cat) => (
