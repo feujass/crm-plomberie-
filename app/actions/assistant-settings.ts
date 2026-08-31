@@ -1,5 +1,6 @@
 "use server";
 
+import { ASSISTANT_DISPLAY_NAME } from "@/lib/assistant-branding";
 import { backendFetch } from "@/lib/backend/server";
 import type { BackendMeResponse } from "@/types/backend";
 import { revalidatePath } from "next/cache";
@@ -34,7 +35,7 @@ export async function flushAssistantSettingsAction(data: AssistantSettingsPayloa
         structure_devis: data.structure_devis,
         pays: data.pays.trim() || "FR",
         use_personal_library: data.use_personal_library,
-        assistant_name: data.assistant_name.trim() || "Zeus",
+        assistant_name: ASSISTANT_DISPLAY_NAME,
       }),
     });
     const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;

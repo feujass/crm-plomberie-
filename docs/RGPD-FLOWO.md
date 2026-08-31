@@ -4,22 +4,55 @@
 
 - Exécution du contrat (compte utilisateur, devis, facturation, paiements).
 - Obligations légales (conservation des pièces comptables, factures).
+- Amélioration du produit (statistiques PostHog, **uniquement avec consentement cookies**).
 
-## Sous-traitants types
+## Sous-traitants
 
-À documenter dans vos DPA : hébergeur, base de données, messagerie (Resend), **PDP** / signature électronique lorsqu’ils sont activés, Stripe si utilisé.
+Liste publique : `/legal/confidentialite` et `/legal/cookies` (`lib/cookies/catalog.ts`).
+
+**DPA (contrats art. 28 RGPD)** : à accepter côté dashboards prestataires — voir checklist détaillée [`docs/DPA-CHECKLIST.md`](./DPA-CHECKLIST.md). Non automatisable dans le code ; archiver les PDF localement.
+
+Prestataires concernés : Supabase, Vercel, Stripe, Resend, Anthropic (Zeus), Twilio et PostHog si activés.
 
 ## Durées
 
-- Données de facturation : conservation **au minimum** pour respecter les obligations légales (souvent **6 ans** pour les pièces ; adapter selon votre situation).
-- Export : `/api/export/me` et `/api/conformite/archive` permettent une copie des données.
+- Données de facturation : **6 ans** minimum (obligation légale française).
+- Compte actif : durée du contrat ; suppression à la demande via Compte → Sécurité.
+- Logs techniques : 12 mois max.
+- PostHog : 12 mois (configurable dans le projet PostHog).
+- Export : `/api/export/me` (UI : Compte → Sécurité → Télécharger mes données).
 
 ## Droits des personnes
 
-- Accès / rectification : via support ou fonctionnalités compte.
-- Suppression : sous réserve des obligations légales de conservation (factures non effaçables avant échéance légale).
+- **Accès / portabilité** : export JSON dans Compte → Sécurité.
+- **Rectification** : profil et entreprise dans l'application.
+- **Effacement** : suppression du compte (avertissement factures 6 ans).
+- **Cookies** : bannière + Compte → Sécurité → Gérer les cookies.
+- **Consentement inscription** : case CGU + confidentialité ; horodatage `profiles.privacy_accepted_at`.
 
 ## Sécurité
 
 - Authentification par jeton, RLS / isolation par `user_id` côté API.
-- Ne pas committer de secrets ; utiliser des variables d’environnement.
+- Ne pas committer de secrets ; variables d'environnement.
+
+## Pages légales (app)
+
+- `/legal/confidentialite` — politique complète
+- `/legal/cookies` — traceurs et PostHog
+- `/legal/cgu` — conditions d'utilisation (B2B, abonnement, responsabilité)
+- `/legal/sous-traitance` — accord art. 28 RGPD (données clients des artisans)
+- `/legal/mentions` — éditeur (NEXT_PUBLIC_LEGAL_*), hébergeur Vercel
+
+## Registre des traitements (interne)
+
+Document formalisé : [`docs/registre-traitements-flowo.md`](./registre-traitements-flowo.md) — **PDF** : [`docs/registre-traitements-flowo.pdf`](./registre-traitements-flowo.pdf) (`npm run legal:registre-pdf`).
+
+À conserver avec les DPA prestataires (`DPA Flowo/` sur le Bureau).
+
+## Analytics (PostHog)
+
+Variables : `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` (UE : `https://eu.i.posthog.com`).
+
+PostHog ne se charge que si l'utilisateur accepte les cookies analytiques.
+
+Événements : pages vues (`$pageview`), identification utilisateur (id, plan, métier — pas de contenu devis).

@@ -1,14 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Mic, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hammer, Mic, Package, Search, Send, UserCog } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 import { MarketingDemoChart } from "@/components/marketing/MarketingDemoChart";
 import { MarketingPreviewFrame } from "@/components/marketing/MarketingPreviewFrame";
 import {
+  DEMO_CATALOGUE,
   DEMO_DEVIS_LIST,
   DEMO_ENTREPRISE,
+  DEMO_FACTURE,
   DEMO_KPIS,
   DEMO_LIGNES,
   DEMO_TOTALS,
@@ -20,7 +22,9 @@ const SLIDES = [
   { id: "accueil", label: "Tableau de bord", hint: "CA, devis et relances en un coup d'œil" },
   { id: "vocal", label: "Devis vocal", hint: "Dictez le chantier, Zeus rédige les lignes" },
   { id: "edition", label: "Édition & envoi", hint: "Relisez, ajustez, envoyez en un clic" },
-  { id: "client", label: "Vue client", hint: "Le devis professionnel reçu par e-mail" },
+  { id: "client", label: "Vue client devis", hint: "Le devis professionnel reçu par e-mail" },
+  { id: "facture", label: "Facture client", hint: "Facture conforme, lien de paiement et relances" },
+  { id: "catalogue", label: "Tarifs personnalisés", hint: "Votre bibliothèque de prix pour Zeus" },
 ] as const;
 
 type SlideId = (typeof SLIDES)[number]["id"];
@@ -242,11 +246,132 @@ function MockClient() {
   );
 }
 
+function FactureStatutBadge() {
+  return (
+    <span className="inline-flex rounded-md border border-amber-200 bg-amber-50/80 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+      À régler
+    </span>
+  );
+}
+
+function MockFacture() {
+  return (
+    <MarketingPreviewFrame title="flowo.app/f/…">
+      <div className="space-y-5">
+        <div className="border-b border-slate-200 pb-4 dark:border-slate-700">
+          <p className="text-base font-bold text-[color:var(--primary)]">{DEMO_ENTREPRISE.nom}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            SIRET {DEMO_ENTREPRISE.siret} · {DEMO_ENTREPRISE.ville}
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold">Facture {DEMO_FACTURE.numero}</h2>
+          <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
+            <p>Client : {DEMO_FACTURE.client}</p>
+            <p>Émise le {DEMO_FACTURE.date_emission} · Échéance : {DEMO_FACTURE.date_echeance}</p>
+            <p>Réf. devis {DEMO_FACTURE.devis_ref}</p>
+          </div>
+          <div className="mt-3">
+            <FactureStatutBadge />
+          </div>
+        </div>
+
+        <DevisTable compact />
+        <DevisTotals />
+
+        <div className="rounded-xl border border-[color:var(--primary)]/20 bg-[color:var(--primary)]/5 p-4 text-center">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Montant à régler</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-[color:var(--primary)]">{DEMO_FACTURE.total_ttc}</p>
+          <p className="mt-3 rounded-lg bg-[color:var(--primary)] py-2.5 text-sm font-semibold text-white">
+            Voir les coordonnées bancaires
+          </p>
+        </div>
+
+        <p className="text-center text-xs text-slate-500">
+          Relance automatique si non réglée avant l&apos;échéance
+        </p>
+      </div>
+    </MarketingPreviewFrame>
+  );
+}
+
+function CatalogueTypeIcon({ type }: { type: string }) {
+  if (type === "main_oeuvre") return <UserCog className="size-4" aria-hidden />;
+  if (type === "fourniture") return <Package className="size-4" aria-hidden />;
+  return <Hammer className="size-4" aria-hidden />;
+}
+
+function MockCatalogue() {
+  return (
+    <MarketingPreviewFrame title="flowo.app/catalogue">
+      <div className="space-y-4">
+        <div>
+          <p className="text-base font-bold text-[color:var(--primary)]">Bibliothèque personnelle</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            Vos tarifs — Zeus les reprend sur chaque devis vocal.
+          </p>
+        </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-900">
+            Rechercher dans la bibliothèque…
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {["Tous", "Main d'œuvre", "Fourniture", "Ouvrage"].map((label, i) => (
+            <span
+              key={label}
+              className={cx(
+                "rounded-full px-3 py-1 text-xs font-semibold",
+                i === 0
+                  ? "bg-[color:var(--primary)] text-white"
+                  : "border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400",
+              )}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {DEMO_CATALOGUE.map((item) => (
+            <div
+              key={item.nom}
+              className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"
+            >
+              <p className="text-sm font-bold leading-snug">{item.nom}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/80">
+                <p className="text-sm font-bold tabular-nums text-[color:var(--primary)]">
+                  {item.prix_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €
+                  <span className="font-semibold text-slate-600 dark:text-slate-400"> / {item.unite}</span>
+                </p>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)]/15 text-[color:var(--primary)]">
+                  <CatalogueTypeIcon type={item.type} />
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-center text-xs text-slate-500">
+          4 éléments · import depuis un devis ou ajout manuel
+        </p>
+      </div>
+    </MarketingPreviewFrame>
+  );
+}
+
 const PREVIEWS: Record<SlideId, () => React.ReactNode> = {
   accueil: MockAccueil,
   vocal: MockVocal,
   edition: MockEdition,
   client: MockClient,
+  facture: MockFacture,
+  catalogue: MockCatalogue,
 };
 
 export function MarketingPreviewCarousel() {
@@ -275,20 +400,20 @@ export function MarketingPreviewCarousel() {
 
   return (
     <div id="apercu" className="scroll-mt-24">
-      <div className="mb-8 flex items-center justify-between gap-4 md:mb-10">
+      <div className="mb-8 flex items-center justify-between gap-4 md:mb-10 lg:mb-12 lg:gap-8">
         <button
           type="button"
           onClick={() => go(-1)}
           aria-label="Écran précédent"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 lg:size-12"
         >
-          <ChevronLeft className="size-5" />
+          <ChevronLeft className="size-5 lg:size-6" />
         </button>
 
         <div className="min-w-0 flex-1 text-center">
-          <p className="text-lg font-bold">{slide.label}</p>
-          <p className="mt-1.5 text-sm text-slate-500">{slide.hint}</p>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="text-lg font-bold lg:text-xl">{slide.label}</p>
+          <p className="mt-1.5 text-sm text-slate-500 lg:text-base">{slide.hint}</p>
+          <p className="mt-2 text-xs text-slate-400 lg:text-sm">
             {index + 1} / {SLIDES.length}
           </p>
         </div>
@@ -297,14 +422,14 @@ export function MarketingPreviewCarousel() {
           type="button"
           onClick={() => go(1)}
           aria-label="Écran suivant"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 lg:size-12"
         >
-          <ChevronRight className="size-5" />
+          <ChevronRight className="size-5 lg:size-6" />
         </button>
       </div>
 
       <div
-        className="touch-pan-y"
+        className="touch-pan-y lg:mx-auto lg:max-w-5xl xl:max-w-6xl"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >

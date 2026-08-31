@@ -3,6 +3,9 @@ import type { User } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
 import type { BackendFetchOptions } from "@/lib/backend/server";
+import { devisRelanceEcheances, factureRelanceEcheances, isRelanceDue } from "@/lib/relances/schedule";
+import { relanceEcheancesFromProfile } from "@/lib/relances/save-settings";
+import { mapProfileArtisanFields } from "@/lib/relances/cron-types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMeResponse } from "@/lib/supabase/profile-map";
 import {
@@ -93,12 +96,55 @@ async function createDefaultTransmissions(
   }
 }
 
-export async function handlePublicRoute(path: string): Promise<unknown> {
+export async function handlePublicRoute(path: string, opts: BackendFetchOptions = {}): Promise<unknown> {
   const admin = createAdminClient();
+  const method = (opts.method ?? "GET").toUpperCase();
+  const body = asObject(parseBody(opts));
   const { segments } = parsePath(path);
   const token = segments[3];
 
-  if (segments[2] === "devis" && token) {
+  if (segments[2] === "devis" && token && segments[4] === "decision" && method === "POST") {
+    const decision = String(body.decision ?? "").trim();
+    if (decision !== "accepte" && decision !== "refuse") {
+      throw new Error("Décision invalide (accepte ou refuse).");
+    }
+
+    const { data, error } = await admin.from("devis").select("*").eq("share_token", token).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("Devis introuvable");
+    if (data.statut !== "envoye") {
+      throw new Error("Ce devis ne peut plus être accepté ou refusé en ligne.");
+    }
+
+    const { data: updated, error: upErr } = await admin
+      .from("devis")
+      .update({ statut: decision })
+      .eq("id", data.id)
+      .select("*")
+      .single();
+    if (upErr) throw new Error(upErr.message);
+
+    const userId = String(data.user_id);
+    await auditLog(
+      admin,
+      userId,
+      decision === "accepte" ? "devis.accepted_public" : "devis.refused_public",
+      "devis",
+      String(data.id),
+      { numero: data.numero, share_token: token },
+    );
+
+    const clientNom = await clientDisplayName(admin, updated.client_id as string | null);
+    return {
+      ok: true,
+      statut: decision,
+      numero: updated.numero,
+      client_nom: clientNom,
+      owner_user_id: userId,
+    };
+  }
+
+  if (segments[2] === "devis" && token && method === "GET") {
     const { data, error } = await admin
       .from("devis")
       .select("*")
@@ -117,6 +163,7 @@ export async function handlePublicRoute(path: string): Promise<unknown> {
       numero: data.numero,
       client_nom: clientNom,
       statut: data.statut,
+      peut_repondre: data.statut === "envoye",
       lignes: mapped,
       total_ht: Number(data.total_ht ?? 0),
       total_tva: Number(data.total_tva ?? 0),
@@ -168,28 +215,58 @@ export async function handleCronRoute(path: string, opts: BackendFetchOptions): 
   if (method === "GET" && segments[2] === "devis-a-relancer") {
     const { data: devisRows } = await admin.from("devis").select("*").eq("statut", "envoye");
     const items = [];
-    const now = Date.now();
+    const profileCache = new Map<string, Record<string, unknown>>();
+    const emailCache = new Map<string, string | null>();
+
     for (const d of devisRows ?? []) {
-      if (d.derniere_relance_at) continue;
-      const sentAt = d.date_envoi ? new Date(String(d.date_envoi)).getTime() : 0;
+      const sentAt = d.date_envoi ? String(d.date_envoi) : "";
       if (!sentAt) continue;
-      const { data: prof } = await admin
-        .from("profiles")
-        .select("relance_devis_jours")
-        .eq("id", d.user_id)
-        .maybeSingle();
-      const jours = Number(prof?.relance_devis_jours ?? 5);
-      if (now < sentAt + jours * 86400000) continue;
-      let clientEmail: string | null = null;
-      if (d.client_id) {
-        const { data: c } = await admin.from("clients").select("email").eq("id", d.client_id).maybeSingle();
-        clientEmail = c?.email ? String(c.email).trim() : null;
+      const count = Number(d.relance_count ?? 0);
+
+      let prof = profileCache.get(String(d.user_id));
+      if (!prof) {
+        const { data } = await admin.from("profiles").select("*").eq("id", d.user_id).maybeSingle();
+        prof = (data ?? {}) as Record<string, unknown>;
+        profileCache.set(String(d.user_id), prof);
       }
+      const echeances = devisRelanceEcheances(relanceEcheancesFromProfile(prof));
+      if (count >= echeances.length) continue;
+      if (!isRelanceDue(sentAt, echeances, count)) continue;
+
+      let clientEmail: string | null = null;
+      let clientNom: string | null = null;
+      if (d.client_id) {
+        const { data: c } = await admin
+          .from("clients")
+          .select("email, nom, prenom")
+          .eq("id", d.client_id)
+          .maybeSingle();
+        clientEmail = c?.email ? String(c.email).trim() : null;
+        const parts = [c?.prenom, c?.nom].map((s) => String(s ?? "").trim()).filter(Boolean);
+        clientNom = parts.length ? parts.join(" ") : null;
+      }
+
+      let authEmail = emailCache.get(String(d.user_id));
+      if (authEmail === undefined) {
+        const { data: authUser } = await admin.auth.admin.getUserById(String(d.user_id));
+        authEmail = authUser?.user?.email ?? null;
+        emailCache.set(String(d.user_id), authEmail);
+      }
+      const artisan = mapProfileArtisanFields(prof, authEmail);
+
       items.push({
         id: String(d.id),
+        user_id: String(d.user_id),
         numero: d.numero,
         public_token: String(d.share_token),
         client_email: clientEmail,
+        client_nom: clientNom,
+        entreprise: String(prof.entreprise_nom ?? "").trim() || null,
+        email_facturation: String(prof.email_facturation ?? "").trim() || null,
+        relance_index: count,
+        relance_total: echeances.length,
+        days_after_send: echeances[count]!,
+        ...artisan,
       });
     }
     return { items };
@@ -197,37 +274,92 @@ export async function handleCronRoute(path: string, opts: BackendFetchOptions): 
 
   if (method === "POST" && segments[2] === "devis" && segments[4] === "relance-envoyee") {
     const devisId = segments[3];
+    const { data: current, error: readErr } = await admin
+      .from("devis")
+      .select("relance_count")
+      .eq("id", devisId)
+      .eq("statut", "envoye")
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!current) throw new Error("Devis introuvable");
+    const nextCount = Number(current.relance_count ?? 0) + 1;
     const { error, count } = await admin
       .from("devis")
-      .update({ derniere_relance_at: new Date().toISOString() })
+      .update({ relance_count: nextCount, derniere_relance_at: new Date().toISOString() })
       .eq("id", devisId)
       .eq("statut", "envoye");
+    if (error && error.message.toLowerCase().includes("relance_count")) {
+      const { error: fbErr, count: fbCount } = await admin
+        .from("devis")
+        .update({ derniere_relance_at: new Date().toISOString() })
+        .eq("id", devisId)
+        .eq("statut", "envoye");
+      if (fbErr) throw new Error(fbErr.message);
+      if (!fbCount) throw new Error("Devis introuvable");
+      return { ok: true, relance_count: 1 };
+    }
     if (error) throw new Error(error.message);
     if (!count) throw new Error("Devis introuvable");
-    return { ok: true };
+    return { ok: true, relance_count: nextCount };
   }
 
   if (method === "GET" && segments[2] === "factures-a-relancer") {
-    const today = new Date().toISOString().slice(0, 10);
     const { data: factures } = await admin
       .from("factures")
       .select("*")
-      .in("statut", ["emise", "partielle"]);
+      .in("statut", ["emise", "partielle", "retard"]);
     const items = [];
+    const profileCache = new Map<string, Record<string, unknown>>();
+    const emailCache = new Map<string, string | null>();
+
     for (const f of factures ?? []) {
-      if (f.derniere_relance_at) continue;
-      const due = f.date_echeance ? String(f.date_echeance) : "";
-      if (!due || due > today) continue;
-      let clientEmail: string | null = null;
-      if (f.client_id) {
-        const { data: c } = await admin.from("clients").select("email").eq("id", f.client_id).maybeSingle();
-        clientEmail = c?.email ? String(c.email).trim() : null;
+      const dueDate = f.date_echeance ? String(f.date_echeance) : "";
+      if (!dueDate) continue;
+      const baseIso = `${dueDate}T00:00:00.000Z`;
+      const count = Number(f.relance_count ?? 0);
+
+      let prof = profileCache.get(String(f.user_id));
+      if (!prof) {
+        const { data } = await admin.from("profiles").select("*").eq("id", f.user_id).maybeSingle();
+        prof = (data ?? {}) as Record<string, unknown>;
+        profileCache.set(String(f.user_id), prof);
       }
+      const echeances = factureRelanceEcheances(relanceEcheancesFromProfile(prof));
+      if (count >= echeances.length) continue;
+      if (!isRelanceDue(baseIso, echeances, count)) continue;
+
+      let clientEmail: string | null = null;
+      let clientNom: string | null = null;
+      if (f.client_id) {
+        const { data: c } = await admin
+          .from("clients")
+          .select("email, nom, prenom")
+          .eq("id", f.client_id)
+          .maybeSingle();
+        clientEmail = c?.email ? String(c.email).trim() : null;
+        const parts = [c?.prenom, c?.nom].map((s) => String(s ?? "").trim()).filter(Boolean);
+        clientNom = parts.length ? parts.join(" ") : null;
+      }
+
+      let authEmail = emailCache.get(String(f.user_id));
+      if (authEmail === undefined) {
+        const { data: authUser } = await admin.auth.admin.getUserById(String(f.user_id));
+        authEmail = authUser?.user?.email ?? null;
+        emailCache.set(String(f.user_id), authEmail);
+      }
+      const artisan = mapProfileArtisanFields(prof, authEmail);
+
       items.push({
         id: String(f.id),
+        user_id: String(f.user_id),
         numero: f.numero,
         public_token: String(f.share_token),
         client_email: clientEmail,
+        client_nom: clientNom,
+        relance_index: count,
+        relance_total: echeances.length,
+        days_after_due: echeances[count]!,
+        ...artisan,
       });
     }
     return { items };
@@ -235,14 +367,37 @@ export async function handleCronRoute(path: string, opts: BackendFetchOptions): 
 
   if (method === "POST" && segments[2] === "factures" && segments[4] === "relance-envoyee") {
     const factureId = segments[3];
+    const { data: current, error: readErr } = await admin
+      .from("factures")
+      .select("relance_count")
+      .eq("id", factureId)
+      .in("statut", ["emise", "partielle", "retard"])
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!current) throw new Error("Facture introuvable");
+    const nextCount = Number(current.relance_count ?? 0) + 1;
     const { error, count } = await admin
       .from("factures")
-      .update({ derniere_relance_at: new Date().toISOString(), statut: "retard" })
+      .update({
+        relance_count: nextCount,
+        derniere_relance_at: new Date().toISOString(),
+        statut: "retard",
+      })
       .eq("id", factureId)
       .in("statut", ["emise", "partielle", "retard"]);
+    if (error && error.message.toLowerCase().includes("relance_count")) {
+      const { error: fbErr, count: fbCount } = await admin
+        .from("factures")
+        .update({ derniere_relance_at: new Date().toISOString(), statut: "retard" })
+        .eq("id", factureId)
+        .in("statut", ["emise", "partielle", "retard"]);
+      if (fbErr) throw new Error(fbErr.message);
+      if (!fbCount) throw new Error("Facture introuvable");
+      return { ok: true, relance_count: 1 };
+    }
     if (error) throw new Error(error.message);
     if (!count) throw new Error("Facture introuvable");
-    return { ok: true };
+    return { ok: true, relance_count: nextCount };
   }
 
   throw new Error(`Route cron inconnue : ${path}`);

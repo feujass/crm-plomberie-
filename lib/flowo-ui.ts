@@ -32,3 +32,6 @@ export const FLOWO_CARD_HERO_SURFACE_CLASS = "bg-neutral-50 dark:bg-slate-800";
 /** Dégradé de fond quand pas d’image (adouci). */
 export const FLOWO_CARD_HERO_GRADIENT_CLASS =
   "absolute inset-0 bg-gradient-to-br from-[color:var(--primary)]/12 via-white to-slate-50/90 dark:from-[color:var(--primary)]/20 dark:via-slate-800 dark:to-slate-900";
+
+/** Largeur utile des pages app sur desktop (mobile inchangé). */
+export const FLOWO_DESKTOP_CONTENT_CLASS = "mx-auto w-full max-w-5xl xl:max-w-6xl";

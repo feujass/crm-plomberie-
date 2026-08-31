@@ -6,8 +6,9 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cx } from "@/lib/utils";
 import { flowoSegmentTabClass } from "@/lib/flowo-ui";
+import type { FlowoBilling, FlowoPlanId } from "@/lib/stripe/plans";
 
-type PlanId = "pro" | "pro_plus" | "pme";
+type PlanId = FlowoPlanId;
 type Billing = "mensuel" | "annuel";
 
 type Plan = {
@@ -29,7 +30,12 @@ const PLANS: Plan[] = [
     includedBadge: "Pour démarrer",
     monthlyEur: 25,
     yearlyEur: 240,
-    features: ["Devis illimités + PDF", "Envoi client + statuts", "Relances simples", "Accès mobile"],
+    features: [
+      "Zeus IA : 10 devis vocaux/mois",
+      "Catalogue : 30 prix personnalisés",
+      "Envoi client + statuts",
+      "Relances simples",
+    ],
   },
   {
     id: "pro_plus",
@@ -41,9 +47,10 @@ const PLANS: Plan[] = [
     highlight: true,
     features: [
       "Inclut tout le plan Pro",
+      "Zeus IA : 50 devis vocaux/mois",
+      "Catalogue illimité (prix personnalisés)",
       "Préparation pour facturation électronique",
       "Suivi des paiements clients",
-      "Catalogue avancé (prix personnalisés)",
     ],
   },
   {
@@ -53,7 +60,12 @@ const PLANS: Plan[] = [
     includedBadge: "Équipe",
     monthlyEur: 49,
     yearlyEur: 492,
-    features: ["Inclut tout Pro+", "Plusieurs collaborateurs", "Suivi chantier & rentabilité avancés", "Support prioritaire"],
+    features: [
+      "Inclut tout Pro+",
+      "Zeus IA : 100 devis vocaux/mois",
+      "Plusieurs collaborateurs — prochaine mise à jour",
+      "Rentabilité & tableaux de bord",
+    ],
   },
 ];
 
@@ -61,9 +73,15 @@ function formatEur(n: number) {
   return `${n}€`;
 }
 
+function toStripeBilling(billing: Billing): FlowoBilling {
+  return billing === "annuel" ? "yearly" : "monthly";
+}
+
 export function CompteAbonnementClient() {
   const [planId, setPlanId] = useState<PlanId>("pro_plus");
   const [billing, setBilling] = useState<Billing>("annuel");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const activePlan = useMemo(() => PLANS.find((p) => p.id === planId) ?? PLANS[0], [planId]);
   const price = billing === "mensuel" ? activePlan.monthlyEur : Math.round(activePlan.yearlyEur / 12);
@@ -142,12 +160,35 @@ export function CompteAbonnementClient() {
         </div>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button type="button" className={cx("w-full sm:w-auto", activePlan.highlight ? "" : "")} onClick={() => {}}>
+          {err ? <p className="w-full text-sm text-red-600 dark:text-red-400">{err}</p> : null}
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            disabled={busy}
+            isLoading={busy}
+            loadingText="Redirection…"
+            onClick={async () => {
+              setErr(null);
+              setBusy(true);
+              try {
+                const res = await fetch("/api/stripe/checkout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({ planId, billing: toStripeBilling(billing) }),
+                });
+                const body = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+                if (!res.ok) throw new Error(body.message || "Impossible d'ouvrir le paiement Stripe");
+                if (!body.url) throw new Error("Réponse Stripe sans URL");
+                window.location.href = body.url;
+              } catch (e) {
+                setErr(e instanceof Error ? e.message : "Stripe indisponible");
+                setBusy(false);
+              }
+            }}
+          >
             Continuer
           </Button>
-          <p className="text-xs text-gray-600 dark:text-gray-400">
-            Le paiement Stripe est affiché juste en dessous (Flowo peut aussi fonctionner en local sans paiement).
-          </p>
         </div>
       </div>
     </section>

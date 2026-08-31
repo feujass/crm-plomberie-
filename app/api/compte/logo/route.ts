@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { logoUrlValidationError } from "@/lib/security/logo-url";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
 
   try {
     const logo = String(raw.logo_url ?? "").trim();
+    const logoErr = logoUrlValidationError(logo || null);
+    if (logoErr) {
+      return NextResponse.json({ message: logoErr }, { status: 400 });
+    }
     await backendFetch("/api/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

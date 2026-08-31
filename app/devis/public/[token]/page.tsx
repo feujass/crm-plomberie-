@@ -1,3 +1,4 @@
+import { PublicDevisDecision } from "@/components/devis/PublicDevisDecision";
 import { backendFetch } from "@/lib/backend/server";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import { Badge } from "@/components/ui/Badge";
@@ -7,6 +8,7 @@ type PublicDevis = {
   numero?: string;
   client_nom?: string;
   statut?: string;
+  peut_repondre?: boolean;
   lignes?: {
     designation: string;
     quantite?: number;
@@ -19,12 +21,19 @@ type PublicDevis = {
   total_tva?: number;
   total_ttc?: number;
   date_creation?: string;
+  notes?: string | null;
 };
 
-type PageProps = { params: Promise<{ token: string }> };
+type PageProps = {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ intent?: string }>;
+};
 
-export default async function PublicDevisPage({ params }: PageProps) {
+export default async function PublicDevisPage({ params, searchParams }: PageProps) {
   const { token } = await params;
+  const query = await searchParams;
+  const rawIntent = typeof query.intent === "string" ? query.intent.trim() : "";
+  const initialIntent = rawIntent === "accepte" || rawIntent === "refuse" ? rawIntent : null;
   let devis: PublicDevis | null = null;
   try {
     devis = (await backendFetch(`/api/public/devis/${encodeURIComponent(token)}`, {
@@ -36,13 +45,14 @@ export default async function PublicDevisPage({ params }: PageProps) {
   if (!devis?.numero) notFound();
 
   const lignes = devis.lignes ?? [];
+  const statut = devis.statut ?? "brouillon";
 
   return (
     <div className="mx-auto max-w-3xl p-6">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Devis {devis.numero}</h1>
-      <p className="text-slate-600">Client : {devis.client_nom || "—"}</p>
+      <p className="text-slate-600 dark:text-slate-400">Client : {devis.client_nom || "—"}</p>
       <p className="mt-2">
-        <Badge statut={devis.statut ?? "brouillon"} />
+        <Badge statut={statut} />
       </p>
       {devis.date_creation ? (
         <p className="mt-2 text-sm text-slate-500">Création : {formatDateFr(devis.date_creation)}</p>
@@ -78,6 +88,21 @@ export default async function PublicDevisPage({ params }: PageProps) {
         <p>Total TVA : {formatCurrencyEUR(Number(devis.total_tva ?? 0))}</p>
         <p className="text-lg font-semibold">Total TTC : {formatCurrencyEUR(Number(devis.total_ttc ?? 0))}</p>
       </div>
+
+      {devis.notes?.trim() ? (
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+          <p className="font-semibold text-slate-800 dark:text-slate-200">Notes</p>
+          <p className="mt-1 whitespace-pre-wrap">{devis.notes}</p>
+        </div>
+      ) : null}
+
+      <PublicDevisDecision
+        token={token}
+        initialStatut={statut}
+        numero={devis.numero}
+        peutRepondre={Boolean(devis.peut_repondre)}
+        initialIntent={initialIntent}
+      />
     </div>
   );
 }

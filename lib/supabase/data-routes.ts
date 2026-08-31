@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 
 import type { BackendFetchOptions } from "@/lib/backend/server";
+import { isTrialExpired, TRIAL_EXPIRED_DEVIS_MESSAGE } from "@/lib/plans/trial";
 import { buildMeResponse } from "@/lib/supabase/profile-map";
 import {
   calcDevisTotals,
@@ -268,6 +269,16 @@ async function handleDevis(
   }
 
   if (method === "POST" && !devisId) {
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    const profile = mapProfileRow(profileRow as Record<string, unknown> | null);
+    if (isTrialExpired(profile)) {
+      throw new Error(TRIAL_EXPIRED_DEVIS_MESSAGE);
+    }
+
     const clientId = b.client_id ? String(b.client_id) : null;
     const lignesIn = Array.isArray(b.lignes) ? b.lignes : [];
     const numero = await nextDevisNumero(supabase, user.id);
@@ -528,113 +539,6 @@ async function handleOuvrages(
   throw new Error(`Méthode ${method} non supportée pour /api/ouvrages`);
 }
 
-async function handleChantiers(
-  supabase: SupabaseClient,
-  user: User,
-  method: string,
-  segments: string[],
-  query: URLSearchParams,
-  body: unknown,
-) {
-  const b = asObject(body);
-  const chantierId = segments[2];
-
-  const mapChantier = (row: Record<string, unknown>) => ({
-    id: String(row.id),
-    name: String(row.nom ?? ""),
-    client_id: row.client_id ? String(row.client_id) : null,
-    devis_id: row.devis_id ? String(row.devis_id) : null,
-    status: (row.statut as string) ?? "en_cours",
-    due_date: row.date_fin ? String(row.date_fin) : row.date_debut ? String(row.date_debut) : null,
-    site_address: (row.adresse as string) ?? null,
-    comment: (row.notes as string) ?? null,
-    created_at: (row.created_at as string) ?? null,
-    updated_at: (row.updated_at as string) ?? null,
-  });
-
-  if (method === "GET" && !chantierId) {
-    let q = supabase.from("chantiers").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-    const clientId = query.get("client_id")?.trim();
-    const search = query.get("search")?.trim();
-    const status = query.get("status")?.trim();
-    if (clientId) q = q.eq("client_id", clientId);
-    if (status) q = q.eq("statut", status);
-    if (search) q = q.ilike("nom", `%${search}%`);
-    const { data, error } = await q.limit(500);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => mapChantier(r as Record<string, unknown>));
-  }
-
-  if (method === "POST" && !chantierId) {
-    const { data, error } = await supabase
-      .from("chantiers")
-      .insert({
-        user_id: user.id,
-        nom: String(b.name ?? b.nom ?? "Chantier").trim(),
-        client_id: b.client_id ? String(b.client_id) : null,
-        devis_id: b.devis_id ? String(b.devis_id) : null,
-        adresse: String(b.site_address ?? b.adresse ?? "").trim() || null,
-        statut: String(b.status ?? b.statut ?? "en_cours"),
-        date_debut: b.due_date ? String(b.due_date) : null,
-        notes: String(b.comment ?? b.notes ?? "").trim() || null,
-      })
-      .select("*")
-      .single();
-    if (error) throw new Error(error.message);
-    return mapChantier(data as Record<string, unknown>);
-  }
-
-  if (method === "GET" && chantierId) {
-    const { data, error } = await supabase
-      .from("chantiers")
-      .select("*")
-      .eq("id", chantierId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error("Chantier introuvable");
-    return mapChantier(data as Record<string, unknown>);
-  }
-
-  if ((method === "PUT" || method === "PATCH") && chantierId) {
-    const update: Record<string, unknown> = {};
-    if (b.name !== undefined || b.nom !== undefined) update.nom = String(b.name ?? b.nom ?? "").trim();
-    if (b.client_id !== undefined) update.client_id = b.client_id || null;
-    if (b.devis_id !== undefined) update.devis_id = b.devis_id || null;
-    if (b.site_address !== undefined || b.adresse !== undefined) {
-      update.adresse = String(b.site_address ?? b.adresse ?? "").trim() || null;
-    }
-    if (b.status !== undefined || b.statut !== undefined) update.statut = String(b.status ?? b.statut);
-    if (b.due_date !== undefined) update.date_fin = b.due_date ? String(b.due_date) : null;
-    if (b.comment !== undefined || b.notes !== undefined) {
-      update.notes = String(b.comment ?? b.notes ?? "").trim() || null;
-    }
-    const { data, error } = await supabase
-      .from("chantiers")
-      .update(update)
-      .eq("id", chantierId)
-      .eq("user_id", user.id)
-      .select("*")
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error("Chantier introuvable");
-    return mapChantier(data as Record<string, unknown>);
-  }
-
-  if (method === "DELETE" && chantierId) {
-    const { error, count } = await supabase
-      .from("chantiers")
-      .delete({ count: "exact" })
-      .eq("id", chantierId)
-      .eq("user_id", user.id);
-    if (error) throw new Error(error.message);
-    if (!count) throw new Error("Chantier introuvable");
-    return { message: "Chantier supprimé" };
-  }
-
-  throw new Error(`Méthode ${method} non supportée pour /api/chantiers`);
-}
-
 async function handleFactures(
   supabase: SupabaseClient,
   user: User,
@@ -712,7 +616,7 @@ export async function handleSupabaseDataRoute(
   const resource = segments[1];
 
   if (resource === "public") {
-    return handlePublicRoute(path);
+    return handlePublicRoute(path, opts);
   }
 
   if (resource === "cron") {
@@ -752,8 +656,6 @@ export async function handleSupabaseDataRoute(
       return handleProfile(supabase, user, method, body);
     case "ouvrages":
       return handleOuvrages(supabase, user, method, segments, query, body);
-    case "chantiers":
-      return handleChantiers(supabase, user, method, segments, query, body);
     case "factures":
       return handleFactures(supabase, user, method, segments, query, body);
     case "conformite":

@@ -25,4 +25,10 @@ export const NAV_SECONDARY: NavItem[] = [
 
 export const NAV_DESKTOP: NavItem[] = [...NAV_PRIMARY.filter((i) => i.href !== "/compte"), ...NAV_SECONDARY, NAV_PRIMARY.find((i) => i.href === "/compte")!];
 
-export const NAV_MOBILE: NavItem[] = NAV_PRIMARY;
+/** Menu bas mobile — inclut Facturation et Catalogue. */
+export const NAV_MOBILE: NavItem[] = [
+  ...NAV_PRIMARY.filter((i) => i.href !== "/compte"),
+  { href: "/catalogue", label: "Catalogue", short: "Tarifs", Icon: BookOpen },
+  { href: "/facturation", label: "Facturation", short: "Factures", Icon: Euro },
+  NAV_PRIMARY.find((i) => i.href === "/compte")!,
+];

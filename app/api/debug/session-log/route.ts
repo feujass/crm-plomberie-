@@ -11,6 +11,10 @@ import {
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 
+function debugBlockedInProduction() {
+  return process.env.NODE_ENV === "production" && process.env.SESSION_DEBUG_LOG !== "1";
+}
+
 /** 1×1 GIF transparent (réponse réelle pour `<img>` / pas de corps JSON). */
 const IMG_PING_GIF = Buffer.from(
   "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
@@ -19,6 +23,9 @@ const IMG_PING_GIF = Buffer.from(
 
 /** Diagnostic + preuve disque : ouvrir cette URL en dev crée toujours au moins une ligne `get-probe` dans le NDJSON. */
 export async function GET(req: Request) {
+  if (debugBlockedInProduction()) {
+    return NextResponse.json({ error: "Non disponible" }, { status: 404 });
+  }
   try {
     const enabled = loggingEnabled();
     const urlObj = new URL(req.url);
@@ -197,6 +204,9 @@ export async function GET(req: Request) {
 
 /** NDJSON `debug-session-0f238e.ndjson` — `next dev` ou `SESSION_DEBUG_LOG=1` avec `next start`. */
 export async function POST(req: Request) {
+  if (debugBlockedInProduction()) {
+    return NextResponse.json({ error: "Non disponible" }, { status: 404 });
+  }
   let payload: Record<string, unknown>;
   try {
     payload = (await req.json()) as Record<string, unknown>;

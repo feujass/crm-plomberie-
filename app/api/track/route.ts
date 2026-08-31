@@ -28,13 +28,15 @@ const ALLOWED_EVENTS = new Set<AnalyticsEventPayload["event_type"]>([
   "subscription_started",
 ]);
 
-type GeoRequest = NextRequest & {
-  geo?: { country?: string };
-};
+type GeoRequest = NextRequest & { geo?: { country?: string } };
 
 function resolveCountry(req: NextRequest): string | null {
   const geoReq = req as GeoRequest;
   return geoReq.geo?.country ?? req.headers.get("x-vercel-ip-country") ?? null;
+}
+
+function isInternalTraffic(req: NextRequest): boolean {
+  return req.cookies.get("flowo_internal")?.value === "1";
 }
 
 function parsePayload(body: unknown): AnalyticsEventPayload | null {
@@ -94,39 +96,74 @@ export async function POST(req: NextRequest) {
   if (!payload) return NextResponse.json({ ok: false }, { status: 400 });
 
   const country = resolveCountry(req);
-  const device_type = deviceTypeFromUserAgent(req.headers.get("user-agent"));
+  const userAgent = req.headers.get("user-agent");
+  const device = deviceTypeFromUserAgent(userAgent);
+  const isInternal = isInternalTraffic(req);
+  const attr = payload.attribution;
+
+  const fieldFromProps =
+    typeof payload.properties?.field === "string" ? payload.properties.field.slice(0, 80) : null;
+  const valueFilledFromProps =
+    typeof payload.properties?.value_filled === "boolean" ? payload.properties.value_filled : null;
 
   try {
     const supabase = createAdminClient();
 
-    if (payload.attach_session && payload.attribution) {
+    if (payload.attach_session && attr) {
       await supabase.from("analytics_sessions").upsert(
         {
           session_id: payload.session_id,
-          utm_source: payload.attribution.utm_source,
-          utm_medium: payload.attribution.utm_medium,
-          utm_campaign: payload.attribution.utm_campaign,
-          utm_content: payload.attribution.utm_content,
-          utm_term: payload.attribution.utm_term,
-          referrer: payload.attribution.referrer,
-          referrer_domain: payload.attribution.referrer_domain,
-          landing_path: payload.attribution.landing_path,
-          device_type,
-          viewport_width: payload.attribution.viewport_width,
+          utm_source: attr.utm_source,
+          utm_medium: attr.utm_medium,
+          utm_campaign: attr.utm_campaign,
+          utm_content: attr.utm_content,
+          utm_term: attr.utm_term,
+          referrer: attr.referrer,
+          referrer_domain: attr.referrer_domain,
+          landing_path: attr.landing_path,
+          device_type: device,
+          viewport_width: attr.viewport_width,
         },
         { onConflict: "session_id", ignoreDuplicates: true },
       );
     }
 
-    const { error } = await supabase.from("analytics_events").insert({
+    const fullRow = {
       session_id: payload.session_id,
       event_type: payload.event_type,
       page_path: payload.page_path,
       country,
-      referrer: payload.referrer,
+      referrer: payload.referrer ?? attr?.referrer ?? null,
       time_on_page_ms: payload.time_on_page_ms,
       properties: payload.properties,
-    });
+      utm_source: attr?.utm_source ?? null,
+      utm_medium: attr?.utm_medium ?? null,
+      utm_campaign: attr?.utm_campaign ?? null,
+      utm_content: attr?.utm_content ?? null,
+      utm_term: attr?.utm_term ?? null,
+      device,
+      user_agent: userAgent?.slice(0, 512) ?? null,
+      is_internal: isInternal,
+      field: fieldFromProps,
+      value_filled: valueFilledFromProps,
+    };
+
+    let { error } = await supabase.from("analytics_events").insert(fullRow);
+
+    // Schéma dashboard pas encore migré : on garde le tracking de base.
+    if (error && /column|schema cache/i.test(error.message)) {
+      const legacy = await supabase.from("analytics_events").insert({
+        session_id: payload.session_id,
+        event_type: payload.event_type,
+        page_path: payload.page_path,
+        country,
+        referrer: payload.referrer ?? attr?.referrer ?? null,
+        time_on_page_ms: payload.time_on_page_ms,
+        properties: payload.properties,
+      });
+      error = legacy.error;
+    }
+
     if (error) return NextResponse.json({ ok: false }, { status: 500 });
   } catch {
     return NextResponse.json({ ok: false }, { status: 503 });

@@ -19,3 +19,8 @@ export function isSupabaseDataMode(): boolean {
 export function isSupabaseAuthConfigured(): boolean {
   return Boolean(supabasePublicUrl() && supabaseAnonKey());
 }
+
+/** URL publique du site (liens e-mail, redirects auth). */
+export function publicSiteUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
+}

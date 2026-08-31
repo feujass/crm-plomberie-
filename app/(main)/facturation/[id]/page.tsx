@@ -3,15 +3,17 @@ import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiem
 import { FacturePublicLinkBlock } from "@/components/facturation/FacturePublicLinkBlock";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { backendFetch } from "@/lib/backend/server";
+import { requireFeature } from "@/lib/plans/require-feature";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { BackendFactureDetail, BackendTransmission } from "@/types/backend";
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function FactureDetailPage({ params }: Props) {
+  await requireFeature("facturation");
   const { id } = await params;
   let facture: BackendFactureDetail | null = null;
   try {
@@ -62,9 +64,7 @@ export default async function FactureDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-4">
-      <Link href="/facturation" className="text-sm text-[color:var(--primary)] hover:underline">
-        ← Factures
-      </Link>
+      <CircleBackLink href="/facturation" label="Retour aux factures" />
       <h1 className="text-2xl font-bold">
         {facture.numero} <Badge statut={facture.statut ?? "—"} />
       </h1>

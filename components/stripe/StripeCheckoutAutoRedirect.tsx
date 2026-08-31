@@ -22,7 +22,7 @@ export function StripeCheckoutAutoRedirect({
       body: JSON.stringify({ planId: plan, billing }),
     })
       .then(async (res) => {
-        const body = (await res.json().catch(() => ({}))) as { url?: string };
+        const body = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
         if (body.url) window.location.href = body.url;
       })
       .catch(() => {});

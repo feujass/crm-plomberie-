@@ -1,5 +1,6 @@
 import { FacturePdfDocument } from "@/components/pdf/FacturePdfDocument";
 import { backendFetch } from "@/lib/backend/server";
+import { resolveProfileLogoUrl } from "@/lib/supabase/logo-storage";
 import { formatDateFr } from "@/lib/format";
 import type { BackendClient, BackendFactureDetail, BackendProfile } from "@/types/backend";
 import { pdf } from "@react-pdf/renderer";
@@ -52,7 +53,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     tel: (profile.tel ?? null) as string | null,
     email_facturation: (profile.email_facturation ?? null) as string | null,
     siret: (profile.siret ?? null) as string | null,
-    logo_url: (profile.logo_url ?? null) as string | null,
+    logo_url: await resolveProfileLogoUrl((profile.logo_url ?? null) as string | null),
     mention_legale: (profile.mention_legale ?? null) as string | null,
     conditions_paiement_defaut: (profile.conditions_paiement ?? null) as string | null,
   };

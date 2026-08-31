@@ -49,10 +49,15 @@ logger = logging.getLogger(__name__)
 
 # ─── CORS ─────────────────────────────────────────────────────────
 def _cors_allowed_origins() -> List[str]:
-    """CORS_ALLOW_ORIGINS = liste séparée par des virgules. Défaut * (dev). Ex. prod: https://app.flowo.fr"""
+    """CORS_ALLOW_ORIGINS = liste séparée par des virgules. Défaut : localhost uniquement (jamais *)."""
     raw = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
     if not raw:
-        return ["*"]
+        return [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+        ]
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
@@ -72,7 +77,19 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 def get_jwt_secret():
-    return os.environ["JWT_SECRET"]
+    secret = os.environ.get("JWT_SECRET", "").strip()
+    if len(secret) < 32:
+        raise RuntimeError("JWT_SECRET manquant ou trop court (32 caractères minimum).")
+    return secret
+
+
+def validate_password_strength(password: str) -> None:
+    if len(password) < 10:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 10 caractères.")
+    if not any(c.isalpha() for c in password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une lettre.")
+    if not any(c.isdigit() for c in password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un chiffre.")
 
 def create_access_token(user_id: str, email: str) -> str:
     return jwt.encode({"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "access"}, get_jwt_secret(), algorithm=JWT_ALGORITHM)
@@ -137,13 +154,15 @@ def verify_cron_secret(request: Request) -> None:
     if not expected:
         raise HTTPException(status_code=503, detail="CRON_SECRET non configuré")
     auth = request.headers.get("authorization") or ""
-    token = auth[7:].strip() if auth.lower().startswith("bearer ") else (request.query_params.get("secret") or "").strip()
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    token = auth[7:].strip()
     if token != expected:
         raise HTTPException(status_code=401, detail="Non autorisé")
 
 
 def verify_internal_api_secret(request: Request) -> None:
-    expected = (os.environ.get("INTERNAL_API_SECRET") or os.environ.get("CRON_SECRET") or "").strip()
+    expected = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="INTERNAL_API_SECRET non configuré")
     auth = request.headers.get("authorization") or ""
@@ -315,6 +334,12 @@ class ProfileUpdate(BaseModel):
     feature_flag_chorus: Optional[bool] = None
     feature_flag_esign_advanced: Optional[bool] = None
     relance_devis_jours: Optional[int] = None
+    relance_facture_jours: Optional[int] = None
+    relance_devis_echeances: Optional[str] = None
+    relance_facture_echeances: Optional[str] = None
+    notification_email: Optional[bool] = None
+    notification_push: Optional[bool] = None
+    notification_preferences: Optional[dict] = None
     metier: Optional[str] = None
 
 
@@ -489,8 +514,9 @@ async def register(input: RegisterInput):
         raise HTTPException(status_code=400, detail="Nom de l'entreprise, SIRET et adresse sont requis.")
     if len(siret) != 14:
         raise HTTPException(status_code=400, detail="Le SIRET doit contenir 14 chiffres.")
-    if len(input.password) < 6:
-        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères.")
+    if len(input.password) < 10:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 10 caractères.")
+    validate_password_strength(input.password)
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
     user_doc = {
@@ -525,7 +551,9 @@ async def register(input: RegisterInput):
         "onboarding_step": 3,
         "onboarding_complete": True,
         "metier": metier,
-        "relance_devis_jours": 5,
+        "relance_devis_jours": 3,
+        "relance_devis_echeances": "3,7,14",
+        "relance_facture_echeances": "0,7,14",
         "tva_sur_encaissements": True,
         "tva_sur_debits_opt_in": False,
         "feature_flag_pdp": True,
@@ -542,7 +570,7 @@ async def register(input: RegisterInput):
 
 
 @api.post("/auth/forgot-password")
-async def forgot_password(input: ForgotPasswordInput):
+async def forgot_password(input: ForgotPasswordInput, request: Request):
     """Crée un jeton de reset (1 h). Réponse identique si l’email n’existe pas (anti-énumération côté métier)."""
     email = input.email.lower().strip()
     user = await db.users.find_one({"email": email})
@@ -561,13 +589,16 @@ async def forgot_password(input: ForgotPasswordInput):
         }
     )
     logger.info("Password reset token created for %s", email)
-    return {"ok": True, "token": raw_token}
+    internal = (request.headers.get("x-internal-secret") or "").strip()
+    expected = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
+    if expected and internal == expected:
+        return {"ok": True, "token": raw_token}
+    return {"ok": True}
 
 
 @api.post("/auth/reset-password")
 async def reset_password(input: ResetPasswordInput):
-    if len(input.password) < 6:
-        raise HTTPException(status_code=400, detail="Mot de passe trop court (6 caractères minimum)")
+    validate_password_strength(input.password)
     token = input.token.strip()
     if not token:
         raise HTTPException(status_code=400, detail="Jeton manquant")
@@ -614,6 +645,22 @@ async def update_me(input: UserMeUpdate, user=Depends(get_current_user)):
     updated.pop("password_hash", None)
     profile = await db.profiles.find_one({"user_id": uid}, {"_id": 0})
     return {**updated, "profile": profile}
+
+
+@api.delete("/auth/me")
+async def delete_me(user=Depends(get_current_user)):
+    uid = user["id"]
+    await db.password_resets.delete_many({"user_id": uid})
+    await db.transmissions.delete_many({"user_id": uid})
+    await db.audit_events.delete_many({"user_id": uid})
+    await db.factures.delete_many({"user_id": uid})
+    await db.devis.delete_many({"user_id": uid})
+    await db.chantiers.delete_many({"user_id": uid})
+    await db.ouvrages.delete_many({"user_id": uid})
+    await db.clients.delete_many({"user_id": uid})
+    await db.profiles.delete_many({"user_id": uid})
+    await db.users.delete_one({"_id": ObjectId(uid)})
+    return {"ok": True}
 
 
 @api.post("/auth/logout")
@@ -1152,39 +1199,117 @@ async def get_public_devis(public_token: str):
     }
 
 
+def _parse_relance_echeances(raw, fallback: list[int]) -> list[int]:
+    if isinstance(raw, str) and raw.strip():
+        out = []
+        for part in raw.replace(";", ",").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                n = max(0, int(float(part)))
+            except (TypeError, ValueError):
+                continue
+            if n not in out:
+                out.append(n)
+        out.sort()
+        if out:
+            return out
+    if isinstance(raw, (int, float)) and raw >= 0:
+        return [int(raw)]
+    return fallback
+
+
+def _devis_relance_echeances(prof) -> list[int]:
+    if not prof:
+        return [3, 7, 14]
+    legacy = [int(prof.get("relance_devis_jours") or 3)]
+    return _parse_relance_echeances(prof.get("relance_devis_echeances"), legacy)
+
+
+def _facture_relance_echeances(prof) -> list[int]:
+    if not prof:
+        return [0, 7, 14]
+    legacy = [int(prof.get("relance_facture_jours") or 0)]
+    return _parse_relance_echeances(prof.get("relance_facture_echeances"), legacy)
+
+
+def _relance_due(base_dt: datetime, echeances: list[int], count: int) -> bool:
+    if count < 0 or count >= len(echeances):
+        return False
+    due = base_dt + timedelta(days=echeances[count])
+    return datetime.now(timezone.utc) >= due
+
+
+async def _artisan_email(user_id: str, prof) -> Optional[str]:
+    try:
+        u = await db.users.find_one({"_id": ObjectId(str(user_id))})
+        if u and (u.get("email") or "").strip():
+            return u["email"].strip()
+    except Exception:
+        pass
+    if prof and (prof.get("email_facturation") or "").strip():
+        return prof["email_facturation"].strip()
+    return None
+
+
 @api.get("/cron/devis-a-relancer")
 async def cron_devis_a_relancer(request: Request):
     verify_cron_secret(request)
-    now = datetime.now(timezone.utc)
     cursor = db.devis.find({"statut": "envoye"})
     items = []
-    async for d in cursor:
-        if d.get("derniere_relance_at"):
-            continue
+    profile_cache = {}
+    email_cache = {}
+    for d in cursor:
         sent_at = _parse_dt(d.get("date_envoi"))
         if not sent_at:
             continue
-        prof = await db.profiles.find_one({"user_id": d.get("user_id")})
-        jours = int(prof.get("relance_devis_jours") or 5) if prof else 5
-        if now < sent_at + timedelta(days=jours):
+        count = int(d.get("relance_count") or 0)
+        uid = str(d.get("user_id") or "")
+        prof = profile_cache.get(uid)
+        if prof is None and uid:
+            prof = await db.profiles.find_one({"user_id": uid}) or {}
+            profile_cache[uid] = prof
+        echeances = _devis_relance_echeances(prof)
+        if count >= len(echeances):
+            continue
+        if not _relance_due(sent_at, echeances, count):
             continue
         client_email = None
+        client_nom = None
         cid = d.get("client_id")
         if cid:
             try:
                 c = await db.clients.find_one({"_id": ObjectId(str(cid))})
                 if c:
                     client_email = (c.get("email") or "").strip() or None
+                    prenom = (c.get("prenom") or "").strip()
+                    nom = (c.get("nom") or "").strip()
+                    client_nom = f"{prenom} {nom}".strip() or nom or None
             except Exception:
                 client_email = None
         devis_id = str(d["_id"])
         public_token = d.get("public_token") or await ensure_devis_public_token(devis_id, d)
+        artisan_email = email_cache.get(uid)
+        if artisan_email is None and uid:
+            artisan_email = await _artisan_email(uid, prof)
+            email_cache[uid] = artisan_email
         items.append(
             {
                 "id": devis_id,
+                "user_id": uid,
                 "numero": d.get("numero"),
                 "public_token": public_token,
                 "client_email": client_email,
+                "client_nom": client_nom,
+                "relance_index": count,
+                "relance_total": len(echeances),
+                "days_after_send": echeances[count],
+                "artisan_email": artisan_email,
+                "artisan_tel": (prof.get("tel") or "").strip() or None if prof else None,
+                "entreprise": (prof.get("entreprise") or "").strip() or None if prof else None,
+                "email_facturation": (prof.get("email_facturation") or "").strip() or None if prof else None,
+                "notification_preferences": prof.get("notification_preferences") if prof else None,
             }
         )
     return {"items": items}
@@ -1193,46 +1318,77 @@ async def cron_devis_a_relancer(request: Request):
 @api.post("/cron/devis/{devis_id}/relance-envoyee")
 async def cron_devis_relance_envoyee(devis_id: str, request: Request):
     verify_cron_secret(request)
+    doc = await db.devis.find_one({"_id": ObjectId(devis_id), "statut": "envoye"})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Devis introuvable")
+    next_count = int(doc.get("relance_count") or 0) + 1
     res = await db.devis.update_one(
         {"_id": ObjectId(devis_id), "statut": "envoye"},
-        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat(), "relance_count": next_count}},
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Devis introuvable")
-    return {"ok": True}
+    return {"ok": True, "relance_count": next_count}
 
 
 @api.get("/cron/factures-a-relancer")
 async def cron_factures_a_relancer(request: Request):
     verify_cron_secret(request)
-    today = datetime.now(timezone.utc).date()
-    cursor = db.factures.find({"statut": {"$in": ["emise", "partiellement_payee"]}})
+    cursor = db.factures.find({"statut": {"$in": ["emise", "partiellement_payee", "retard"]}})
     items = []
-    async for f in cursor:
-        if f.get("derniere_relance_at"):
-            continue
+    profile_cache = {}
+    email_cache = {}
+    for f in cursor:
         due = _parse_dt(f.get("date_echeance"))
-        if not due or due.date() > today:
+        if not due:
+            continue
+        base = due.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+        count = int(f.get("relance_count") or 0)
+        uid = str(f.get("user_id") or "")
+        prof = profile_cache.get(uid)
+        if prof is None and uid:
+            prof = await db.profiles.find_one({"user_id": uid}) or {}
+            profile_cache[uid] = prof
+        echeances = _facture_relance_echeances(prof)
+        if count >= len(echeances):
+            continue
+        if not _relance_due(base, echeances, count):
             continue
         client_email = None
+        client_nom = None
         cid = f.get("client_id")
         if cid:
             try:
                 c = await db.clients.find_one({"_id": ObjectId(str(cid))})
                 if c:
                     client_email = (c.get("email") or "").strip() or None
+                    prenom = (c.get("prenom") or "").strip()
+                    nom = (c.get("nom") or "").strip()
+                    client_nom = f"{prenom} {nom}".strip() or nom or None
             except Exception:
                 client_email = None
         public_token = f.get("public_token")
         if not public_token:
             public_token = str(uuid.uuid4())
             await db.factures.update_one({"_id": f["_id"]}, {"$set": {"public_token": public_token}})
+        artisan_email = email_cache.get(uid)
+        if artisan_email is None and uid:
+            artisan_email = await _artisan_email(uid, prof)
+            email_cache[uid] = artisan_email
         items.append(
             {
                 "id": str(f["_id"]),
+                "user_id": uid,
                 "numero": f.get("numero"),
                 "public_token": public_token,
                 "client_email": client_email,
+                "client_nom": client_nom,
+                "relance_index": count,
+                "relance_total": len(echeances),
+                "days_after_due": echeances[count],
+                "artisan_email": artisan_email,
+                "artisan_tel": (prof.get("tel") or "").strip() or None if prof else None,
+                "notification_preferences": prof.get("notification_preferences") if prof else None,
             }
         )
     return {"items": items}
@@ -1241,13 +1397,19 @@ async def cron_factures_a_relancer(request: Request):
 @api.post("/cron/factures/{facture_id}/relance-envoyee")
 async def cron_facture_relance_envoyee(facture_id: str, request: Request):
     verify_cron_secret(request)
+    doc = await db.factures.find_one(
+        {"_id": ObjectId(facture_id), "statut": {"$in": ["emise", "partiellement_payee", "retard"]}}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    next_count = int(doc.get("relance_count") or 0) + 1
     res = await db.factures.update_one(
         {"_id": ObjectId(facture_id), "statut": {"$in": ["emise", "partiellement_payee", "retard"]}},
-        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat(), "statut": "retard"}},
+        {"$set": {"derniere_relance_at": datetime.now(timezone.utc).isoformat(), "statut": "retard", "relance_count": next_count}},
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Facture introuvable")
-    return {"ok": True}
+    return {"ok": True, "relance_count": next_count}
 
 @api.post("/factures/{facture_id}/paiements")
 async def add_paiement(facture_id: str, input: PaiementInput, user=Depends(get_current_user)):
@@ -1630,46 +1792,50 @@ async def startup():
     await db.transmissions.create_index([("user_id", 1), ("facture_id", 1)])
     await db.password_resets.create_index("token", unique=True)
 
-    # Seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@plombicrm.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    existing = await db.users.find_one({"email": admin_email})
-    if not existing:
-        result = await db.users.insert_one({
-            "email": admin_email,
-            "password_hash": hash_password(admin_password),
-            "nom": "",
-            "prenom": "",
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc),
-        })
-        await db.profiles.insert_one({
-            "user_id": str(result.inserted_id),
-            "entreprise": "Flowo Admin",
-            "siret": "",
-            "siren": "",
-            "adresse": "",
-            "tel": "",
-            "email_facturation": admin_email,
-            "logo_url": "",
-            "tva_defaut": 10,
-            "sep_fourniture_pose": False,
-            "structure_devis": "libre",
-            "mention_legale": default_b2b_mentions_footer(),
-            "conditions_paiement": "Paiement à 30 jours",
-            "onboarding_step": 3,
-            "onboarding_complete": True,
-            "tva_sur_encaissements": True,
-            "tva_sur_debits_opt_in": False,
-            "feature_flag_pdp": True,
-            "feature_flag_ereporting": True,
-            "feature_flag_chorus": True,
-            "feature_flag_esign_advanced": True,
-        })
-        logger.info(f"Admin seeded: {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
-        logger.info("Admin password updated")
+    # Seed admin (désactivé par défaut — activer avec ENABLE_ADMIN_SEED=1)
+    if os.environ.get("ENABLE_ADMIN_SEED", "").strip() == "1":
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@plombicrm.com")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "")
+        if not admin_password or len(admin_password) < 10:
+            logger.warning("ENABLE_ADMIN_SEED=1 mais ADMIN_PASSWORD absent ou trop court — seed ignoré.")
+        else:
+            existing = await db.users.find_one({"email": admin_email})
+            if not existing:
+                result = await db.users.insert_one({
+                    "email": admin_email,
+                    "password_hash": hash_password(admin_password),
+                    "nom": "",
+                    "prenom": "",
+                    "role": "admin",
+                    "created_at": datetime.now(timezone.utc),
+                })
+                await db.profiles.insert_one({
+                    "user_id": str(result.inserted_id),
+                    "entreprise": "Flowo Admin",
+                    "siret": "",
+                    "siren": "",
+                    "adresse": "",
+                    "tel": "",
+                    "email_facturation": admin_email,
+                    "logo_url": "",
+                    "tva_defaut": 10,
+                    "sep_fourniture_pose": False,
+                    "structure_devis": "libre",
+                    "mention_legale": default_b2b_mentions_footer(),
+                    "conditions_paiement": "Paiement à 30 jours",
+                    "onboarding_step": 3,
+                    "onboarding_complete": True,
+                    "tva_sur_encaissements": True,
+                    "tva_sur_debits_opt_in": False,
+                    "feature_flag_pdp": True,
+                    "feature_flag_ereporting": True,
+                    "feature_flag_chorus": True,
+                    "feature_flag_esign_advanced": True,
+                })
+                logger.info(f"Admin seeded: {admin_email}")
+            elif not verify_password(admin_password, existing["password_hash"]):
+                await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+                logger.info("Admin password updated")
 
     logger.info("Flowo backend started!")
 

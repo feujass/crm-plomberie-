@@ -1,3 +1,4 @@
+import { resolveAssistantName } from "@/lib/assistant-branding";
 import { backendFetch } from "@/lib/backend/server";
 import { buildAssistantChatPrompt } from "@/lib/llm/artisanSystemPrompt";
 import { completeFlowoChatLlm, type FlowoChatMessage } from "@/lib/llm/flowoChatCompletion";
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   if (!body.messages?.length) return NextResponse.json({ message: "messages requis" }, { status: 400 });
 
   const profile = me.profile ?? {};
-  const name = profile.assistant_name || "Zeus";
+  const name = resolveAssistantName(profile.assistant_name);
   const system = buildAssistantChatPrompt(profile, name);
 
   try {

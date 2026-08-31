@@ -1,16 +1,24 @@
+import { applyCataloguePrices } from "@/lib/catalogue/apply-catalogue-prices";
 import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
 import { backendFetch } from "@/lib/backend/server";
 import { buildDevisGeneratePrompt } from "@/lib/llm/artisanSystemPrompt";
+import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
+import {
+  assertIaDevisAllowed,
+  loadSubscriptionContext,
+  recordIaDevisUsage,
+} from "@/lib/plans/subscription-context";
+import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
-import OpenAI from "openai";
+import { normalizeDevisIaParsed } from "@/lib/schemas/normalize-devis-ia";
 import { NextResponse } from "next/server";
 
-import type { BackendMeResponse, BackendOuvrage } from "@/types/backend";
+import type { BackendOuvrage } from "@/types/backend";
 
 export async function POST(req: Request) {
-  let me: BackendMeResponse;
+  let ctx;
   try {
-    me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+    ctx = await loadSubscriptionContext();
   } catch {
     return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
   }
@@ -18,7 +26,12 @@ export async function POST(req: Request) {
   const body = (await req.json()) as { text?: string };
   if (!body.text?.trim()) return NextResponse.json({ message: "Texte requis" }, { status: 400 });
 
-  const profile = me.profile ?? {};
+  const iaBlocked = assertIaDevisAllowed(ctx);
+  if (iaBlocked) {
+    return NextResponse.json({ message: iaBlocked, code: "plan_ia_limit" }, { status: 403 });
+  }
+
+  const profile = ctx.profile ?? {};
   let ouvrages: BackendOuvrage[] = [];
   try {
     ouvrages = (await backendFetch("/api/ouvrages")) as BackendOuvrage[];
@@ -26,53 +39,78 @@ export async function POST(req: Request) {
     ouvrages = [];
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    // L’IA est optionnelle en local : le client peut basculer en "brouillon".
+  const system = buildDevisGeneratePrompt(profile, ouvrages ?? []);
+
+  let llmResult;
+  try {
+    llmResult = await completeDevisGenerateLlm(system, body.text.trim());
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erreur LLM";
+    return NextResponse.json({ message: msg }, { status: 500 });
+  }
+
+  if (!llmResult.ok) {
     return NextResponse.json(
-      { message: "IA non configurée (OPENAI_API_KEY manquante). Crée un devis en brouillon ou configure une clé.", code: "llm_not_configured" },
-      { status: 501 },
+      { message: llmResult.message, code: llmResult.code },
+      { status: llmResult.status },
     );
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const system = buildDevisGeneratePrompt(profile, ouvrages ?? []);
-
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4o",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: body.text },
-    ],
-    response_format: { type: "json_object" },
-  });
-
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) return NextResponse.json({ message: "Réponse vide" }, { status: 500 });
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ message: "JSON invalide" }, { status: 500 });
+  const normalized = normalizeDevisIaParsed(llmResult.parsed);
+  const z = devisIaResponseSchema.safeParse(normalized);
+  if (!z.success) {
+    return NextResponse.json(
+      {
+        message:
+          "Zeus n'a pas pu structurer le devis (format inattendu). Réessayez avec plus de détails ou passez en mode texte.",
+        details: z.error.flatten(),
+      },
+      { status: 422 },
+    );
   }
 
-  const z = devisIaResponseSchema.safeParse(parsed);
-  if (!z.success) return NextResponse.json({ message: "Schéma invalide", details: z.error.flatten() }, { status: 422 });
+  if (!z.data.lignes.length) {
+    return NextResponse.json(
+      {
+        message:
+          "Aucune ligne de devis n'a été reconnue. Décrivez les travaux plus précisément (quantités, prestations, fournitures).",
+      },
+      { status: 422 },
+    );
+  }
 
-  const lignes = normalizeLignesWithProfile(
-    z.data.lignes.map((l, i) => ({
-      section: l.section,
-      designation: l.designation,
-      quantite: l.quantite,
-      unite: l.unite,
-      prix_ht: l.prix_ht,
-      tva: l.tva,
-      ordre: i,
-      ligne_type: l.ligne_type,
-    })),
-    profile,
+  const rawLignes = z.data.lignes.map((l, i) => ({
+    section: l.section,
+    designation: l.designation,
+    quantite: l.quantite,
+    unite: l.unite,
+    prix_ht: l.prix_ht,
+    tva: l.tva,
+    ordre: i,
+    ligne_type: l.ligne_type,
+  }));
+
+  const withCatalogue = applyCataloguePrices(
+    rawLignes,
+    ouvrages ?? [],
+    profile.use_personal_library !== false,
   );
 
-  return NextResponse.json({ lignes });
+  const lignes = normalizeLignesWithProfile(withCatalogue, profile);
+
+  const meta = buildDevisMetaFromIa(z.data);
+
+  try {
+    await recordIaDevisUsage(profile);
+  } catch {
+    // compteur best-effort — devis déjà généré
+  }
+
+  return NextResponse.json({
+    lignes,
+    adresse_chantier: z.data.adresse_chantier?.trim() || null,
+    client: z.data.client ?? null,
+    notes: meta.notes || null,
+    date_expiration: meta.date_expiration,
+  });
 }

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
 
-const SUPPORT_EMAIL = "support@plombicrm.local";
+const SUPPORT_EMAIL = "flowo.contact@gmail.com";
 
 export function AppHeader() {
   const insets = useSafeAreaInsets();

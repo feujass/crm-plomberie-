@@ -5,7 +5,6 @@ const PROTECTED = new Set([
   "/accueil",
   "/rentabilite",
   "/devis",
-  "/chantiers",
   "/clients",
   "/catalogue",
   "/assistant",

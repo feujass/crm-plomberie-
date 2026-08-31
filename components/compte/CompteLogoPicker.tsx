@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { fileToCompressedDataUrl } from "@/lib/imageCompress";
+import { resolveClientLogoDisplayUrl } from "@/lib/supabase/client-logo-display";
+import { toStorageRef } from "@/lib/supabase/logo-storage";
 import { cx, focusRing } from "@/lib/utils";
 import { ImagePlus, Link2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,6 +27,7 @@ type Props = {
 
 export function CompteLogoPicker({ name = "logo_url", defaultUrl, maxEdge = 512, kind = "logo" }: Props) {
   const [logoUrl, setLogoUrl] = useState(defaultUrl);
+  const [displayUrl, setDisplayUrl] = useState(defaultUrl);
   const [urlInput, setUrlInput] = useState(defaultUrl);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -36,8 +39,13 @@ export function CompteLogoPicker({ name = "logo_url", defaultUrl, maxEdge = 512,
   useEffect(() => {
     setLogoUrl(defaultUrl);
     setUrlInput(defaultUrl);
-    setShowUrlField(Boolean(defaultUrl?.trim().startsWith("http")));
+    setShowUrlField(Boolean(defaultUrl?.trim().startsWith("http") || defaultUrl?.trim().startsWith("sb://")));
+    void resolveClientLogoDisplayUrl(defaultUrl).then(setDisplayUrl);
   }, [defaultUrl]);
+
+  useEffect(() => {
+    void resolveClientLogoDisplayUrl(logoUrl).then(setDisplayUrl);
+  }, [logoUrl]);
 
   const processFile = useCallback(
     async (file: File) => {
@@ -66,10 +74,7 @@ export function CompteLogoPicker({ name = "logo_url", defaultUrl, maxEdge = 512,
               const path = `${user.id}/${prefix}-${Date.now()}.${ext}`;
               const { error } = await supabase.storage.from("logos").upload(path, file, { upsert: true });
               if (error) throw new Error(error.message);
-              const {
-                data: { publicUrl },
-              } = supabase.storage.from("logos").getPublicUrl(path);
-              nextUrl = publicUrl;
+              nextUrl = toStorageRef(path);
             }
           } catch {
             nextUrl = null;
@@ -148,7 +153,7 @@ export function CompteLogoPicker({ name = "logo_url", defaultUrl, maxEdge = 512,
         {logoUrl ? (
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element -- logo utilisateur (data URL ou externe) */}
-            <img src={logoUrl} alt="" className="size-20 rounded-lg border border-gray-200 object-cover dark:border-gray-700" />
+            <img src={displayUrl} alt="" className="size-20 rounded-lg border border-gray-200 object-cover dark:border-gray-700" />
             <div className="text-left text-sm">
               <p className="font-medium text-[var(--foreground)]">{busy ? "Traitement…" : isAvatar ? "Photo sélectionnée" : "Logo sélectionné"}</p>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">

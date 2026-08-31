@@ -1,6 +1,7 @@
 import { CompteConformiteArchiveClient } from "@/components/compte/CompteConformiteArchiveClient";
 import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
 import { backendFetch } from "@/lib/backend/server";
+import { requireFeature } from "@/lib/plans/require-feature";
 import { labelBranche, labelTransmissionKind, labelTransmissionStatus } from "@/lib/conformite/matrix";
 import type { BackendTransmission } from "@/types/backend";
 import Link from "next/link";
@@ -14,6 +15,7 @@ type AuditRow = {
 };
 
 export default async function CompteConformitePage() {
+  await requireFeature("conformite");
   let transmissions: BackendTransmission[] = [];
   let audit: AuditRow[] = [];
   try {

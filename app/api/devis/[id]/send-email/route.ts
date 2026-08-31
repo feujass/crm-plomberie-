@@ -1,6 +1,8 @@
 import { backendFetch } from "@/lib/backend/server";
+import { buildClientEmailFrom, sanitizeReplyToEmail } from "@/lib/email/build-email-from";
+import { devisInitialEmailHtml } from "@/lib/email/relance-templates";
 import { sendDevisEmail } from "@/lib/resend-mail";
-import type { BackendDevisDetail } from "@/types/backend";
+import type { BackendDevisDetail, BackendMeResponse } from "@/types/backend";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -34,11 +36,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const publicUrl = `${siteUrl}/devis/public/${encodeURIComponent(publicToken)}`;
   const numero = devis.numero ?? "—";
 
-  const html = `<p>Bonjour,</p>
-<p>Voici votre devis <strong>${numero}</strong>.</p>
-<p><a href="${publicUrl}">Ouvrir le devis</a></p>`;
+  let profile = {};
+  let authEmail: string | undefined;
+  try {
+    const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
+    profile = me.profile ?? {};
+    authEmail = me.email;
+  } catch {
+    profile = {};
+  }
 
-  const res = await sendDevisEmail({ to: email, subject: `Devis ${numero}`, html });
+  const entreprise = (profile as BackendMeResponse["profile"])?.entreprise?.trim() ?? "";
+  const replyTo =
+    sanitizeReplyToEmail((profile as BackendMeResponse["profile"])?.email_facturation) ??
+    sanitizeReplyToEmail(authEmail);
+  const from = buildClientEmailFrom(profile as BackendMeResponse["profile"]);
+
+  const html = devisInitialEmailHtml({ numero, publicUrl, entreprise: entreprise || undefined });
+
+  const res = await sendDevisEmail({
+    to: email,
+    subject: entreprise ? `${entreprise} — Devis ${numero}` : `Devis ${numero}`,
+    html,
+    from,
+    replyTo,
+  });
 
   const now = new Date().toISOString();
   try {

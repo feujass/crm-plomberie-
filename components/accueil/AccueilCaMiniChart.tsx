@@ -3,7 +3,6 @@
 import { BarChart } from "@/components/charts/BarChart";
 import { Card } from "@/components/ui/Card";
 import { formatCurrencyEUR } from "@/lib/format";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Kpis = {
@@ -37,9 +36,6 @@ export function AccueilCaMiniChart() {
         yAxisWidth={64}
         className="h-48"
       />
-      <Link href="/rentabilite" className="mt-3 inline-block text-sm text-[color:var(--primary)] hover:underline">
-        Voir le détail rentabilité
-      </Link>
     </Card>
   );
 }

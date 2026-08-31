@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { assertDevisCreationAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -7,6 +8,14 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function POST(_: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   try {
+    try {
+      const subscriptionCtx = await loadSubscriptionContext();
+      const blocked = assertDevisCreationAllowed(subscriptionCtx);
+      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+    } catch {
+      return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
+    }
+
     const src = (await backendFetch(`/api/devis/${id}`)) as {
       client_id?: string;
       notes?: string;

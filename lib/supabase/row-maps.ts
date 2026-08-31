@@ -161,6 +161,7 @@ export function profileUpdateFromBody(body: Record<string, unknown>): Record<str
   };
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue;
+    if (key === "onboarding_complete") continue;
     const col = map[key] ?? key;
     out[col] = value;
   }

@@ -1,7 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useState } from "react";
+import { resolveClientLogoDisplayUrl } from "@/lib/supabase/client-logo-display";
+import { toStorageRef } from "@/lib/supabase/logo-storage";
+import { useEffect, useState } from "react";
 
 function isSupabaseEnvConfigured(): boolean {
   return Boolean(
@@ -9,11 +11,21 @@ function isSupabaseEnvConfigured(): boolean {
   );
 }
 
-export function LogoUploadField() {
+export function LogoUploadField({ defaultUrl = "" }: { defaultUrl?: string }) {
   const supabaseOk = isSupabaseEnvConfigured();
-  const [logoUrl, setLogoUrl] = useState("");
+  const [logoUrl, setLogoUrl] = useState(defaultUrl);
+  const [displayUrl, setDisplayUrl] = useState(defaultUrl);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLogoUrl(defaultUrl);
+    void resolveClientLogoDisplayUrl(defaultUrl).then(setDisplayUrl);
+  }, [defaultUrl]);
+
+  useEffect(() => {
+    void resolveClientLogoDisplayUrl(logoUrl).then(setDisplayUrl);
+  }, [logoUrl]);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -38,10 +50,7 @@ export function LogoUploadField() {
         setBusy(false);
         return;
       }
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("logos").getPublicUrl(path);
-      setLogoUrl(publicUrl);
+      setLogoUrl(toStorageRef(path));
     } catch (uploadErr) {
       setErr(uploadErr instanceof Error ? uploadErr.message : "Import impossible");
     }
@@ -78,10 +87,10 @@ export function LogoUploadField() {
       <input type="hidden" name="logo_url" value={logoUrl} />
       <input type="file" accept="image/*" onChange={(ev) => void onFile(ev)} disabled={busy} className="text-xs" />
       {err ? <p className="mt-1 text-xs text-red-600">{err}</p> : null}
-      {logoUrl ? (
+      {displayUrl ? (
         <p className="mt-1 text-xs text-emerald-700">
           Logo prêt
-          <img src={logoUrl} alt="" className="mt-1 h-12 w-auto rounded border" />
+          <img src={displayUrl} alt="" className="mt-1 h-12 w-auto rounded border" />
         </p>
       ) : null}
     </div>

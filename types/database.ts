@@ -25,9 +25,12 @@ export interface Profile {
   tarif_horaire: number | null;
   relance_devis_jours: number;
   relance_facture_jours: number;
+  relance_devis_echeances: string;
+  relance_facture_echeances: string;
   pdf_primary_color: string | null;
   notification_email: boolean;
   notification_push: boolean;
+  notification_preferences: Record<string, unknown>;
   stripe_customer_id: string | null;
   subscription_plan: "free" | "pro";
   subscription_status: string | null;

@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { syncDevisLignesToCatalogue } from "@/lib/catalogue/sync-from-devis-lignes";
 import { revalidatePath } from "next/cache";
 import type { BackendDevisDetail } from "@/types/backend";
 import { NextResponse } from "next/server";
@@ -17,27 +18,15 @@ export async function POST(req: Request) {
   try {
     const devis = (await backendFetch(`/api/devis/${devisId}`)) as BackendDevisDetail;
     const lignes = devis.lignes ?? [];
-    if (lignes.length) {
-      await Promise.all(
-        lignes.map((l) =>
-          backendFetch("/api/ouvrages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              nom: String(l.designation || "").slice(0, 200),
-              description: String(l.section || "").slice(0, 400),
-              type: "ouvrage",
-              prix_ht: Number(l.prix_ht || 0),
-              unite: String(l.unite || "u"),
-              tva: Number(l.tva || 10),
-              tags: [],
-            }),
-          }),
-        ),
-      );
-    }
+    const sync = lignes.length ? await syncDevisLignesToCatalogue(lignes) : { added: 0, skipped: 0, skippedLimit: 0, errors: [] };
+
     revalidatePath("/catalogue");
-    return NextResponse.json({ redirect: "/catalogue" });
+    return NextResponse.json({
+      redirect: "/catalogue",
+      added: sync.added,
+      skipped: sync.skipped,
+      skippedLimit: sync.skippedLimit,
+    });
   } catch (err) {
     const e = err as BackendFetchError;
     const http = typeof e.status === "number" && e.status >= 400 && e.status < 600 ? e.status : 502;

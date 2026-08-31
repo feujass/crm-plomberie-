@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { syncDevisLignesToCatalogue } from "@/lib/catalogue/sync-from-devis-lignes";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -72,6 +73,26 @@ export async function POST(req: Request, ctx: Ctx) {
         })),
       ),
     });
+
+    try {
+      await syncDevisLignesToCatalogue(
+        (body.lignes ?? []).map((l) => ({
+          section: l.section ?? "",
+          designation: l.designation,
+          quantite: Number(l.quantite ?? 1),
+          unite: l.unite,
+          prix_ht: Number(l.prix_ht ?? 0),
+          tva: Number(l.tva ?? 10),
+          ligne_type:
+            l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
+              ? l.ligne_type
+              : "prestation",
+        })),
+      );
+      revalidatePath("/catalogue");
+    } catch {
+      /* catalogue best-effort */
+    }
 
     revalidatePath("/devis");
     revalidatePath(`/devis/${id}`);

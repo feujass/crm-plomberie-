@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Toujours mode clair : les utilitaires dark: ne s’activent que si .dark est présent (pas prefers-color-scheme). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Polices : --font-sans / --font-mono / --font-serif (app/layout.tsx) */
 
 @keyframes hide {
@@ -128,41 +131,7 @@
   --sidebar-primary-foreground: #ffffff;
 }
 
-.dark {
-  --card: #09090b;
-  --ring: #3b82f6;
-  --input: #27272a;
-  --muted: #18181b;
-  --accent: #1e40af;
-  --border: #27272a;
-  --radius: 0.375rem;
-  --chart-1: #60a5fa;
-  --chart-2: #3b82f6;
-  --chart-3: #2563eb;
-  --chart-4: #1d4ed8;
-  --chart-5: #1e40af;
-  --popover: #09090b;
-  --primary: #3b82f6;
-  --sidebar: #050814;
-  --secondary: #18181b;
-  --background: #050814;
-  --foreground: #f4f4f5;
-  --destructive: #ef4444;
-  --sidebar-ring: #3b82f6;
-  --sidebar-accent: #1e40af;
-  --sidebar-border: #27272a;
-  --card-foreground: #f4f4f5;
-  --sidebar-primary: #3b82f6;
-  --muted-foreground: #a1a1aa;
-  --accent-foreground: #bfdbfe;
-  --popover-foreground: #f4f4f5;
-  --primary-foreground: #ffffff;
-  --sidebar-foreground: #f4f4f5;
-  --secondary-foreground: #e4e4e7;
-  --destructive-foreground: #ffffff;
-  --sidebar-accent-foreground: #bfdbfe;
-  --sidebar-primary-foreground: #ffffff;
-}
+/* Pas de palette sombre : même avec la classe .dark, on garde les tokens clairs. */
 
 @theme inline {
   --color-gray-925: #050814;
@@ -215,6 +184,21 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light only;
+}
+
+body {
+  color-scheme: light only;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    color-scheme: light only;
+  }
 }
 
 /* Safari iOS : zoom au focus si police < 16px (ex. héritage text-sm sur le label). */

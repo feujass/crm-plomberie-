@@ -58,16 +58,26 @@ export default async function CataloguePage({ searchParams }: { searchParams: Pr
           </span>
         </div>
         <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-          Tous vos ouvrages, réunis et prêts à être utilisés dans vos devis.
+          Fournitures, main d&apos;œuvre et ouvrages : Zeus reprend vos prix sur chaque devis.
         </p>
       </header>
 
       <section className="rounded-2xl border border-slate-200/75 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] sm:p-6 dark:border-slate-700 dark:bg-slate-900">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Créez vos ouvrages manuellement, importez-les depuis vos devis, ou commencez avec des exemples ci-dessous.
+          Ajoutez à la main, importez depuis un devis ou utilisez les exemples ci-dessous.
         </p>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Link
+            href="/catalogue/nouveau?type=fourniture"
+            className={cx(
+              "inline-flex flex-1 items-center justify-center gap-2 rounded-full border-2 border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 sm:flex-initial dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800",
+              focusRing,
+            )}
+          >
+            <Plus className="size-4" strokeWidth={2.5} aria-hidden />
+            Ajouter une fourniture
+          </Link>
           <Link
             href="/catalogue/nouveau"
             className={cx(
@@ -76,7 +86,7 @@ export default async function CataloguePage({ searchParams }: { searchParams: Pr
             )}
           >
             <Plus className="size-4" strokeWidth={2.5} aria-hidden />
-            Ajouter
+            Ajouter un ouvrage
           </Link>
 
           <details className="flex-1 sm:flex-initial sm:min-w-[200px]">

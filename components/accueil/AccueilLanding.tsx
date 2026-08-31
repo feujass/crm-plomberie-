@@ -24,14 +24,16 @@ export function AccueilLanding({ displayName }: { displayName: string }) {
   const { label, emoji } = greetingForHour(h);
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="space-y-4 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:items-start lg:gap-6 lg:space-y-0">
       {/* Carte bienvenue + Zeus */}
-      <section className="rounded-2xl border border-[color:var(--primary)]/15 bg-[var(--card)] p-6 shadow-sm dark:border-white/10">
-        <h2 className="text-balance text-center text-xl font-bold text-[var(--foreground)] md:text-2xl">
+      <section className="rounded-2xl border border-[color:var(--primary)]/15 bg-[var(--card)] p-6 shadow-[0_8px_30px_rgba(15,23,42,0.06)] dark:border-white/10 lg:p-8">
+        <h2 className="text-balance text-center text-xl font-bold text-[var(--foreground)] md:text-2xl lg:text-left">
           {label} {displayName} {emoji}
         </h2>
-        <p className="mt-2 text-center text-sm text-[var(--muted-foreground)]">Comment puis-je vous aider aujourd&apos;hui ?</p>
-        <div className="mx-auto mt-6 flex w-44 justify-center">
+        <p className="mt-2 text-center text-sm text-[var(--muted-foreground)] lg:text-left">
+          Comment puis-je vous aider aujourd&apos;hui ?
+        </p>
+        <div className="mx-auto mt-6 flex w-44 justify-center lg:mx-0 lg:w-52">
           <div className="relative aspect-square w-full overflow-hidden rounded-full ring-2 ring-[color:var(--primary)]/25 shadow-lg">
             <Image
               src={ZEUS_AVATAR}
@@ -46,7 +48,7 @@ export function AccueilLanding({ displayName }: { displayName: string }) {
         </div>
         <Link
           href="/devis/nouveau?tab=voice"
-          className="mt-8 flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-4 text-center text-base font-semibold text-white shadow-md transition hover:opacity-95 active:opacity-90"
+          className="mt-8 flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-4 text-center text-base font-semibold text-white shadow-md transition hover:opacity-95 active:opacity-90 lg:max-w-sm"
         >
           Créer un devis vocal
         </Link>

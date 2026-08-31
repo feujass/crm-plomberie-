@@ -57,15 +57,26 @@ export default async function DevisListPage({ searchParams }: { searchParams: Pr
         <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">
           Suivi de vos devis
         </h1>
-        <Link
-          href="/devis/nouveau"
-          className={cx(
-            "rounded-full bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95",
-            focusRing,
-          )}
-        >
-          Nouveau devis
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/devis/import"
+            className={cx(
+              "rounded-full border border-slate-200/90 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:bg-slate-50/80 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/75",
+              focusRing,
+            )}
+          >
+            Importer
+          </Link>
+          <Link
+            href="/devis/nouveau"
+            className={cx(
+              "rounded-full bg-[color:var(--primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95",
+              focusRing,
+            )}
+          >
+            Nouveau devis
+          </Link>
+        </div>
       </div>
 
       <form method="get" className="relative">

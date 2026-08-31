@@ -16,7 +16,9 @@ import {
 } from "@/components/planner/Sidebar";
 import { APP_NAME } from "@/lib/app-branding";
 import { NAV_DESKTOP } from "@/lib/app-nav";
+import { filterNavByPlan } from "@/lib/plans/features";
 import { cx, focusRing } from "@/lib/utils";
+import type { BackendProfile } from "@/types/backend";
 
 import { PlombiUserProfile } from "./PlombiUserProfile";
 import type { NavItem } from "@/lib/app-nav";
@@ -30,9 +32,9 @@ function NavLink({ href, label, Icon }: { href: string; label: string; Icon: Nav
       aria-current={active ? "page" : undefined}
       data-active={active}
       className={cx(
-        "flex items-center gap-x-2.5 rounded-md p-2 text-base transition hover:bg-gray-200/50 sm:text-sm hover:dark:bg-gray-900",
-        "text-gray-900 dark:text-gray-400 hover:dark:text-gray-50",
-        "data-[active=true]:text-[var(--primary)] data-[active=true]:dark:text-[var(--primary)]",
+        "flex items-center gap-x-2.5 rounded-lg px-2.5 py-2 text-base transition sm:text-sm",
+        "text-slate-700 hover:bg-slate-100/80 dark:text-gray-400 dark:hover:bg-gray-900",
+        "data-[active=true]:bg-[color:var(--primary)]/10 data-[active=true]:font-semibold data-[active=true]:text-[var(--primary)] data-[active=true]:shadow-[inset_3px_0_0_0_var(--primary)]",
         focusRing,
       )}
     >
@@ -44,13 +46,19 @@ function NavLink({ href, label, Icon }: { href: string; label: string; Icon: Nav
 
 export function PlombiAppSidebar({
   prenom,
+  nom,
   email,
+  profile,
 }: {
   prenom?: string | null;
+  nom?: string | null;
   email?: string | null;
+  profile?: BackendProfile;
 }) {
+  const navItems = filterNavByPlan(NAV_DESKTOP, profile);
+
   return (
-    <Sidebar className="bg-white dark:bg-gray-925">
+    <Sidebar className="border-r border-slate-200/80 bg-white shadow-[1px_0_0_rgba(15,23,42,0.03)] dark:border-gray-800 dark:bg-gray-925">
       <SidebarHeader className="px-3 py-4">
         <div className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-md bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
@@ -70,7 +78,7 @@ export function PlombiAppSidebar({
         <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {NAV_DESKTOP.map((item) => (
+              {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <NavLink href={item.href} label={item.label} Icon={item.Icon} />
                 </SidebarMenuItem>
@@ -80,7 +88,12 @@ export function PlombiAppSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-0">
-        <PlombiUserProfile prenom={prenom} email={email} />
+        <PlombiUserProfile
+          prenom={prenom}
+          nom={nom}
+          email={email}
+          avatarUrl={profile?.avatar_url}
+        />
       </SidebarFooter>
     </Sidebar>
   );

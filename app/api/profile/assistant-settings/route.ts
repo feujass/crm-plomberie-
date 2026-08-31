@@ -1,3 +1,4 @@
+import { ASSISTANT_DISPLAY_NAME } from "@/lib/assistant-branding";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
         structure_devis: data.structure_devis,
         pays: data.pays.trim() || "FR",
         use_personal_library: data.use_personal_library,
-        assistant_name: data.assistant_name.trim() || "Zeus",
+        assistant_name: ASSISTANT_DISPLAY_NAME,
       }),
     });
     const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;

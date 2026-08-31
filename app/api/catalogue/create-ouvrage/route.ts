@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { assertCatalogueAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -27,6 +28,12 @@ export async function POST(req: Request) {
     .filter(Boolean);
 
   try {
+    const ctx = await loadSubscriptionContext();
+    const blocked = assertCatalogueAllowed(ctx, 1);
+    if (blocked) {
+      return NextResponse.json({ message: blocked }, { status: 403 });
+    }
+
     await backendFetch("/api/ouvrages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

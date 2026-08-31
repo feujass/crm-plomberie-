@@ -2,9 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { captureLandingLead, resolveRequestCountry } from "@/lib/analytics/capture-landing-lead";
 import { setAuthCookies } from "@/lib/backend/cookies";
 import { backendBaseUrl } from "@/lib/backend/config";
 import { fastApiDetailMessage } from "@/lib/backend/fastApiDetail";
+import { profileHasCrmAccess } from "@/lib/auth/crm-access";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
 export async function POST(req: Request) {
@@ -13,8 +15,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Body JSON invalide" }, { status: 400 });
   }
 
-  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const country = resolveRequestCountry(req);
+  const analyticsSessionId =
+    typeof body.analytics_session_id === "string" ? body.analytics_session_id.trim() : null;
+
+  function trackLoginAttempt(success: boolean, error_message?: string | null) {
+    if (!email) return;
+    captureLandingLead(
+      {
+        source_page: "login",
+        email,
+        session_id: analyticsSessionId,
+        success,
+        error_message: error_message ?? null,
+      },
+      country,
+    );
+  }
 
   if (isSupabaseDataMode()) {
     const url = supabasePublicUrl()!;
@@ -33,9 +52,31 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      trackLoginAttempt(false, error.message);
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("onboarding_steps_completed, entreprise_nom")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (!profileHasCrmAccess(profile)) {
+      await supabase.auth.signOut();
+      const noAccessMsg =
+        "Ce compte n'a pas d'accès CRM Flowo. Utilisez l'espace partenaire si vous êtes affilié, ou créez un compte artisan.";
+      trackLoginAttempt(false, noAccessMsg);
+      return NextResponse.json(
+        {
+          error: noAccessMsg,
+          partnerPortal: true,
+        },
+        { status: 403 },
+      );
+    }
+
+    trackLoginAttempt(true);
     const u = data.user;
     return NextResponse.json(
       {

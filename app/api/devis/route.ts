@@ -1,6 +1,9 @@
 import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
+import { syncDevisLignesToCatalogue } from "@/lib/catalogue/sync-from-devis-lignes";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
-import type { BackendMeResponse, BackendProfile } from "@/types/backend";
+import { assertDevisCreationAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
+import { triggerArtisanNotification } from "@/lib/notifications/trigger";
+import type { BackendDevisDetail, BackendMeResponse, BackendProfile } from "@/types/backend";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -28,7 +31,17 @@ export async function POST(req: Request) {
   const mode = raw.mode;
 
   try {
+    let subscriptionCtx;
+    try {
+      subscriptionCtx = await loadSubscriptionContext();
+    } catch {
+      subscriptionCtx = null;
+    }
+
     if (mode === "draft") {
+      const blocked = subscriptionCtx ? assertDevisCreationAllowed(subscriptionCtx) : null;
+      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+
       const client_id = (raw.client_id as string | null) ?? null;
       const devis = (await backendFetch("/api/devis", {
         method: "POST",
@@ -42,12 +55,30 @@ export async function POST(req: Request) {
           lignes: [],
         }),
       })) as { id: string };
+      try {
+        const detail = (await backendFetch(`/api/devis/${devis.id}`)) as BackendDevisDetail;
+        triggerArtisanNotification("devis_cree", {
+          numero: detail.numero,
+          clientLabel: detail.client_nom,
+        });
+      } catch {
+        triggerArtisanNotification("devis_cree", { numero: devis.id });
+      }
       return NextResponse.json({ id: devis.id }, { status: 201 });
     }
 
     if (mode === "from_ia") {
+      const blocked = subscriptionCtx ? assertDevisCreationAllowed(subscriptionCtx) : null;
+      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+
       const client_id = (raw.client_id as string | null) ?? null;
       const notes = typeof raw.notes === "string" ? raw.notes : raw.notes == null ? "" : "";
+      const adresse_chantier =
+        typeof raw.adresse_chantier === "string" ? raw.adresse_chantier.trim() : "";
+      const date_expiration =
+        typeof raw.date_expiration === "string" && raw.date_expiration.trim()
+          ? raw.date_expiration.trim().slice(0, 10)
+          : null;
       const lignesIn = Array.isArray(raw.lignes) ? (raw.lignes as LigneIn[]) : [];
 
       let profile: BackendProfile | undefined;
@@ -77,6 +108,8 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           client_id,
           notes,
+          adresse_chantier,
+          date_expiration,
           lignes: normalized.map((l) => ({
             section: l.section ?? "",
             designation: l.designation,
@@ -89,7 +122,33 @@ export async function POST(req: Request) {
         }),
       })) as { id: string };
 
+      try {
+        await syncDevisLignesToCatalogue(
+          normalized.map((l) => ({
+            section: l.section ?? "",
+            designation: l.designation,
+            quantite: l.quantite,
+            unite: l.unite,
+            prix_ht: l.prix_ht,
+            tva: l.tva,
+            ligne_type: l.ligne_type,
+          })),
+        );
+        revalidatePath("/catalogue");
+      } catch {
+        /* catalogue best-effort */
+      }
+
       revalidatePath("/devis");
+      try {
+        const detail = (await backendFetch(`/api/devis/${devis.id}`)) as BackendDevisDetail;
+        triggerArtisanNotification("devis_cree", {
+          numero: detail.numero,
+          clientLabel: detail.client_nom,
+        });
+      } catch {
+        triggerArtisanNotification("devis_cree", { numero: devis.id });
+      }
       return NextResponse.json({ id: devis.id }, { status: 201 });
     }
 

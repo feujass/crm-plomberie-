@@ -1,16 +1,13 @@
 import { backendCronFetch } from "@/lib/backend/cron-fetch";
 import { assertCronSecret } from "@/lib/cron-auth";
-import { sendDevisEmail } from "@/lib/resend-mail";
+import type { CronRelanceDevisItem } from "@/lib/relances/cron-types";
+import {
+  notifyArtisanAfterDevisRelance,
+  sendDevisRelanceToClient,
+} from "@/lib/relances/run-cron";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-
-type RelanceItem = {
-  id: string;
-  numero?: string;
-  public_token?: string;
-  client_email?: string | null;
-};
 
 export async function GET(request: NextRequest) {
   if (!assertCronSecret(request)) {
@@ -19,9 +16,9 @@ export async function GET(request: NextRequest) {
 
   const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-  let items: RelanceItem[] = [];
+  let items: CronRelanceDevisItem[] = [];
   try {
-    const data = (await backendCronFetch("/api/cron/devis-a-relancer")) as { items?: RelanceItem[] };
+    const data = (await backendCronFetch("/api/cron/devis-a-relancer")) as { items?: CronRelanceDevisItem[] };
     items = data.items ?? [];
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur backend";
@@ -29,22 +26,21 @@ export async function GET(request: NextRequest) {
   }
 
   let sent = 0;
+  let artisanNotified = 0;
   for (const d of items) {
-    const email = d.client_email?.trim();
-    if (!email || !d.public_token) continue;
+    const clientOk = await sendDevisRelanceToClient(site, d);
+    const artisan = await notifyArtisanAfterDevisRelance(d, clientOk);
+    if (artisan.channels.length) artisanNotified += 1;
 
-    const url = `${site}/devis/public/${d.public_token}`;
-    const html = `<p>Relance concernant votre devis <strong>${d.numero ?? "—"}</strong>.</p><p><a href="${url}">Consulter le devis</a></p>`;
-    const res = await sendDevisEmail({ to: email, subject: `Relance — Devis ${d.numero ?? ""}`.trim(), html });
-    if (res.ok) {
+    if (clientOk || artisan.channels.length > 0 || !d.client_email?.trim()) {
       try {
         await backendCronFetch(`/api/cron/devis/${d.id}/relance-envoyee`, { method: "POST" });
-        sent += 1;
+        if (clientOk) sent += 1;
       } catch {
-        // e-mail envoyé mais marquage backend échoué
+        // best-effort
       }
     }
   }
 
-  return NextResponse.json({ ok: true, processed: items.length, sent });
+  return NextResponse.json({ ok: true, processed: items.length, sent, artisanNotified });
 }

@@ -6,38 +6,28 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSubMenu,
-  DropdownMenuSubMenuContent,
-  DropdownMenuSubMenuTrigger,
   DropdownMenuTrigger,
 } from "@/components/planner/DropdownMenu";
 import { Button } from "@/components/ui/Button";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cx, focusRing } from "@/lib/utils";
-import { ChevronsUpDown, LogOut, Monitor, Moon, Sun, UserCircle } from "lucide-react";
+import { ChevronsUpDown, LogOut, UserCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import * as React from "react";
-
-function initials(prenom: string | null | undefined, email: string | null | undefined) {
-  const p = (prenom ?? "").trim();
-  if (p.length >= 2) return p.slice(0, 2).toUpperCase();
-  const e = (email ?? "").split("@")[0] ?? "";
-  if (e.length >= 2) return e.slice(0, 2).toUpperCase();
-  return "?";
-}
 
 export function PlombiUserProfile({
   prenom,
+  nom,
   email,
+  avatarUrl,
 }: {
   prenom?: string | null;
+  nom?: string | null;
   email?: string | null;
+  avatarUrl?: string | null;
 }) {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -50,13 +40,15 @@ export function PlombiUserProfile({
     router.refresh();
   };
 
+  const avatar = (
+    <UserAvatar avatarUrl={avatarUrl} prenom={prenom} nom={nom} email={email} size="sm" initialsMax={2} />
+  );
+
   if (!mounted) {
     return (
       <div className="border-t border-gray-200 p-3 dark:border-gray-800">
         <div className="flex items-center gap-3 rounded-md px-1 py-2">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-            {initials(prenom, email)}
-          </span>
+          {avatar}
           <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-50">
             {prenom || email || "…"}
           </span>
@@ -78,12 +70,7 @@ export function PlombiUserProfile({
             )}
           >
             <span className="flex min-w-0 items-center gap-3">
-              <span
-                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
-                aria-hidden
-              >
-                {initials(prenom, email)}
-              </span>
+              {avatar}
               <span className="truncate text-left">{prenom || email || "Compte"}</span>
             </span>
             <ChevronsUpDown
@@ -94,28 +81,6 @@ export function PlombiUserProfile({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="sm:!min-w-[calc(var(--radix-dropdown-menu-trigger-width))]">
           <DropdownMenuLabel className="truncate">{email || "Utilisateur"}</DropdownMenuLabel>
-          <DropdownMenuGroup>
-            <DropdownMenuSubMenu>
-              <DropdownMenuSubMenuTrigger>Thème</DropdownMenuSubMenuTrigger>
-              <DropdownMenuSubMenuContent>
-                <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v)}>
-                  <DropdownMenuRadioItem aria-label="Mode clair" value="light" iconType="check">
-                    <Sun className="size-4 shrink-0" aria-hidden />
-                    Clair
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem aria-label="Mode sombre" value="dark" iconType="check">
-                    <Moon className="size-4 shrink-0" aria-hidden />
-                    Sombre
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem aria-label="Thème système" value="system" iconType="check">
-                    <Monitor className="size-4 shrink-0" aria-hidden />
-                    Système
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubMenuContent>
-            </DropdownMenuSubMenu>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem onClick={() => router.push("/compte")} className="cursor-pointer gap-2">
               <UserCircle className="size-4 shrink-0" aria-hidden />

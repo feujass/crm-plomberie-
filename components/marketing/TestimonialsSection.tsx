@@ -61,9 +61,6 @@ export function TestimonialsSection() {
                 <span className="font-semibold text-slate-800 dark:text-slate-200">{t.displayName}</span>
                 {", "}
                 {t.role}, {t.city}
-                {t.isIllustrative ? (
-                  <span className="mt-1 block text-xs text-slate-500">Témoignage illustratif · beta</span>
-                ) : null}
               </figcaption>
             </figure>
           ))}

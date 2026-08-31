@@ -1,9 +1,12 @@
 import { formatCurrencyEUR } from "@/lib/format";
-import { cx } from "@/lib/utils";
+import { cx, focusRing } from "@/lib/utils";
 import type { BackendOuvrage } from "@/types/backend";
 import { Hammer, Package, UserCog } from "lucide-react";
+import Link from "next/link";
 
-export type CatalogueOuvrageRow = Pick<BackendOuvrage, "nom" | "description" | "type" | "prix_ht" | "unite">;
+export type CatalogueOuvrageRow = Pick<BackendOuvrage, "nom" | "description" | "type" | "prix_ht" | "unite"> & {
+  id?: string;
+};
 
 function TypeIcon({ type }: { type?: string }) {
   const t = type ?? "";
@@ -33,8 +36,8 @@ export function CatalogueOuvrageCard({ row }: { row: CatalogueOuvrageRow }) {
   const u = row.unite?.trim() || "u";
   const desc = row.description?.trim();
 
-  return (
-    <article className="rounded-2xl border border-slate-200/75 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900">
+  const article = (
+    <article className="rounded-2xl border border-slate-200/75 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition dark:border-slate-700 dark:bg-slate-900">
       <div className="space-y-1">
         <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-slate-50">{row.nom}</h3>
         {desc ? <p className="text-sm text-slate-600 dark:text-slate-400">{desc}</p> : null}
@@ -48,6 +51,20 @@ export function CatalogueOuvrageCard({ row }: { row: CatalogueOuvrageRow }) {
       </div>
     </article>
   );
+
+  if (row.id) {
+    return (
+      <Link
+        href={`/catalogue/${row.id}`}
+        className={cx("block rounded-2xl hover:opacity-[0.98] active:scale-[0.99]", focusRing)}
+        aria-label={`Modifier ${row.nom}`}
+      >
+        {article}
+      </Link>
+    );
+  }
+
+  return article;
 }
 
 export function CatalogueOuvrageCardMuted({ row }: { row: CatalogueOuvrageRow }) {

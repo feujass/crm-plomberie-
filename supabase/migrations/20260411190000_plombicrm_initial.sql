@@ -25,7 +25,7 @@ create table if not exists public.profiles (
   mention_legale text,
   conditions_paiement_defaut text,
   onboarding_steps_completed int not null default 0 check (onboarding_steps_completed between 0 and 3),
-  assistant_name text not null default 'Rita',
+  assistant_name text not null default 'Zeus',
   tarif_horaire numeric(12,2),
   relance_devis_jours int not null default 5,
   relance_facture_jours int not null default 5,

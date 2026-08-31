@@ -2,7 +2,9 @@
 /mobile
 /Flowo
 /_legacy
+/_incoming
 /video_edit
+/public/videos/flowo-vsl.mp4
 /agent-transcripts
 /.cursor
 *.ndjson
@@ -11,3 +13,4 @@
 **/.pytest_cache
 **/.venv
 **/node_modules
+.next

@@ -13,7 +13,7 @@ const AUTO_MS = 20_000;
 const WHATSAPP_INTRO_MESSAGE = "Bonjour, je souhaite faire mes devis depuis WhatsApp";
 
 const slideClass =
-  "w-full shrink-0 snap-center rounded-2xl border border-[color:var(--primary)]/15 bg-[var(--card)] p-6 shadow-sm dark:border-white/10";
+  "flex w-full min-h-[21rem] shrink-0 snap-center flex-col rounded-2xl border border-[color:var(--primary)]/15 bg-[var(--card)] p-6 shadow-[0_8px_30px_rgba(15,23,42,0.06)] dark:border-white/10 lg:min-h-[24rem] lg:p-7";
 
 function WhatsAppGlyph({ className }: { className?: string }) {
   return (
@@ -47,12 +47,15 @@ function WhatsAppSlide({ slideRef }: { slideRef: RefObject<HTMLElement | null> }
       </div>
 
       {!business ? (
-        <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
-          Le lien WhatsApp sera disponible dès configuration du numéro du compte WhatsApp Business relié à votre bot
-          (variable{" "}
-          <code className="rounded bg-[var(--muted)] px-1 text-xs">NEXT_PUBLIC_WHATSAPP_BUSINESS_NUMBER</code>
-          ).
-        </p>
+        <div className="mt-6 space-y-3 text-center">
+          <p className="inline-flex rounded-full border border-[color:var(--primary)]/25 bg-[color:var(--primary)]/5 px-3 py-1 text-xs font-semibold text-[color:var(--primary)]">
+            Bientôt disponible
+          </p>
+          <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
+            Rédigez vos devis depuis WhatsApp avec l&apos;assistant Flowo — cette fonctionnalité sera activée dans une{" "}
+            <strong className="font-semibold text-[var(--foreground)]">prochaine mise à jour</strong>.
+          </p>
+        </div>
       ) : (
         <div className="mt-6 space-y-4">
           <p className="text-center text-sm text-[var(--muted-foreground)]">
@@ -78,27 +81,21 @@ function WhatsAppSlide({ slideRef }: { slideRef: RefObject<HTMLElement | null> }
 
 function ZeusContactSlide({ slideRef }: { slideRef: RefObject<HTMLElement | null> }) {
   return (
-    <section ref={slideRef} className={slideClass}>
-      <div className="flex items-start gap-2">
-        <Bell className="mt-0.5 size-5 shrink-0 text-[color:var(--primary)]" aria-hidden />
-        <div>
-          <h3 className="font-bold text-[var(--foreground)]">Restez en contact avec Zeus !</h3>
-          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">en activant les notifications</p>
-        </div>
-      </div>
-      <ul className="mt-5 space-y-4 text-sm text-[var(--foreground)]">
-        <li className="flex gap-3">
-          <Zap className="mt-0.5 size-5 shrink-0 text-[color:var(--primary)]" aria-hidden />
-          <span>On vous prévient dès que le devis est prêt</span>
-        </li>
-        <li className="flex gap-3">
-          <CalendarDays className="mt-0.5 size-5 shrink-0 text-[color:var(--primary)]" aria-hidden />
-          <span>On vous fait penser à relancer vos clients</span>
-        </li>
-      </ul>
-      <div className="mt-5 flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-        <Bell className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
-        <span>Débloquez les notifications dans les réglages du navigateur ou de l&apos;appareil pour ne rien manquer.</span>
+    <section ref={slideRef} className={cx(slideClass, "items-center justify-center text-center")}>
+      <div className="flex w-full max-w-xs flex-col items-center">
+        <Bell className="size-8 shrink-0 text-[color:var(--primary)]" aria-hidden />
+        <h3 className="mt-3 font-bold text-[var(--foreground)]">Restez en contact avec Zeus !</h3>
+        <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">en activant les notifications</p>
+        <ul className="mt-5 w-full space-y-4 text-sm text-[var(--foreground)]">
+          <li className="flex items-start justify-center gap-3 text-left">
+            <Zap className="mt-0.5 size-5 shrink-0 text-[color:var(--primary)]" aria-hidden />
+            <span>On vous prévient dès que le devis est prêt</span>
+          </li>
+          <li className="flex items-start justify-center gap-3 text-left">
+            <CalendarDays className="mt-0.5 size-5 shrink-0 text-[color:var(--primary)]" aria-hidden />
+            <span>On vous fait penser à relancer vos clients</span>
+          </li>
+        </ul>
       </div>
     </section>
   );
@@ -118,7 +115,6 @@ export function AccueilPromoCarousel() {
     indexRef.current = i;
     setActiveDot(i);
     if (!sc || !el) return;
-    // Défile uniquement le conteneur horizontal — évite scrollIntoView qui remonte toute la page.
     const targetLeft =
       el.offsetLeft - Math.max(0, Math.floor((sc.clientWidth - el.offsetWidth) / 2));
     sc.scrollTo({ left: targetLeft, behavior: "smooth" });

@@ -37,6 +37,8 @@ alter table public.analytics_events
       'register_submit',
       'register_error',
       'register_success',
+      'field_focus',
+      'field_blur',
       'onboarding_profile_complete',
       'first_devis_created',
       'first_devis_sent',
@@ -49,3 +51,5 @@ create index if not exists analytics_events_event_type_idx
   on public.analytics_events (event_type, created_at desc);
 
 comment on table public.analytics_sessions is 'Attribution UTM/referrer/device par session analytics (1ʳᵉ page vue)';
+
+alter table public.analytics_sessions enable row level security;

@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { logoUrlValidationError } from "@/lib/security/logo-url";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -46,6 +47,12 @@ export async function POST(req: Request) {
   }
 
   try {
+    const logoRaw = String(raw.logo_url ?? "").trim() || null;
+    const logoErr = logoUrlValidationError(logoRaw);
+    if (logoErr) {
+      return NextResponse.json({ message: logoErr }, { status: 400 });
+    }
+
     await backendFetch("/api/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -66,7 +73,7 @@ export async function POST(req: Request) {
         bic: String(raw.bic ?? "").trim() || null,
         adresse: String(raw.adresse ?? "").trim() || null,
         email_facturation: String(raw.email_facturation ?? "").trim() || null,
-        logo_url: String(raw.logo_url ?? "").trim() || null,
+        logo_url: logoRaw,
         mention_legale: String(raw.mention_legale ?? "").trim() || null,
         conditions_paiement: String(raw.conditions_paiement ?? "").trim() || null,
         specialites: String(raw.specialites ?? "").trim() || null,

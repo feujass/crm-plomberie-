@@ -371,26 +371,93 @@ export function CompteLogoFormClient({ defaultLogoUrl }: { defaultLogoUrl: strin
 export function CompteDeleteAccountFormClient() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [understood, setUnderstood] = useState(false);
+
+  async function deleteAccount() {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/compte/delete-account", { method: "POST" });
+      const json = (await res.json().catch(() => ({}))) as { redirect?: string; error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "Suppression impossible.");
+        return;
+      }
+      if (typeof json.redirect === "string") {
+        router.push(json.redirect);
+        return;
+      }
+      router.push("/login?deleted=1");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (confirmOpen) {
+    return (
+      <div className="space-y-3 rounded-xl border border-red-200 bg-red-50/80 p-4 dark:border-red-900/40 dark:bg-red-950/20">
+        <p className="text-sm font-medium text-red-950 dark:text-red-100">Confirmer la suppression définitive</p>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-red-900/90 dark:text-red-200/90">
+          <li>Toutes vos données (clients, devis, factures) seront effacées de Flowo.</li>
+          <li>
+            Les <strong>factures</strong> doivent être conservées <strong>6 ans</strong> pour la comptabilité — exportez-les
+            avant de continuer.
+          </li>
+          <li>Cette action est irréversible.</li>
+        </ul>
+        <label className="flex items-start gap-2 text-sm text-red-950 dark:text-red-100">
+          <input
+            type="checkbox"
+            checked={understood}
+            onChange={(e) => setUnderstood(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Je comprends et souhaite supprimer mon compte définitivement.</span>
+        </label>
+        {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={pending || !understood}
+            className="flex items-center justify-center gap-2"
+            onClick={() => void deleteAccount()}
+          >
+            <Trash2 className="size-4" aria-hidden />
+            {pending ? "Suppression…" : "Confirmer la suppression"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => {
+              setConfirmOpen(false);
+              setUnderstood(false);
+              setError(null);
+            }}
+          >
+            Annuler
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setPending(true);
-        try {
-          const res = await fetch("/api/compte/delete-account", { method: "POST" });
-          const json = (await res.json().catch(() => ({}))) as { redirect?: string };
-          if (typeof json.redirect === "string") router.push(json.redirect);
-          router.refresh();
-        } finally {
-          setPending(false);
-        }
-      }}
-    >
-      <Button type="submit" variant="danger" disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5">
+    <div>
+      {error ? <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      <Button
+        type="button"
+        variant="danger"
+        disabled={pending}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5"
+        onClick={() => setConfirmOpen(true)}
+      >
         <Trash2 className="size-4" aria-hidden />
-        {pending ? "…" : "Supprimer mon compte"}
+        Supprimer mon compte
       </Button>
-    </form>
+    </div>
   );
 }

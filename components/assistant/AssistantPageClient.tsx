@@ -1,6 +1,7 @@
 "use client";
 
 import type { AssistantSettingsPayload } from "@/types/assistant-settings";
+import { ASSISTANT_DISPLAY_NAME, resolveAssistantName } from "@/lib/assistant-branding";
 import {
   FLOWO_CARD_HERO_GRADIENT_CLASS,
   FLOWO_CARD_HERO_SURFACE_CLASS,
@@ -14,7 +15,7 @@ import { Info } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const DEFAULT_ASSISTANT = "Zeus";
+const DEFAULT_ASSISTANT = ASSISTANT_DISPLAY_NAME;
 
 const TVA_OPTIONS = [
   { value: "2.1", label: "2,1 %" },
@@ -46,6 +47,9 @@ type Msg = { role: "user" | "assistant"; content: string };
 const fieldClass =
   "w-full rounded-2xl border border-slate-200/55 bg-white py-3 px-4 text-sm text-slate-900 shadow-none outline-none transition placeholder:text-slate-400 focus:border-[color:var(--primary)]/40 focus:ring-1 focus:ring-[color:var(--primary)]/15 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:placeholder:text-slate-500";
 
+const selectTriggerClass =
+  "w-full appearance-none rounded-2xl border border-slate-200/55 bg-white py-3 pl-11 pr-10 text-sm font-semibold text-slate-900 shadow-none outline-none transition focus:border-[color:var(--primary)]/40 focus:ring-1 focus:ring-[color:var(--primary)]/15 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100";
+
 function normalizeTva(v: number | undefined): string {
   const n = v ?? 10;
   const m = TVA_OPTIONS.find((o) => Math.abs(parseFloat(o.value) - n) < 0.01);
@@ -74,7 +78,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
   const [sep, setSep] = useState(Boolean(p.sep_fourniture_pose));
   const [library, setLibrary] = useState(() => (p.use_personal_library === false ? false : true));
   const [structure, setStructure] = useState(p.structure_devis ?? "libre");
-  const [assistantName, setAssistantName] = useState((p.assistant_name as string | undefined)?.trim() || DEFAULT_ASSISTANT);
+  const [assistantName, setAssistantName] = useState(resolveAssistantName(p.assistant_name as string | undefined));
 
   const [view, setView] = useState<"reglages" | "discuter">("reglages");
 
@@ -87,7 +91,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
       Boolean(p.sep_fourniture_pose),
       p.use_personal_library === false ? false : true,
       p.structure_devis ?? "libre",
-      (p.assistant_name as string | undefined)?.trim() || DEFAULT_ASSISTANT
+      resolveAssistantName(p.assistant_name as string | undefined)
     )
   );
 
@@ -95,8 +99,6 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [tvaOpen, setTvaOpen] = useState(false);
-  const [paysOpen, setPaysOpen] = useState(false);
   const pauseAutoSave = useRef(false);
 
   const currentSnap = useMemo(
@@ -151,7 +153,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
         Boolean(me.profile?.sep_fourniture_pose),
         me.profile?.use_personal_library === false ? false : true,
         me.profile?.structure_devis ?? "libre",
-        (me.profile?.assistant_name as string | undefined)?.trim() || DEFAULT_ASSISTANT
+        resolveAssistantName(me.profile?.assistant_name as string | undefined)
       )
     );
     setPrenom(me.prenom ?? "");
@@ -164,7 +166,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
       setLibrary(lib === false ? false : true);
     }
     setStructure(me.profile?.structure_devis ?? "libre");
-    setAssistantName((me.profile?.assistant_name as string | undefined)?.trim() || DEFAULT_ASSISTANT);
+    setAssistantName(resolveAssistantName(me.profile?.assistant_name as string | undefined));
     setAutoSave("synced");
   }, [prenom, nom, tva, pays, sep, library, structure, assistantName]);
 
@@ -227,20 +229,17 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
   const tvaLabel = TVA_OPTIONS.find((o) => o.value === tva)?.label ?? `${tva} %`;
   const paysOpt = PAYS_OPTIONS.find((c) => c.code === pays) ?? PAYS_OPTIONS[0]!;
 
-  const listSheetClass =
-    "relative z-10 w-full max-w-lg rounded-t-2xl border border-slate-200/80 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:rounded-2xl";
-
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-10">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">Assistant</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">{displayName}</h1>
           <span className="inline-flex text-slate-400 dark:text-slate-500" title={INFO_HINT} aria-label={INFO_HINT}>
             <Info className="size-5" strokeWidth={1.75} aria-hidden />
           </span>
         </div>
         <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-          Ajustez les réglages (identité, TVA, structure des devis, bibliothèque) puis discutez avec l’assistant pour des réponses
+          Ajustez les réglages (identité, TVA, structure des devis, bibliothèque) puis discutez avec {displayName} pour des réponses
           adaptées à votre métier du BTP et à vos devis.
         </p>
       </header>
@@ -283,37 +282,59 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
             </div>
 
             <div className="mt-5 space-y-2">
-              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">Quelle est votre TVA par défaut ?</label>
+              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200" htmlFor="assistant-tva">
+                Quelle est votre TVA par défaut ?
+              </label>
               <p className="text-sm text-slate-500 dark:text-slate-400">Taux appliqué par défaut aux nouvelles lignes (France).</p>
-              <button
-                type="button"
-                onClick={() => setTvaOpen(true)}
-                className={cx(
-                  "flex w-full items-center gap-2 rounded-2xl border border-slate-200/55 bg-white py-3 pl-4 pr-3 text-left text-sm dark:border-slate-600 dark:bg-slate-800/90",
-                  focusRing,
-                )}
-              >
-                <span className="text-xl">🇫🇷</span>
-                <span className="flex-1 font-semibold text-slate-900 dark:text-slate-100">{tvaLabel}</span>
-                <span className="text-slate-400">▾</span>
-              </button>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl" aria-hidden>
+                  🇫🇷
+                </span>
+                <select
+                  id="assistant-tva"
+                  value={tva}
+                  onChange={(e) => setTva(e.target.value)}
+                  className={cx(selectTriggerClass, focusRing)}
+                  aria-label={`TVA par défaut : ${tvaLabel}`}
+                >
+                  {TVA_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden>
+                  ▾
+                </span>
+              </div>
             </div>
 
             <div className="mt-5 space-y-2">
-              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">Pays</label>
+              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200" htmlFor="assistant-pays">
+                Pays
+              </label>
               <p className="text-sm text-slate-500 dark:text-slate-400">Cohérence d’affichage sur les devis.</p>
-              <button
-                type="button"
-                onClick={() => setPaysOpen(true)}
-                className={cx(
-                  "flex w-full items-center gap-2 rounded-2xl border border-slate-200/55 bg-white py-3 pl-4 pr-3 text-left text-sm dark:border-slate-600 dark:bg-slate-800/90",
-                  focusRing,
-                )}
-              >
-                <span className="text-xl">{paysOpt.flag}</span>
-                <span className="flex-1 font-semibold text-slate-900 dark:text-slate-100">{paysOpt.label}</span>
-                <span className="text-slate-400">▾</span>
-              </button>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl" aria-hidden>
+                  {paysOpt.flag}
+                </span>
+                <select
+                  id="assistant-pays"
+                  value={pays}
+                  onChange={(e) => setPays(e.target.value)}
+                  className={cx(selectTriggerClass, focusRing)}
+                  aria-label={`Pays : ${paysOpt.label}`}
+                >
+                  {PAYS_OPTIONS.map((o) => (
+                    <option key={o.code} value={o.code}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden>
+                  ▾
+                </span>
+              </div>
             </div>
 
             <ToggleBlock label="Séparer fourniture et pose" sub="Deux lignes distinctes sur les devis lorsque c’est pertinent." value={sep} onChange={setSep} />
@@ -354,7 +375,7 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" aria-hidden />
               <div className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:bg-slate-950/90 dark:text-slate-100">
-                Assistant IA
+                {displayName}
               </div>
             </div>
             <div className="space-y-1 px-4 pb-2 pt-4 sm:px-5">
@@ -430,67 +451,6 @@ export function AssistantPageClient({ initialMe }: { initialMe: BackendMeRespons
         </section>
       )}
 
-      {tvaOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
-          <button type="button" className="absolute inset-0 cursor-default" aria-label="Fermer" onClick={() => setTvaOpen(false)} />
-          <div className={listSheetClass} onClick={(e) => e.stopPropagation()}>
-            <p className="mb-3 text-base font-bold text-slate-900 dark:text-slate-50">TVA par défaut</p>
-            <div className="max-h-[50vh] overflow-y-auto">
-              {TVA_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    setTva(o.value);
-                    setTvaOpen(false);
-                  }}
-                  className={cx(
-                    "flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
-                    focusRing,
-                    tva === o.value
-                      ? "bg-[color:var(--primary)]/12 text-[color:var(--primary)] dark:text-[color:var(--chart-1)]"
-                      : "text-slate-800 dark:text-slate-200",
-                  )}
-                >
-                  <span>🇫🇷</span>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {paysOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
-          <button type="button" className="absolute inset-0 cursor-default" aria-label="Fermer" onClick={() => setPaysOpen(false)} />
-          <div className={listSheetClass} onClick={(e) => e.stopPropagation()}>
-            <p className="mb-3 text-base font-bold text-slate-900 dark:text-slate-50">Pays</p>
-            <div className="max-h-[50vh] overflow-y-auto">
-              {PAYS_OPTIONS.map((o) => (
-                <button
-                  key={o.code}
-                  type="button"
-                  onClick={() => {
-                    setPays(o.code);
-                    setPaysOpen(false);
-                  }}
-                  className={cx(
-                    "flex w-full items-center gap-2 rounded-2xl px-3 py-3 text-left text-sm font-semibold transition",
-                    focusRing,
-                    pays === o.code
-                      ? "bg-[color:var(--primary)]/12 text-[color:var(--primary)] dark:text-[color:var(--chart-1)]"
-                      : "text-slate-800 dark:text-slate-200",
-                  )}
-                >
-                  <span className="text-xl">{o.flag}</span>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -13,6 +13,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run lint && npm run build",
+    "legal:registre-pdf": "npx md-to-pdf docs/registre-traitements-flowo.md",
     "test:conformite": "cd backend && python3 -m unittest discover -s tests -p 'test_conformite.py' -v"
   },
   "dependencies": {
@@ -34,7 +35,7 @@
     "lucide-react": "^1.8.0",
     "next": "15.5.15",
     "next-themes": "^0.4.6",
-    "openai": "^4.91.1",
+    "posthog-js": "^1.399.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.1",

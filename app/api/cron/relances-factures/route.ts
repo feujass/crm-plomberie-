@@ -1,16 +1,13 @@
 import { backendCronFetch } from "@/lib/backend/cron-fetch";
 import { assertCronSecret } from "@/lib/cron-auth";
-import { sendDevisEmail } from "@/lib/resend-mail";
+import type { CronRelanceFactureItem } from "@/lib/relances/cron-types";
+import {
+  notifyArtisanAfterFactureRelance,
+  sendFactureRelanceToClient,
+} from "@/lib/relances/run-cron";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-
-type RelanceItem = {
-  id: string;
-  numero?: string;
-  public_token?: string;
-  client_email?: string | null;
-};
 
 export async function GET(request: NextRequest) {
   if (!assertCronSecret(request)) {
@@ -19,9 +16,11 @@ export async function GET(request: NextRequest) {
 
   const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-  let items: RelanceItem[] = [];
+  let items: CronRelanceFactureItem[] = [];
   try {
-    const data = (await backendCronFetch("/api/cron/factures-a-relancer")) as { items?: RelanceItem[] };
+    const data = (await backendCronFetch("/api/cron/factures-a-relancer")) as {
+      items?: CronRelanceFactureItem[];
+    };
     items = data.items ?? [];
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur backend";
@@ -29,22 +28,21 @@ export async function GET(request: NextRequest) {
   }
 
   let sent = 0;
+  let artisanNotified = 0;
   for (const f of items) {
-    const email = f.client_email?.trim();
-    if (!email || !f.public_token) continue;
+    const clientOk = await sendFactureRelanceToClient(site, f);
+    const artisan = await notifyArtisanAfterFactureRelance(f, clientOk);
+    if (artisan.channels.length) artisanNotified += 1;
 
-    const url = `${site}/f/${f.public_token}`;
-    const html = `<p>Votre facture <strong>${f.numero ?? "—"}</strong> est en attente de règlement.</p><p><a href="${url}">Voir la facture</a></p>`;
-    const res = await sendDevisEmail({ to: email, subject: `Relance — Facture ${f.numero ?? ""}`.trim(), html });
-    if (res.ok) {
+    if (clientOk || artisan.channels.length > 0 || !f.client_email?.trim()) {
       try {
         await backendCronFetch(`/api/cron/factures/${f.id}/relance-envoyee`, { method: "POST" });
-        sent += 1;
+        if (clientOk) sent += 1;
       } catch {
         // best-effort
       }
     }
   }
 
-  return NextResponse.json({ ok: true, processed: items.length, sent });
+  return NextResponse.json({ ok: true, processed: items.length, sent, artisanNotified });
 }

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { BackendMeResponse } from "@/types/backend";
 
+import { profileHasCrmAccess } from "@/lib/auth/crm-access";
 import { buildMeResponse } from "@/lib/supabase/profile-map";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseDataMode } from "@/lib/supabase/env";
@@ -21,6 +22,7 @@ export default async function MainAppLayout({ children }: { children: React.Reac
     } = await supabase.auth.getUser();
     if (!user) redirect("/login");
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    if (!profileHasCrmAccess(profile)) redirect("/login?error=no_crm");
     me = buildMeResponse(user, profile);
   } else {
     const token = cookieStore.get("access_token")?.value;
@@ -50,8 +52,11 @@ export default async function MainAppLayout({ children }: { children: React.Reac
 
   return (
     <PlannerAppShell
+      userId={me?.id ?? null}
       prenom={me?.prenom ?? null}
+      nom={me?.nom ?? null}
       email={me?.email ?? null}
+      profile={me?.profile}
       defaultSidebarOpen={defaultSidebarOpen}
     >
       {children}
