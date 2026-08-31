@@ -2,7 +2,7 @@ import type { BackendProfile } from "@/types/backend";
 
 type FlowoSubscriptionPlan = NonNullable<BackendProfile["subscription_plan"]>;
 
-export const FREE_TRIAL_DAYS = 5;
+export const FREE_TRIAL_DAYS = 14;
 
 export const TRIAL_EXPIRED_ACCOUNT_MESSAGE = `Votre essai gratuit de ${FREE_TRIAL_DAYS} jours est terminé. Choisissez un abonnement ci-dessous pour continuer.`;
 
