@@ -1,14 +1,20 @@
 "use client";
 
+import { DevisDocumentPreview } from "@/components/devis/DevisDocumentPreview";
+import { LegalIdentityModal } from "@/components/profile/ProfileVoicePromptModal";
 import type { DevisLigneInput } from "@/types/devis";
+import { flowoSegmentTabClass } from "@/lib/flowo-ui";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { computeDevisTotals, ligneTotalHt } from "@/lib/devis-math";
 import { formatCurrencyEUR } from "@/lib/format";
 import { cx, focusRing } from "@/lib/utils";
 import { defaultSectionForStructure, defaultTvaFromProfile } from "@/lib/devis-ouvrage-mode";
+import { computeProfileCompletion } from "@/lib/profile/completion";
+import { canAccessFeature } from "@/lib/plans/features";
 import type { BackendClient, BackendDevisDetail, BackendDevisLine, BackendProfile } from "@/types/backend";
 import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -112,17 +118,25 @@ export function DevisEditor({
   /** Profil entreprise (TVA par défaut, structure des lignes, séparation fourniture/pose) — aligné Assistant / Compte. */
   profile?: BackendProfile;
 }) {
+  const canFacture = canAccessFeature(profile, "facturation");
   const router = useRouter();
   const [pending, start] = useTransition();
   const [bannerErr, setBannerErr] = useState<string | null>(null);
   const [bannerOk, setBannerOk] = useState<string | null>(null);
   const sp = useSearchParams();
   const info = sp.get("info");
+  const [viewMode, setViewMode] = useState<"preview" | "edit">(() =>
+    sp.get("view") === "edit" ? "edit" : "preview",
+  );
   const [clientId, setClientId] = useState<string>(devis.client_id ?? "");
   const [sendDrawerOpen, setSendDrawerOpen] = useState(false);
   const [sendEmailTo, setSendEmailTo] = useState("");
   const [lastAutoEmail, setLastAutoEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalComplete, setLegalComplete] = useState(
+    () => computeProfileCompletion({ id: "", email: "", profile }).legalComplete,
+  );
   const [notes, setNotes] = useState(devis.notes ?? "");
   const [dateExp, setDateExp] = useState(devis.date_expiration ?? "");
   const [remiseType, setRemiseType] = useState<"percent" | "fixed" | "">(
@@ -302,10 +316,31 @@ export function DevisEditor({
                   ? "Expiré"
                   : "Devis";
 
+  function openPdf() {
+    window.open(`/api/devis/${devis.id}/pdf`, "_blank", "noopener,noreferrer");
+  }
+
+  function handleLegalSaved() {
+    setLegalComplete(true);
+    setLegalModalOpen(false);
+    openPdf();
+    router.refresh();
+  }
+
+  async function openSendDrawer() {
+    setBannerErr(null);
+    const clientEmail = (selectedClient?.email ?? "").trim();
+    if (!sendEmailTo.trim() && clientEmail) {
+      setSendEmailTo(clientEmail);
+      setLastAutoEmail(clientEmail);
+    }
+    setSendDrawerOpen(true);
+  }
+
   async function sendByEmail() {
     const to = sendEmailTo.trim() || String(selectedClient?.email ?? "").trim();
     if (!to) {
-      setBannerErr("Renseigne l’e-mail du client pour envoyer le devis.");
+      setBannerErr("Indiquez l’adresse e-mail à laquelle envoyer le devis.");
       return;
     }
     setSending(true);
@@ -345,7 +380,7 @@ export function DevisEditor({
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] md:pb-24">
       {info === "no-ai" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
           IA non configurée : devis créé en brouillon (tu peux le remplir manuellement).
@@ -366,32 +401,17 @@ export function DevisEditor({
           {bannerErr}
         </div>
       ) : null}
-      {statut === "accepte" || statut === "facture" ? (
-        <div className="rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-4 dark:border-emerald-800/50 dark:bg-emerald-950/30">
-          <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Étape suivante : suivi chantier</p>
-          <p className="mt-1 text-xs text-emerald-900/90 dark:text-emerald-200/90">
-            Crée un chantier avec le client, l&apos;adresse chantier et le montant préremplis — le devis n&apos;est pas modifié.
-          </p>
-          <Link
-            href={`/chantiers/nouveau?devis=${encodeURIComponent(devis.id)}`}
-            className={cx(
-              "mt-3 inline-flex w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:opacity-95 sm:w-auto",
-              focusRing,
-            )}
-          >
-            Créer le chantier à partir de ce devis
-          </Link>
-        </div>
-      ) : null}
       <div className="flex flex-wrap items-center gap-2">
+        <CircleBackLink href="/devis" label="Retour aux devis" />
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
         </Button>
-        <a href={`/api/devis/${devis.id}/pdf`} target="_blank" rel="noreferrer">
-          <Button type="button" variant="secondary">
-            PDF
-          </Button>
-        </a>
+        <Button type="button" variant="secondary" onClick={() => (legalComplete ? openPdf() : setLegalModalOpen(true))}>
+          PDF
+        </Button>
+        <Button type="button" disabled={pending || sending} className="min-w-0 flex-1 sm:flex-none" onClick={() => void openSendDrawer()}>
+          Envoyer le devis
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" className="px-2">
@@ -445,7 +465,7 @@ export function DevisEditor({
               >
                 Dupliquer
               </DropdownMenuItem>
-              {devis.statut === "accepte" ? (
+              {devis.statut === "accepte" && canFacture ? (
                 <DropdownMenuItem
                   onClick={() => {
                     start(async () => {
@@ -495,11 +515,6 @@ export function DevisEditor({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Link href="/devis" className="ml-auto">
-          <Button type="button" variant="ghost">
-            Liste
-          </Button>
-        </Link>
       </div>
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -514,6 +529,49 @@ export function DevisEditor({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           TVA et structure des lignes suivent vos réglages Assistant / Compte (ex. TVA {defaultTvaFromProfile(profile)} %).
         </p>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "preview"}
+            onClick={() => setViewMode("preview")}
+            className={cx(focusRing, flowoSegmentTabClass(viewMode === "preview", { compact: true }))}
+          >
+            Aperçu client
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "edit"}
+            onClick={() => setViewMode("edit")}
+            className={cx(focusRing, flowoSegmentTabClass(viewMode === "edit", { compact: true }))}
+          >
+            Édition détaillée
+          </button>
+        </div>
+
+        {viewMode === "preview" ? (
+          <DevisDocumentPreview
+            numero={devis.numero ?? "—"}
+            statutLabel={statutLabel}
+            profile={profile}
+            clients={clients}
+            clientId={clientId}
+            onClientIdChange={setClientId}
+            adresseChantier={adresseChantier}
+            onAdresseChantierChange={setAdresseChantier}
+            notes={notes}
+            onNotesChange={setNotes}
+            lignes={lignes}
+            remiseType={remiseType}
+            remiseValue={remiseValue}
+            onEditLines={() => setViewMode("edit")}
+            onSend={() => void openSendDrawer()}
+          />
+        ) : null}
+
+        {viewMode === "edit" ? (
         <div className="grid gap-3 md:grid-cols-2">
           <Card title="Client" className="p-3 sm:p-4">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -579,8 +637,10 @@ export function DevisEditor({
             />
           </Card>
         </div>
+        ) : null}
       </div>
 
+      {viewMode === "edit" ? (
       <Card title="Lignes du devis" className="p-3 sm:p-4">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={lignes.map((l) => l.id)} strategy={verticalListSortingStrategy}>
@@ -604,7 +664,9 @@ export function DevisEditor({
           <p className="text-lg font-semibold">Total TTC : {formatCurrencyEUR(totals.total_ttc)}</p>
         </div>
       </Card>
+      ) : null}
 
+      {viewMode === "edit" ? (
       <Card
         title={
           <span className="flex flex-wrap items-center gap-2">
@@ -655,14 +717,15 @@ export function DevisEditor({
           </Button>
         </form>
       </Card>
+      ) : null}
 
-      {/* Barre d'action simple en bas : envoyer après relecture */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+      {/* Au-dessus de la barre d’onglets mobile (PlannerAppShell) */}
+      <div className="fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-50 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:bottom-0">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <Button type="button" variant="secondary" disabled={pending} onClick={() => save()}>
             Enregistrer
           </Button>
-          <Button type="button" disabled={pending} className="flex-1" onClick={() => setSendDrawerOpen(true)}>
+          <Button type="button" disabled={pending} className="flex-1" onClick={() => void openSendDrawer()}>
             Envoyer le devis
           </Button>
         </div>
@@ -675,17 +738,32 @@ export function DevisEditor({
           </DrawerHeader>
           <DrawerBody className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              1) Vérifie l’e-mail, 2) clique sur <strong>Envoyer</strong>.
+              {selectedClient?.email?.trim() || sendEmailTo.trim()
+                ? "Vérifiez l’e-mail du client, puis cliquez sur Envoyer."
+                : "Le client n’a pas d’e-mail enregistré — saisissez l’adresse à laquelle envoyer le devis."}
             </p>
             <Input
-              label={`E-mail du client (${clientLabel})`}
+              label="E-mail d’envoi du devis"
               type="email"
               placeholder="client@exemple.fr"
               value={sendEmailTo}
               onChange={(e) => setSendEmailTo(e.target.value)}
+              autoFocus
             />
+            {selectedClient ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Client : {clientLabel}
+                {selectedClient.email?.trim() ? ` · fiche : ${selectedClient.email}` : " · aucun e-mail en fiche"}
+              </p>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Aucun client lié — vous pouvez quand même envoyer le PDF à l’adresse saisie ci-dessus.
+              </p>
+            )}
             <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-              Si l’e-mail réel n’est pas configuré (Resend), Flowo passe en mode test mais marque quand même le devis “envoyé”.
+              L’e-mail part au nom de votre entreprise (profil Compte). Seule l’adresse d’expéditeur doit être
+              configurée dans Resend — pas celle du client. En local sans clé Resend, l’envoi est simulé mais le devis
+              est quand même marqué « envoyé ».
             </div>
           </DrawerBody>
           <DrawerFooter>
@@ -703,6 +781,17 @@ export function DevisEditor({
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <LegalIdentityModal
+        open={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        onSaved={handleLegalSaved}
+        defaults={{
+          siret: profile.siret,
+          adresse: profile.adresse,
+          entreprise: profile.entreprise,
+        }}
+      />
     </div>
   );
 }

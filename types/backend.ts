@@ -1,3 +1,5 @@
+import type { NotificationPreferences } from "@/lib/notifications/preferences";
+
 export type BackendUser = {
   id: string;
   email: string;
@@ -42,10 +44,20 @@ export type BackendProfile = {
   feature_flag_chorus?: boolean;
   feature_flag_esign_advanced?: boolean;
   relance_devis_jours?: number;
+  relance_facture_jours?: number;
+  relance_devis_echeances?: string;
+  relance_facture_echeances?: string;
+  notification_email?: boolean;
+  notification_push?: boolean;
+  notification_preferences?: NotificationPreferences;
   metier?: string;
   stripe_customer_id?: string | null;
   subscription_plan?: "free" | "pro" | "pro_plus" | "pme";
   subscription_status?: string | null;
+  trial_ends_at?: string | null;
+  ia_devis_month?: string;
+  ia_devis_count?: number;
+  profile_voice_prompt_skipped_at?: string | null;
 };
 
 export type BackendMeResponse = BackendUser & {

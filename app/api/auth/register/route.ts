@@ -2,12 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import {
+  captureLandingLead,
+  landingLeadFromRegisterBody,
+  resolveRequestCountry,
+} from "@/lib/analytics/capture-landing-lead";
 import { setAuthCookies } from "@/lib/backend/cookies";
 import { backendBaseUrl } from "@/lib/backend/config";
 import { fastApiDetailMessage } from "@/lib/backend/fastApiDetail";
+import { validatePassword } from "@/lib/security/password-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
-import { saveSupabaseProfile } from "@/lib/supabase/save-profile";
+import { attachReferralFromCookie } from "@/lib/affiliate/server";
+import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
+import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
+import { saveMinimalSupabaseProfile, saveSupabaseProfile } from "@/lib/supabase/save-profile";
 
 function siretDigits(value: string): string {
   return value.replace(/\D/g, "");
@@ -27,7 +36,7 @@ async function signInExistingOrError(
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
     return {
-      error: "Cet e-mail est déjà utilisé. Connectez-vous ou réinitialisez votre mot de passe.",
+      error: "Cet e-mail est déjà utilisé. Connecte-toi ou réinitialise ton mot de passe.",
       status: 400,
     };
   }
@@ -40,24 +49,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Body JSON invalide" }, { status: 400 });
   }
 
+  const bodyRec = body as Record<string, unknown>;
+  const country = resolveRequestCountry(req);
+
+  function trackRegister(success: boolean, error_message?: string | null) {
+    captureLandingLead(landingLeadFromRegisterBody(bodyRec, { success, error_message }), country);
+  }
+
   if (isSupabaseDataMode()) {
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const prenom = typeof body.prenom === "string" ? body.prenom.trim() : "";
-    const nom = typeof body.nom === "string" ? body.nom.trim() : "";
-    const tel = typeof body.tel === "string" ? body.tel.trim() : "";
-    const entreprise = typeof body.entreprise === "string" ? body.entreprise.trim() : "";
-    const siret = typeof body.siret === "string" ? body.siret.trim() : "";
-    const adresse = typeof body.adresse === "string" ? body.adresse.trim() : "";
 
-    if (!email || !prenom || !nom || !tel || !entreprise || !siret || !adresse) {
-      return NextResponse.json({ error: "Champs obligatoires manquants." }, { status: 400 });
+    if (!email) {
+      trackRegister(false, "E-mail requis.");
+      return NextResponse.json({ error: "Entre une adresse e-mail valide.", field: "email" }, { status: 400 });
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 6 caractères." }, { status: 400 });
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      trackRegister(false, passwordError);
+      return NextResponse.json({ error: passwordError, field: "password" }, { status: 400 });
     }
-    if (siretDigits(siret).length !== 14) {
-      return NextResponse.json({ error: "Le SIRET doit contenir 14 chiffres." }, { status: 400 });
+    if (body.privacy_accepted !== true) {
+      trackRegister(false, "CGU non acceptées.");
+      return NextResponse.json(
+        { error: "Accepte les CGU et la politique de confidentialité pour continuer." },
+        { status: 400 },
+      );
     }
 
     const url = supabasePublicUrl()!;
@@ -78,11 +95,7 @@ export async function POST(req: Request) {
     let userId: string | undefined;
     let hasSession = false;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { prenom, nom } },
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
       const alreadyExists =
@@ -90,19 +103,25 @@ export async function POST(req: Request) {
         error.code === "user_already_exists";
 
       if (!alreadyExists) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        const translated = translateSupabaseAuthError(error.message);
+        const field = /mot de passe|password/i.test(translated) ? "password" : "email";
+        trackRegister(false, translated);
+        return NextResponse.json({ error: translated, field }, { status: 400 });
       }
 
       const existing = await signInExistingOrError(supabase, email, password);
       if ("error" in existing) {
+        trackRegister(false, existing.error);
         return NextResponse.json({ error: existing.error }, { status: existing.status });
       }
       userId = existing.userId;
     } else if (!data.user?.id) {
+      trackRegister(false, "Inscription incomplète — vérifiez votre e-mail.");
       return NextResponse.json({ error: "Inscription incomplète — vérifiez votre e-mail." }, { status: 400 });
     } else if (signupLooksLikeDuplicate(data.user)) {
       const existing = await signInExistingOrError(supabase, email, password);
       if ("error" in existing) {
+        trackRegister(false, existing.error);
         return NextResponse.json({ error: existing.error }, { status: existing.status });
       }
       userId = existing.userId;
@@ -111,6 +130,7 @@ export async function POST(req: Request) {
       if (!adminUser.user) {
         const existing = await signInExistingOrError(supabase, email, password);
         if ("error" in existing) {
+          trackRegister(false, existing.error);
           return NextResponse.json({ error: existing.error }, { status: existing.status });
         }
         userId = existing.userId;
@@ -120,31 +140,77 @@ export async function POST(req: Request) {
       }
     }
 
-    await admin.auth.admin.updateUserById(userId, {
-      email_confirm: true,
-      user_metadata: { prenom, nom },
-    });
-
-    const profileResult = await saveSupabaseProfile(userId, body as Record<string, unknown>, email);
+    const profileResult = await saveMinimalSupabaseProfile(userId, email);
     if (!profileResult.ok) {
+      const profileErr = `Impossible d'enregistrer le profil entreprise : ${profileResult.message}`;
+      trackRegister(false, profileErr);
       return NextResponse.json(
         {
-          error: `Impossible d'enregistrer le profil entreprise : ${profileResult.message}`,
+          error: profileErr,
         },
         { status: 503 },
       );
     }
 
-    if (!hasSession) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        return NextResponse.json({ error: signInError.message }, { status: 401 });
+    await admin
+      .from("profiles")
+      .update({
+        privacy_accepted_at: new Date().toISOString(),
+        privacy_policy_version: PRIVACY_POLICY_VERSION,
+      })
+      .eq("id", userId);
+
+    await attachReferralFromCookie(userId);
+
+    if (!hasSession && userId) {
+      const { error: confirmError } = await admin.auth.admin.updateUserById(userId, {
+        email_confirm: true,
+      });
+      if (confirmError) {
+        console.error("[auth/register] Confirmation e-mail impossible:", confirmError.message);
+        trackRegister(true);
+        return NextResponse.json(
+          {
+            needsEmailConfirmation: true,
+            message: "Compte créé. Confirme ton e-mail via le lien reçu avant de te connecter.",
+            user: { id: userId, email, role: "user" },
+          },
+          { status: 200 },
+        );
       }
+
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError || !signInData.session) {
+        console.error("[auth/register] Connexion auto après inscription:", signInError?.message ?? "session absente");
+        trackRegister(true);
+        return NextResponse.json(
+          {
+            user: { id: userId, email, role: "user" },
+            message: "Compte créé. Tu peux te connecter.",
+          },
+          { status: 200 },
+        );
+      }
+      hasSession = true;
     }
 
+    if (!hasSession) {
+      trackRegister(true);
+      return NextResponse.json(
+        {
+          needsEmailConfirmation: true,
+          message:
+            "Compte créé. Consultez votre boîte e-mail et cliquez sur le lien de confirmation avant de vous connecter.",
+          user: { id: userId, email, role: "user" },
+        },
+        { status: 200 },
+      );
+    }
+
+    trackRegister(true);
     return NextResponse.json(
       {
-        user: { id: userId, email, prenom, nom, role: "user" },
+        user: { id: userId, email, role: "user" },
       },
       { status: 200 },
     );

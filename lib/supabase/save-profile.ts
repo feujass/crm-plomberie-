@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { mapRegisterToSupabaseProfile } from "@/lib/supabase/profile-map";
+import { mapMinimalRegisterToSupabaseProfile, mapRegisterToSupabaseProfile } from "@/lib/supabase/profile-map";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -13,6 +13,32 @@ async function waitForProfileRow(admin: ReturnType<typeof createAdminClient>, us
     await sleep(200);
   }
   return false;
+}
+
+export async function saveMinimalSupabaseProfile(
+  userId: string,
+  email: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, message: `Configuration Supabase serveur : ${msg}` };
+  }
+
+  await waitForProfileRow(admin, userId);
+
+  const patch = mapMinimalRegisterToSupabaseProfile(email);
+  const { error } = await admin.from("profiles").update(patch).eq("id", userId);
+  if (error) {
+    const { error: upsertError } = await admin.from("profiles").upsert({ id: userId, ...patch }, { onConflict: "id" });
+    if (upsertError) {
+      return { ok: false, message: upsertError.message };
+    }
+  }
+
+  return { ok: true };
 }
 
 export async function saveSupabaseProfile(
@@ -64,8 +90,8 @@ export async function saveSupabaseProfile(
     await admin.from("profiles").update(extended).eq("id", userId);
   }
 
-  const { data: saved } = await admin.from("profiles").select("entreprise_nom").eq("id", userId).maybeSingle();
-  if (!saved?.entreprise_nom) {
+  const { data: saved } = await admin.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (!saved?.id) {
     return { ok: false, message: "Profil non trouvé après enregistrement." };
   }
 

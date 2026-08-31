@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { LogoUploadField } from "@/components/onboarding/LogoUploadField";
@@ -8,16 +9,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-// #region agent log
-const _agentIngest = (payload: Record<string, unknown>) =>
-  fetch("http://127.0.0.1:7491/ingest/2e2dbe90-bece-4fb6-a37a-f62acd64652c", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0f238e" },
-    body: JSON.stringify({ sessionId: "0f238e", timestamp: Date.now(), ...payload }),
-  }).catch(() => {});
-// #endregion
+import { METIER_OPTIONS } from "@/lib/metier-options";
+import type { OnboardingStep1Defaults } from "@/lib/onboarding/step1-defaults";
 
-export function OnboardingStep1Form() {
+export function OnboardingStep1Form({ defaults }: { defaults?: OnboardingStep1Defaults }) {
   const router = useRouter();
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -34,12 +29,17 @@ export function OnboardingStep1Form() {
           prenom: String(fd.get("prenom") || "").trim(),
           nom: String(fd.get("nom") || "").trim(),
           entreprise_nom: String(fd.get("entreprise_nom") || "").trim(),
+          metier: String(fd.get("metier") || "").trim(),
           logo_url: (fd.get("logo_url") as string) || null,
           siret: String(fd.get("siret") || "").trim(),
           adresse: String(fd.get("adresse") || "").trim(),
           tel: String(fd.get("tel") || "").trim(),
           email_facturation: String(fd.get("email_facturation") || "").trim(),
         };
+        if (!body.prenom || !body.nom || !body.entreprise_nom || !body.tel) {
+          setErr("Prénom, nom, entreprise et téléphone sont requis.");
+          return;
+        }
         try {
           const res = await fetch("/api/onboarding/step-1", {
             method: "POST",
@@ -48,12 +48,6 @@ export function OnboardingStep1Form() {
           });
           const ct = res.headers.get("content-type") ?? "";
           const json = ct.includes("json") ? ((await res.json()) as { redirect?: string; message?: string }) : {};
-          _agentIngest({
-            hypothesisId: "onboarding-route",
-            location: "OnboardingClientForms:step1",
-            message: "step-1 resp",
-            data: { ok: res.ok, status: res.status, ct, redirect: json.redirect ?? null },
-          });
 
           if (!res.ok) {
             setErr(json.message ?? `Erreur ${res.status}`);
@@ -67,14 +61,43 @@ export function OnboardingStep1Form() {
         }
       }}
     >
-      <Input label="Prénom" name="prenom" />
-      <Input label="Nom" name="nom" />
-      <Input label="Nom de l'entreprise" name="entreprise_nom" required />
-      <LogoUploadField />
-      <Input label="SIRET" name="siret" />
-      <Input label="Adresse" name="adresse" />
-      <Input label="Téléphone" name="tel" type="tel" />
-      <Input label="Email de facturation" name="email_facturation" type="email" />
+      <Input label="Prénom *" name="prenom" required defaultValue={defaults?.prenom ?? ""} />
+      <Input label="Nom *" name="nom" required defaultValue={defaults?.nom ?? ""} />
+      <Input label="Nom de l'entreprise *" name="entreprise_nom" required defaultValue={defaults?.entreprise_nom ?? ""} />
+      <div>
+        <label htmlFor="onboarding-metier" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Métier *
+        </label>
+        <select
+          id="onboarding-metier"
+          name="metier"
+          required
+          defaultValue={defaults?.metier ?? "artisan_btp"}
+          className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-2 text-base shadow-sm md:text-sm dark:border-gray-800 dark:bg-gray-950"
+        >
+          {METIER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <LogoUploadField defaultUrl={defaults?.logo_url ?? ""} />
+      <Input
+        label="SIRET (optionnel — demandé au premier PDF)"
+        name="siret"
+        inputMode="numeric"
+        placeholder="14 chiffres"
+        defaultValue={defaults?.siret ?? ""}
+      />
+      <Input label="Adresse (optionnelle)" name="adresse" defaultValue={defaults?.adresse ?? ""} />
+      <Input label="Téléphone *" name="tel" type="tel" required defaultValue={defaults?.tel ?? ""} />
+      <Input
+        label="Email de facturation"
+        name="email_facturation"
+        type="email"
+        defaultValue={defaults?.email_facturation ?? ""}
+      />
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       <div className="flex gap-2 pt-2">
         <Button type="submit" className="flex-1" disabled={pending}>
@@ -165,16 +188,11 @@ export function OnboardingStep2Form() {
       <Textarea label="Mentions légales personnalisées" name="mention_legale" rows={4} />
       <Textarea label="Conditions de paiement par défaut" name="conditions_paiement_defaut" rows={3} />
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
-      <div className="flex gap-2 pt-2">
+      <div className="flex items-center gap-3 pt-2">
+        <CircleBackLink href="/onboarding/step-1" label="Retour à l'étape 1" />
         <Button type="submit" className="flex-1" disabled={pending}>
           {pending ? "…" : "Continuer"}
         </Button>
-        <Link
-          href="/onboarding/step-1"
-          className="touch-target inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-        >
-          Retour
-        </Link>
       </div>
     </form>
   );

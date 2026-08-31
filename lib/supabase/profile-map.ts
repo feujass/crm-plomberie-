@@ -1,9 +1,20 @@
 import type { BackendMeResponse, BackendProfile } from "@/types/backend";
+import { resolveAssistantName } from "@/lib/assistant-branding";
+import { parseNotificationPreferences } from "@/lib/notifications/preferences";
+import { relanceEcheancesFromProfile } from "@/lib/relances/save-settings";
+import { trialEndsAtFromRegistration } from "@/lib/plans/trial";
 
 type SupabaseProfileRow = Record<string, unknown>;
 
 export function mapSupabaseProfile(row: SupabaseProfileRow | null | undefined): BackendProfile | undefined {
   if (!row) return undefined;
+  const relanceFields = relanceEcheancesFromProfile({
+    relance_devis_echeances: row.relance_devis_echeances as string | undefined,
+    relance_facture_echeances: row.relance_facture_echeances as string | undefined,
+    relance_devis_jours: row.relance_devis_jours as number | undefined,
+    relance_facture_jours: row.relance_facture_jours as number | undefined,
+    notification_preferences: row.notification_preferences,
+  });
   const steps = Number(row.onboarding_steps_completed ?? 0);
   return {
     entreprise: (row.entreprise_nom as string) ?? "",
@@ -22,6 +33,7 @@ export function mapSupabaseProfile(row: SupabaseProfileRow | null | undefined): 
     tel: (row.tel as string) ?? "",
     email_facturation: (row.email_facturation as string) ?? "",
     logo_url: (row.logo_url as string) ?? "",
+    avatar_url: (row.avatar_url as string) ?? "",
     tva_defaut: row.tva_defaut != null ? Number(row.tva_defaut) : undefined,
     sep_fourniture_pose: row.sep_fourniture_pose as boolean | undefined,
     structure_devis: (row.structure_devis as string) ?? undefined,
@@ -31,15 +43,39 @@ export function mapSupabaseProfile(row: SupabaseProfileRow | null | undefined): 
     onboarding_complete: steps >= 3,
     pays: (row.pays as string) ?? "FR",
     use_personal_library: row.use_personal_library as boolean | undefined,
-    assistant_name: (row.assistant_name as string) ?? undefined,
+    assistant_name: resolveAssistantName(row.assistant_name as string | undefined),
     feature_flag_pdp: row.feature_flag_pdp as boolean | undefined,
     feature_flag_ereporting: row.feature_flag_ereporting as boolean | undefined,
     feature_flag_chorus: row.feature_flag_chorus as boolean | undefined,
     feature_flag_esign_advanced: row.feature_flag_esign_advanced as boolean | undefined,
     relance_devis_jours: row.relance_devis_jours != null ? Number(row.relance_devis_jours) : undefined,
+    relance_facture_jours: row.relance_facture_jours != null ? Number(row.relance_facture_jours) : undefined,
+    relance_devis_echeances: relanceFields.relance_devis_echeances,
+    relance_facture_echeances: relanceFields.relance_facture_echeances,
+    notification_email: row.notification_email as boolean | undefined,
+    notification_push: row.notification_push as boolean | undefined,
+    notification_preferences: parseNotificationPreferences(row.notification_preferences, {
+      notification_email: row.notification_email as boolean | undefined,
+      notification_push: row.notification_push as boolean | undefined,
+    }),
     stripe_customer_id: (row.stripe_customer_id as string | null) ?? null,
     subscription_plan: (row.subscription_plan as BackendProfile["subscription_plan"]) ?? "free",
     subscription_status: (row.subscription_status as string | null) ?? null,
+    trial_ends_at: (row.trial_ends_at as string | null) ?? null,
+    ia_devis_month: (row.ia_devis_month as string) ?? undefined,
+    ia_devis_count: row.ia_devis_count != null ? Number(row.ia_devis_count) : undefined,
+    profile_voice_prompt_skipped_at: (row.profile_voice_prompt_skipped_at as string | null) ?? null,
+  };
+}
+
+export function mapMinimalRegisterToSupabaseProfile(email: string): Record<string, unknown> {
+  return {
+    email_facturation: email,
+    onboarding_steps_completed: 0,
+    assistant_name: "Zeus",
+    mention_legale: "Devis valable 30 jours. TVA non applicable, art. 293 B du CGI (le cas échéant).",
+    conditions_paiement_defaut: "Paiement à 30 jours",
+    trial_ends_at: trialEndsAtFromRegistration(),
   };
 }
 
@@ -66,8 +102,10 @@ export function mapRegisterToSupabaseProfile(input: {
     adresse: input.adresse,
     email_facturation: input.email_facturation ?? "",
     onboarding_steps_completed: 3,
+    assistant_name: "Zeus",
     mention_legale: "Devis valable 30 jours. TVA non applicable, art. 293 B du CGI (le cas échéant).",
     conditions_paiement_defaut: "Paiement à 30 jours",
+    trial_ends_at: trialEndsAtFromRegistration(),
   };
 
   const extended: Record<string, unknown> = {};

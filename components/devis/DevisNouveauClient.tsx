@@ -1,19 +1,27 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
-import type { BackendClient } from "@/types/backend";
+import {
+  hasSkippedVoiceProfilePrompt,
+  ProfileVoicePromptModal,
+} from "@/components/profile/ProfileVoicePromptModal";
+import { flowoSegmentTabClass } from "@/lib/flowo-ui";
+import { computeProfileCompletion } from "@/lib/profile/completion";
+import type { BackendClient, BackendMeResponse } from "@/types/backend";
 import type { DevisLigneInput } from "@/types/devis";
-import { cx } from "@/lib/utils";
-import { BookMarked, Euro, FileUp, KeyRound, Mic, Play, Sparkles, Zap } from "lucide-react";
+import { cx, focusRing } from "@/lib/utils";
+import { BookMarked, Euro, KeyRound, Mic, Play, Zap } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClientFromIa } from "@/lib/devis/resolve-ia-client";
+import type { DevisIaClient } from "@/lib/schemas/devis-ia";
+import { listenForSpeech } from "@/lib/voice/browserSpeechRecognition";
 
-/** Persona affichée dans l’interface. */
 const ASSISTANT_NAME = "Zeus";
-
-/** Avatar officiel (fichier dans /public). Remplacez `public/zeus-avatar.png` pour changer l’image. */
 const ZEUS_AVATAR_SRC = "/zeus-avatar.png";
 
 function ZeusAvatar({ className }: { className?: string }) {
@@ -32,51 +40,6 @@ function ZeusAvatar({ className }: { className?: string }) {
 
 const MAX_MESSAGE_CHARS = 1200;
 
-const VISIBLE_CATEGORY_COUNT = 4;
-
-const CATEGORY_PRESETS: { label: string; snippet: string }[] = [
-  {
-    label: "Salle de bain",
-    snippet:
-      "Devis pour rénovation d’une salle de bain d’environ 6 m² : dépose carrelage et ancienne faïence, préparation des supports, pose faïence murale et sol, robinetterie (lavabo + douche), évacuations et raccordements, petites adaptations électriques (spots, VMC). Préciser les finitions souhaitées.",
-  },
-  {
-    label: "Cuisine",
-    snippet:
-      "Installation / rénovation cuisine : arrivées eau froide et chaude, évacuation lave-vaisselle et évier, mise à niveau des points électriques (four, plaques, prises dédiées), éventuel percement et raccordements. Indiquer linéaire et équipements fournis par le client ou à fournir.",
-  },
-  {
-    label: "Électricité",
-    snippet:
-      "Travaux électricité : mise aux normes tableau, ajout circuits, spots, VMC, radiateurs électriques, raccordements cuisine. Préciser surface, accès et matériel fourni ou à fournir.",
-  },
-  {
-    label: "Carrelage",
-    snippet:
-      "Pose carrelage sol et mural : surface en m², préparation supports, dépose ancien revêtement, joints, plinthes. Préciser type de carrelage et pièce concernée.",
-  },
-  {
-    label: "Dépannage",
-    snippet:
-      "Dépannage urgent : symptôme (fuite visible, absence d’eau chaude, WC bloqué…), localisation dans le logement, accès et créneaux possibles. Préciser si eau coupée ou non.",
-  },
-  {
-    label: "Rénovation",
-    snippet:
-      "Rénovation d’ensemble (plusieurs corps d’état liés à l’eau) : périmètre des pièces, état des réseaux existants, objectifs (mise aux normes, confort, esthétique). Ajouter délais souhaités et contraintes chantier.",
-  },
-  {
-    label: "Neuf / extension",
-    snippet:
-      "Chantier neuf ou extension : plans ou surfaces, nombre de sanitaires, distribution des réseaux (per, multicouche…), attentes normatives et coordination avec d’autres lots.",
-  },
-  {
-    label: "Toiture / extérieur",
-    snippet:
-      "Travaux extérieurs liés à l’eau : évacuations gouttières, raccordements cuve / pompe de relevage, extérieur sanitaire. Préciser hauteur et accès.",
-  },
-];
-
 async function parseJsonSafely<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text.trim()) return {} as T;
@@ -87,11 +50,28 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
-type InputTab = "write" | "voice" | "file";
+type InputTab = "write" | "voice";
 
-export function DevisNouveauClient({ clients, initialClientId = "" }: { clients: BackendClient[]; initialClientId?: string }) {
+const TAB_LABEL: Record<InputTab, string> = {
+  voice: "Voix",
+  write: "Texte",
+};
+
+/** Voix en premier — mode par défaut à l’ouverture. */
+const INPUT_TABS: InputTab[] = ["voice", "write"];
+
+export function DevisNouveauClient({
+  clients,
+  initialClientId = "",
+  me,
+}: {
+  clients: BackendClient[];
+  initialClientId?: string;
+  me: BackendMeResponse;
+}) {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<InputTab>("write");
+  const [tab, setTab] = useState<InputTab>("voice");
   const [showClientFields, setShowClientFields] = useState(false);
   const [clientId, setClientId] = useState(initialClientId);
   const [clientEmail, setClientEmail] = useState("");
@@ -101,26 +81,45 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
   const [text, setText] = useState("");
   const [busy, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
-  const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [recState, setRecState] = useState<"idle" | "recording">("idle");
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const [fileLabel, setFileLabel] = useState<string | null>(null);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const speechRef = useRef<{ stop: () => void } | null>(null);
+
+  const profileComplete = useMemo(
+    () => profileSaved || computeProfileCompletion(me).basicComplete,
+    [me, profileSaved],
+  );
+
+  const voicePromptSkipped =
+    hasSkippedVoiceProfilePrompt() || Boolean(me.profile?.profile_voice_prompt_skipped_at);
+
+  function shouldPromptVoiceProfile() {
+    return !profileComplete && !voicePromptSkipped;
+  }
+
+  useEffect(() => {
+    if (tab !== "voice") return;
+    if (profileComplete || voicePromptSkipped) return;
+    setVoiceModalOpen(true);
+  }, [tab, profileComplete, voicePromptSkipped]);
 
   const selectedClient = useMemo(() => clients.find((c) => c.id === clientId), [clients, clientId]);
 
   useEffect(() => {
     const t = searchParams.get("tab");
+    if (t === "file") {
+      router.replace("/devis/import");
+      return;
+    }
     if (t === "voice") setTab("voice");
-    else if (t === "file") setTab("file");
     else if (t === "write") setTab("write");
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (initialClientId || clientId) setShowClientFields(true);
   }, [initialClientId, clientId]);
 
-  // Pré-remplir automatiquement l’e-mail si le client sélectionné en a un.
-  // Règle: on ne remplace pas si l'utilisateur a déjà tapé autre chose.
   useEffect(() => {
     const nextEmail = (selectedClient?.email ?? "").trim();
     if (!nextEmail) return;
@@ -138,84 +137,49 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
     });
   }, [selectedClient?.email, lastAutoEmail]);
 
-  const visibleCategories = showAllCategories ? CATEGORY_PRESETS : CATEGORY_PRESETS.slice(0, VISIBLE_CATEGORY_COUNT);
-  const hiddenCategoryCount = Math.max(0, CATEGORY_PRESETS.length - VISIBLE_CATEGORY_COUNT);
-
-  function applyCategorySnippet(snippet: string) {
-    setText((prev) => (prev.trim() ? `${prev.trim()}\n\n${snippet}` : snippet));
-  }
-
-  async function runGenerate(body: { text?: string; file?: File }) {
+  async function runGenerate(body: { text: string }) {
     setErr(null);
     try {
-      let resolvedClientId: string | null = clientId || null;
-      if (!resolvedClientId && (clientEmail.trim() || clientNom.trim() || clientPrenom.trim())) {
-        const nom = clientNom.trim() || (clientEmail.trim() ? clientEmail.trim().split("@")[0] : "Client");
-        const resCli = await fetch("/api/clients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ nom, prenom: clientPrenom.trim(), email: clientEmail.trim() }),
-        });
-        const jsonCli = await parseJsonSafely<{ id?: string; message?: string }>(resCli);
-        if (!resCli.ok) throw new Error(jsonCli.message || "Création client");
-        if (jsonCli.id) {
-          resolvedClientId = jsonCli.id;
-          setClientId(jsonCli.id);
+      const res = await fetch("/api/devis/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: body.text }),
+      });
+      const json = await parseJsonSafely<{
+        message?: string;
+        lignes?: DevisLigneInput[];
+        adresse_chantier?: string | null;
+        client?: DevisIaClient;
+        notes?: string | null;
+        date_expiration?: string | null;
+      }>(res);
+      if (!res.ok) {
+        const msg = json.message || "Génération impossible";
+        if (msg.toLowerCase().includes("anthropic_api_key") || msg.toLowerCase().includes("ia non configurée")) {
+          const cre = await fetch("/api/devis", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ mode: "draft", client_id: clientId || null }),
+          });
+          const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
+          if (!cre.ok) throw new Error(created.message || "Création du devis");
+          if (!created.id) throw new Error("Réponse serveur invalide");
+          window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
+          return;
         }
+        throw new Error(msg);
       }
 
-      let lignes: DevisLigneInput[] = [];
-      if (body.file) {
-        const fd = new FormData();
-        fd.append("file", body.file);
-        const res = await fetch("/api/devis/vision", { method: "POST", body: fd });
-        const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
-        if (!res.ok) {
-          const msg = json.message || "Analyse impossible";
-          if (msg.toLowerCase().includes("openai_api_key") || msg.toLowerCase().includes("ia non configurée")) {
-            // Fallback : créer un devis vide sans IA
-            const cre = await fetch("/api/devis", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "same-origin",
-              body: JSON.stringify({ mode: "draft", client_id: resolvedClientId }),
-            });
-            const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
-            if (!cre.ok) throw new Error(created.message || "Création du devis");
-            if (!created.id) throw new Error("Réponse serveur invalide");
-            window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
-            return;
-          }
-          throw new Error(msg);
-        }
-        lignes = json.lignes ?? [];
-      } else if (body.text) {
-        const res = await fetch("/api/devis/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: body.text }),
-        });
-        const json = await parseJsonSafely<{ message?: string; lignes?: DevisLigneInput[] }>(res);
-        if (!res.ok) {
-          const msg = json.message || "Génération impossible";
-          if (msg.toLowerCase().includes("openai_api_key") || msg.toLowerCase().includes("ia non configurée")) {
-            const cre = await fetch("/api/devis", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "same-origin",
-              body: JSON.stringify({ mode: "draft", client_id: resolvedClientId }),
-            });
-            const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
-            if (!cre.ok) throw new Error(created.message || "Création du devis");
-            if (!created.id) throw new Error("Réponse serveur invalide");
-            window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
-            return;
-          }
-          throw new Error(msg);
-        }
-        lignes = json.lignes ?? [];
-      }
+      const resolvedClientId = await createClientFromIa({
+        existingClientId: clientId || null,
+        manualNom: clientNom,
+        manualPrenom: clientPrenom,
+        manualEmail: clientEmail,
+        iaClient: json.client,
+      });
+      if (resolvedClientId) setClientId(resolvedClientId);
+
       const cre = await fetch("/api/devis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,142 +187,89 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
         body: JSON.stringify({
           mode: "from_ia",
           client_id: resolvedClientId,
-          lignes,
-          notes: null,
+          adresse_chantier: json.adresse_chantier?.trim() || null,
+          notes: json.notes?.trim() || null,
+          date_expiration: json.date_expiration || null,
+          lignes: json.lignes ?? [],
         }),
       });
       const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
       if (!cre.ok) throw new Error(created.message || "Création du devis");
       if (!created.id) throw new Error("Réponse serveur invalide");
-      window.location.assign(`/devis/${encodeURIComponent(created.id)}`);
+      window.location.assign(`/devis/${encodeURIComponent(created.id)}?view=preview`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erreur");
     }
   }
 
   async function onVoice() {
-    if (recState === "recording" && rec) {
-      rec.stop();
-      setRecState("idle");
+    if (shouldPromptVoiceProfile()) {
+      setVoiceModalOpen(true);
       return;
     }
+
+    if (recState === "recording" && speechRef.current) {
+      speechRef.current.stop();
+      return;
+    }
+
     setErr(null);
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mr = new MediaRecorder(stream);
-    const chunks: BlobPart[] = [];
-    mr.ondataavailable = (ev) => chunks.push(ev.data);
-    mr.onstop = async () => {
-      stream.getTracks().forEach((t) => t.stop());
-      const blob = new Blob(chunks, { type: "audio/webm" });
-      const fd = new FormData();
-      fd.append("file", blob, "voice.webm");
-      start(async () => {
-        try {
-          const tr = await fetch("/api/transcribe", { method: "POST", body: fd });
-          const json = await parseJsonSafely<{ message?: string; text?: string }>(tr);
-          if (!tr.ok) throw new Error(json.message || "Transcription");
-          await runGenerate({ text: json.text as string });
-        } catch (e) {
-          setErr(e instanceof Error ? e.message : "Erreur");
-        }
-      });
-    };
-    mr.start();
-    setRec(mr);
+    const { stop, promise } = listenForSpeech({ lang: "fr-FR" });
+    speechRef.current = { stop };
     setRecState("recording");
+
+    try {
+      const transcript = await promise;
+      speechRef.current = null;
+      setRecState("idle");
+      start(async () => {
+        await runGenerate({ text: transcript });
+      });
+    } catch (e) {
+      speechRef.current = null;
+      setRecState("idle");
+      setErr(e instanceof Error ? e.message : "Erreur");
+    }
   }
 
-  const tabDefs: { id: InputTab; label: string; icon: ReactNode }[] = [
-    { id: "write", label: "Écrire un message", icon: <Sparkles className="size-4 opacity-70" aria-hidden /> },
-    { id: "voice", label: "Enregistrer un message", icon: <Mic className="size-4 opacity-70" aria-hidden /> },
-    { id: "file", label: "Importer un fichier", icon: <FileUp className="size-4 opacity-70" aria-hidden /> },
-  ];
-
   return (
-    <div className="max-w-full space-y-5 md:space-y-8">
-      <header className="space-y-2 text-center lg:text-left">
-        <h1 className="text-balance text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl md:text-3xl">
-          Décris ton chantier et laisse{" "}
-          <span className="text-[color:var(--primary)]">{ASSISTANT_NAME}</span> créer ton devis
+    <div className="max-w-full space-y-5 pb-4 md:space-y-8">
+      <header>
+        <CircleBackLink href="/devis" label="Retour aux devis" />
+        <h1 className="mt-3 text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">
+          Nouveau devis
         </h1>
-        <p className="text-sm text-[var(--muted-foreground)] md:text-base">
-          Un texte détaillé donne un résultat plus précis. Tu pourras tout ajuster sur la fiche devis.
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          Parlez pour créer le devis en quelques secondes — ou passez en mode texte si besoin.{" "}
+          <Link href="/devis/import" className="font-medium text-[color:var(--primary)] hover:underline">
+            Importer un ancien devis (PDF, CSV)
+          </Link>
         </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,300px)] lg:items-start">
-        <section
-          className={cx(
-            "min-w-0 max-w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_8px_30px_rgba(15,23,42,0.06)] md:p-7",
-            "dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]",
-          )}
-        >
-          {/* Mobile: chips en scroll horizontal (pas de débordement) */}
-          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap">
-            {visibleCategories.map((c) => (
+        <section className="min-w-0 max-w-full rounded-2xl border border-slate-200/75 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-900 md:p-6">
+          <div className="flex flex-wrap gap-2">
+            {INPUT_TABS.map((id) => (
               <button
-                key={c.label}
+                key={id}
                 type="button"
-                onClick={() => applyCategorySnippet(c.snippet)}
-                className={cx(
-                  "touch-target shrink-0 rounded-full border border-[var(--border)] bg-[var(--muted)]/60 px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] transition-colors sm:text-sm",
-                  "hover:border-[color:var(--primary)]/40 hover:bg-[var(--accent)]/80",
-                  "dark:bg-zinc-900/80 dark:hover:bg-zinc-800",
-                )}
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={cx(focusRing, flowoSegmentTabClass(tab === id, { compact: true }))}
               >
-                {c.label}
+                {id === "voice" ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Mic className="size-3.5 shrink-0" aria-hidden />
+                    {TAB_LABEL[id]}
+                  </span>
+                ) : (
+                  TAB_LABEL[id]
+                )}
               </button>
             ))}
-            {!showAllCategories && hiddenCategoryCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => setShowAllCategories(true)}
-                className="touch-target shrink-0 rounded-full border border-dashed border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[color:var(--primary)] hover:bg-[var(--accent)]/60 sm:text-sm"
-              >
-                + Afficher plus ({hiddenCategoryCount})
-              </button>
-            ) : null}
           </div>
-
-          <div className="mt-5">
-            <button
-              type="button"
-              onClick={() => setShowClientFields((v) => !v)}
-              className="text-sm font-medium text-[color:var(--primary)] hover:underline"
-            >
-              {showClientFields ? "Masquer le client" : "Ajouter un client (optionnel)"}
-            </button>
-          </div>
-
-          {showClientFields ? (
-            <>
-              <label className="mt-3 block text-sm font-medium text-[var(--foreground)]">
-                <span className="mb-1.5 block text-[var(--muted-foreground)]">Client</span>
-                <select
-                  className={cx(
-                    "w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 text-sm text-[var(--foreground)]",
-                    "focus:border-[color:var(--primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--primary)]/25",
-                    "dark:bg-zinc-950",
-                  )}
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                >
-                  <option value="">— Sans client lié —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <Input label="E-mail client" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
-                <Input label="Prénom" value={clientPrenom} onChange={(e) => setClientPrenom(e.target.value)} />
-                <Input label="Nom" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
-              </div>
-            </>
-          ) : null}
 
           {err ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
@@ -366,38 +277,40 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
             </p>
           ) : null}
 
-          <div className="mt-6 border-b border-[var(--border)]">
-            <div className="flex gap-1 overflow-x-auto pb-px [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {tabDefs.map((t) => (
-                <button
-                  key={t.id}
+          <div className="mt-5">
+            {tab === "voice" ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-[color:var(--primary)]/15 bg-[color:var(--primary)]/[0.04] px-4 py-3 dark:border-[color:var(--primary)]/25 dark:bg-[color:var(--primary)]/10">
+                  <p className="text-sm font-medium text-[color:var(--primary)]">Mode recommandé</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
+                    Chrome recommandé. Cliquez, décrivez le chantier (10–30 s), puis « Arrêter et créer le devis ».
+                  </p>
+                </div>
+                <Button
                   type="button"
-                  role="tab"
-                  aria-selected={tab === t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => void onVoice()}
+                  disabled={busy && recState !== "recording"}
+                  isLoading={busy && recState !== "recording"}
+                  loadingText="Génération du devis…"
                   className={cx(
-                    "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-2.5 py-2 text-sm font-medium transition-colors",
-                    tab === t.id
-                      ? "border-[color:var(--primary)] text-[color:var(--primary)]"
-                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+                    "h-14 w-full rounded-full !border-transparent !bg-[color:var(--primary)] text-base font-semibold !text-white shadow-md hover:opacity-95",
+                    recState === "recording" && "animate-pulse !bg-red-600 hover:!bg-red-700",
                   )}
                 >
-                  {t.icon}
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                  <Mic className="mr-2 size-5" aria-hidden />
+                  {recState === "recording" ? "Arrêter et créer le devis" : "Parler et créer le devis"}
+                </Button>
+              </div>
+            ) : null}
 
-          <div className="mt-6">
             {tab === "write" ? (
               <form
-                className="space-y-5"
+                className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const t = text.trim();
                   if (!t) {
-                    setErr("Décris les travaux ou choisis un exemple ci-dessus.");
+                    setErr("Décrivez les travaux.");
                     return;
                   }
                   if (t.length > MAX_MESSAGE_CHARS) {
@@ -407,136 +320,65 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
                   start(() => runGenerate({ text: t }));
                 }}
               >
-                <div>
-                  <p className="mb-2 text-sm text-[var(--muted-foreground)]">
-                    <span className="font-medium text-[color:var(--primary)]">Choisis un exemple</span> (puces) ou écris ta propre demande.
-                  </p>
-                  <textarea
-                    value={text}
-                    onChange={(e) => setText(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
-                    rows={8}
-                    maxLength={MAX_MESSAGE_CHARS}
-                    placeholder="Ex. : rénovation salle de bain, surfaces, matériaux, contraintes d’accès, délais…"
-                    className={cx(
-                      "w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm leading-relaxed text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]",
-                      "min-h-[120px] md:min-h-[220px] md:resize-y focus:border-[color:var(--primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--primary)]/25",
-                      "dark:bg-zinc-950",
-                    )}
-                  />
-                  <div className="mt-1 flex justify-end text-xs text-[var(--muted-foreground)]">
-                    {text.length}/{MAX_MESSAGE_CHARS}
-                  </div>
-                </div>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value.slice(0, MAX_MESSAGE_CHARS))}
+                  rows={6}
+                  maxLength={MAX_MESSAGE_CHARS}
+                  placeholder="Ex. rénovation SDB 6 m², dépose carrelage, robinetterie…"
+                  className={cx(
+                    "w-full rounded-2xl border border-slate-200/55 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400",
+                    "focus:border-[color:var(--primary)]/35 focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]/12",
+                    "dark:border-slate-600 dark:bg-slate-800/88 dark:text-slate-100 dark:placeholder:text-slate-500",
+                  )}
+                />
                 <Button
                   type="submit"
                   disabled={busy}
                   isLoading={busy}
                   loadingText="Génération…"
-                  className="h-11 w-full rounded-xl !border-transparent !bg-[color:var(--primary)] text-sm font-semibold !text-white shadow-md hover:!bg-[#1e40af] sm:h-12 sm:text-base md:h-14"
+                  className="h-12 w-full rounded-full !border-transparent !bg-[color:var(--primary)] text-sm font-semibold !text-white shadow-sm hover:opacity-95"
                 >
-                  <Play className="mr-2 size-4.5 shrink-0 fill-current opacity-95 sm:size-5" aria-hidden />
-                  Créer un devis
+                  <Play className="mr-2 size-4 shrink-0 fill-current" aria-hidden />
+                  Créer le devis
                 </Button>
               </form>
             ) : null}
 
-            {tab === "voice" ? (
-              <div className="space-y-5">
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  Décris les travaux à voix haute. À l’arrêt, le message est transcrit puis transformé en lignes de devis.
-                </p>
-                <div className="flex flex-col items-start gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => void onVoice()}
-                    disabled={busy}
-                    isLoading={busy && recState !== "recording"}
-                    className={cx(
-                      "h-12 rounded-xl px-6 !border-transparent !bg-[color:var(--primary)] !text-white hover:!bg-[#1e40af]",
-                      recState === "recording" && "animate-pulse !bg-red-600 hover:!bg-red-700",
-                    )}
-                  >
-                    <Mic className="mr-2 size-5" aria-hidden />
-                    {recState === "recording" ? "Arrêter et générer le devis" : "Enregistrer et générer"}
-                  </Button>
-                  {recState === "recording" ? (
-                    <span className="text-xs font-medium text-red-600 dark:text-red-400">Enregistrement en cours…</span>
-                  ) : null}
+          </div>
+
+          <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setShowClientFields((v) => !v)}
+              className="text-sm font-medium text-[color:var(--primary)] hover:underline"
+            >
+              {showClientFields ? "Masquer le client" : "Lier un client"}
+            </button>
+
+            {showClientFields ? (
+              <div className="mt-3 space-y-3">
+                <select
+                  className="w-full rounded-2xl border border-slate-200/55 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-[color:var(--primary)]/35 focus:outline-none focus:ring-1 focus:ring-[color:var(--primary)]/12 dark:border-slate-600 dark:bg-slate-800/88 dark:text-slate-100"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                >
+                  <option value="">— Choisir un client —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.prenom ? `${c.prenom} ${c.nom}` : c.nom}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Input label="E-mail" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+                  <Input label="Prénom" value={clientPrenom} onChange={(e) => setClientPrenom(e.target.value)} />
+                  <Input label="Nom" value={clientNom} onChange={(e) => setClientNom(e.target.value)} />
                 </div>
               </div>
-            ) : null}
-
-            {tab === "file" ? (
-              <form
-                className="space-y-5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const f = (e.target as HTMLFormElement).elements.namedItem("file") as HTMLInputElement;
-                  const file = f.files?.[0];
-                  if (!file) {
-                    setErr("Choisis une photo ou un PDF.");
-                    return;
-                  }
-                  start(() => runGenerate({ file }));
-                }}
-              >
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  Photo nette ou PDF : l’IA extrait les postes et quantités quand c’est lisible.
-                </p>
-                <Input
-                  label="Fichier"
-                  name="file"
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-[color:var(--primary)]"
-                  onChange={(e) => {
-                    const n = e.target.files?.[0]?.name;
-                    setFileLabel(n ?? null);
-                  }}
-                />
-                {fileLabel ? <p className="text-xs text-[var(--muted-foreground)]">Sélection : {fileLabel}</p> : null}
-                <Button
-                  type="submit"
-                  disabled={busy}
-                  isLoading={busy}
-                  loadingText="Analyse…"
-                  className="h-12 w-full rounded-xl !border-transparent !bg-[color:var(--primary)] !text-white hover:!bg-[#1e40af]"
-                >
-                  <FileUp className="mr-2 size-5" aria-hidden />
-                  Analyser et créer le devis
-                </Button>
-              </form>
-            ) : null}
-          </div>
-
-          <div className="mt-6 border-t border-[var(--border)] pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              onClick={() =>
-                start(async () => {
-                  setErr(null);
-                  try {
-                    const res = await fetch("/api/devis", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "same-origin",
-                      body: JSON.stringify({ mode: "draft", client_id: clientId || null }),
-                    });
-                    const data = await parseJsonSafely<{ id?: string; message?: string }>(res);
-                    if (!res.ok) throw new Error(data.message || "Erreur");
-                    if (!data.id) throw new Error("Réponse serveur invalide");
-                    window.location.assign(`/devis/${encodeURIComponent(data.id)}`);
-                  } catch (e) {
-                    setErr(e instanceof Error ? e.message : "Erreur");
-                  }
-                })}
-            >
-              Créer un brouillon vide à la place
-            </Button>
-          </div>
-        </section>
+          ) : null}
+        </div>
+      </section>
 
         <aside
           className={cx(
@@ -560,8 +402,7 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
           <div className="text-center">
             <p className="text-lg font-bold text-[color:var(--primary)]">{ASSISTANT_NAME}</p>
             <p className="mt-2 text-pretty text-xs leading-relaxed text-[var(--muted-foreground)]">
-              {ASSISTANT_NAME} produit un devis structuré à partir de votre description ou d’un import (photo, PDF), en s’appuyant
-              sur votre catalogue et vos réglages. Questions métier&nbsp;: écran Assistant.
+              {ASSISTANT_NAME} écoute votre description vocale et structure le devis — ou basculez en mode texte.
             </p>
             <p className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">En ligne</p>
           </div>
@@ -575,11 +416,22 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
               </li>
               <li className="flex gap-2">
                 <BookMarked className="mt-0.5 size-4 shrink-0 text-[color:var(--primary)]" aria-hidden />
-                <span>Import depuis une photo ou un PDF</span>
+                <span>
+                  PDF ou CSV d&apos;un ancien devis →{" "}
+                  <Link href="/devis/import" className="font-medium text-[color:var(--primary)] hover:underline">
+                    page Importer
+                  </Link>
+                </span>
               </li>
               <li className="flex gap-2">
                 <Euro className="mt-0.5 size-4 shrink-0 text-[color:var(--primary)]" aria-hidden />
-                <span>Tarifs alignés sur ton catalogue d’ouvrages</span>
+                <span>
+                  Tarifs issus de ton{" "}
+                  <Link href="/catalogue?type=fourniture" className="font-medium text-[color:var(--primary)] hover:underline">
+                    catalogue fournitures
+                  </Link>{" "}
+                  et ouvrages
+                </span>
               </li>
               <li className="flex gap-2">
                 <KeyRound className="mt-0.5 size-4 shrink-0 text-[color:var(--primary)]" aria-hidden />
@@ -587,12 +439,21 @@ export function DevisNouveauClient({ clients, initialClientId = "" }: { clients:
               </li>
             </ul>
           </div>
-
-          <p className="mt-5 text-center text-xs leading-relaxed text-[var(--muted-foreground)]">
-            PDF, envoi client et édition complète depuis la fiche devis.
-          </p>
         </aside>
       </div>
+
+      <ProfileVoicePromptModal
+        open={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        defaults={{
+          prenom: me.prenom,
+          nom: me.nom,
+          tel: me.profile?.tel,
+          entreprise: me.profile?.entreprise,
+          metier: me.profile?.metier,
+        }}
+        onSaved={() => setProfileSaved(true)}
+      />
     </div>
   );
 }
