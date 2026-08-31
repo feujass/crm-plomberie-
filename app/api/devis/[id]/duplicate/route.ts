@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assertDevisCreationAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
+import { TRIAL_EXPIRED_PAYWALL_CODE } from "@/lib/plans/paywall";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,7 +12,9 @@ export async function POST(_: Request, ctx: Ctx) {
     try {
       const subscriptionCtx = await loadSubscriptionContext();
       const blocked = assertDevisCreationAllowed(subscriptionCtx);
-      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+      if (blocked) {
+        return NextResponse.json({ message: blocked, code: TRIAL_EXPIRED_PAYWALL_CODE }, { status: 403 });
+      }
     } catch {
       return NextResponse.json({ message: "Non authentifié" }, { status: 401 });
     }

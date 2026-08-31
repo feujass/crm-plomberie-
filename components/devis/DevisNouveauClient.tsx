@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClientFromIa } from "@/lib/devis/resolve-ia-client";
 import type { DevisIaClient } from "@/lib/schemas/devis-ia";
 import { listenForSpeech } from "@/lib/voice/browserSpeechRecognition";
+import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 
 const ASSISTANT_NAME = "Zeus";
 const ZEUS_AVATAR_SRC = "/zeus-avatar.png";
@@ -147,6 +148,7 @@ export function DevisNouveauClient({
       });
       const json = await parseJsonSafely<{
         message?: string;
+        code?: string;
         lignes?: DevisLigneInput[];
         adresse_chantier?: string | null;
         client?: DevisIaClient;
@@ -154,6 +156,7 @@ export function DevisNouveauClient({
         date_expiration?: string | null;
       }>(res);
       if (!res.ok) {
+        if (handleTrialExpiredPaywallResponse(res.status, json)) return;
         const msg = json.message || "Génération impossible";
         if (msg.toLowerCase().includes("anthropic_api_key") || msg.toLowerCase().includes("ia non configurée")) {
           const cre = await fetch("/api/devis", {
@@ -162,8 +165,11 @@ export function DevisNouveauClient({
             credentials: "same-origin",
             body: JSON.stringify({ mode: "draft", client_id: clientId || null }),
           });
-          const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
-          if (!cre.ok) throw new Error(created.message || "Création du devis");
+          const created = await parseJsonSafely<{ id?: string; message?: string; code?: string }>(cre);
+          if (!cre.ok) {
+            if (handleTrialExpiredPaywallResponse(cre.status, created)) return;
+            throw new Error(created.message || "Création du devis");
+          }
           if (!created.id) throw new Error("Réponse serveur invalide");
           window.location.assign(`/devis/${encodeURIComponent(created.id)}?info=no-ai`);
           return;
@@ -193,8 +199,11 @@ export function DevisNouveauClient({
           lignes: json.lignes ?? [],
         }),
       });
-      const created = await parseJsonSafely<{ id?: string; message?: string }>(cre);
-      if (!cre.ok) throw new Error(created.message || "Création du devis");
+      const created = await parseJsonSafely<{ id?: string; message?: string; code?: string }>(cre);
+      if (!cre.ok) {
+        if (handleTrialExpiredPaywallResponse(cre.status, created)) return;
+        throw new Error(created.message || "Création du devis");
+      }
       if (!created.id) throw new Error("Réponse serveur invalide");
       window.location.assign(`/devis/${encodeURIComponent(created.id)}?view=preview`);
     } catch (e) {

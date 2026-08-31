@@ -2,6 +2,7 @@ import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
 import { syncDevisLignesToCatalogue } from "@/lib/catalogue/sync-from-devis-lignes";
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 import { assertDevisCreationAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
+import { TRIAL_EXPIRED_PAYWALL_CODE } from "@/lib/plans/paywall";
 import { triggerArtisanNotification } from "@/lib/notifications/trigger";
 import type { BackendDevisDetail, BackendMeResponse, BackendProfile } from "@/types/backend";
 import { revalidatePath } from "next/cache";
@@ -40,7 +41,9 @@ export async function POST(req: Request) {
 
     if (mode === "draft") {
       const blocked = subscriptionCtx ? assertDevisCreationAllowed(subscriptionCtx) : null;
-      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+      if (blocked) {
+        return NextResponse.json({ message: blocked, code: TRIAL_EXPIRED_PAYWALL_CODE }, { status: 403 });
+      }
 
       const client_id = (raw.client_id as string | null) ?? null;
       const devis = (await backendFetch("/api/devis", {
@@ -69,7 +72,9 @@ export async function POST(req: Request) {
 
     if (mode === "from_ia") {
       const blocked = subscriptionCtx ? assertDevisCreationAllowed(subscriptionCtx) : null;
-      if (blocked) return NextResponse.json({ message: blocked }, { status: 403 });
+      if (blocked) {
+        return NextResponse.json({ message: blocked, code: TRIAL_EXPIRED_PAYWALL_CODE }, { status: 403 });
+      }
 
       const client_id = (raw.client_id as string | null) ?? null;
       const notes = typeof raw.notes === "string" ? raw.notes : raw.notes == null ? "" : "";

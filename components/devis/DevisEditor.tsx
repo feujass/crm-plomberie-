@@ -15,6 +15,7 @@ import { cx, focusRing } from "@/lib/utils";
 import { defaultSectionForStructure, defaultTvaFromProfile } from "@/lib/devis-ouvrage-mode";
 import { computeProfileCompletion } from "@/lib/profile/completion";
 import { canAccessFeature } from "@/lib/plans/features";
+import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import type { BackendClient, BackendDevisDetail, BackendDevisLine, BackendProfile } from "@/types/backend";
 import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -450,8 +451,9 @@ export function DevisEditor({
                   start(async () => {
                     setBannerErr(null);
                     const res = await fetch(`/api/devis/${devis.id}/duplicate`, { method: "POST", credentials: "same-origin" });
-                    const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
+                    const data = await res.json().catch(() => ({} as { message?: string; id?: string; code?: string }));
                     if (!res.ok) {
+                      if (handleTrialExpiredPaywallResponse(res.status, data)) return;
                       setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
                       return;
                     }

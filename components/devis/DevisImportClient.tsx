@@ -9,6 +9,7 @@ import type { DevisIaClient } from "@/lib/schemas/devis-ia";
 import { flowoSegmentTabClass } from "@/lib/flowo-ui";
 import type { BackendClient } from "@/types/backend";
 import { cx, focusRing } from "@/lib/utils";
+import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import { Download, FileUp, FileText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
@@ -41,13 +42,17 @@ export function DevisImportClient({ clients }: { clients: BackendClient[] }) {
     const res = await fetch("/api/devis/vision", { method: "POST", body: fd });
     const json = (await res.json().catch(() => ({}))) as {
       message?: string;
+      code?: string;
       lignes?: unknown[];
       adresse_chantier?: string | null;
       client?: DevisIaClient;
       notes?: string | null;
       date_expiration?: string | null;
     };
-    if (!res.ok) throw new Error(json.message || "Analyse impossible");
+    if (!res.ok) {
+      if (handleTrialExpiredPaywallResponse(res.status, json)) return;
+      throw new Error(json.message || "Analyse impossible");
+    }
 
     const resolvedClientId = await createClientFromIa({
       existingClientId: clientId || null,
@@ -67,8 +72,11 @@ export function DevisImportClient({ clients }: { clients: BackendClient[] }) {
         lignes: json.lignes ?? [],
       }),
     });
-    const created = (await cre.json().catch(() => ({}))) as { id?: string; message?: string };
-    if (!cre.ok) throw new Error(created.message || "Création du devis");
+    const created = (await cre.json().catch(() => ({}))) as { id?: string; message?: string; code?: string };
+    if (!cre.ok) {
+      if (handleTrialExpiredPaywallResponse(cre.status, created)) return;
+      throw new Error(created.message || "Création du devis");
+    }
     if (!created.id) throw new Error("Réponse serveur invalide");
     window.location.assign(`/devis/${encodeURIComponent(created.id)}?view=preview`);
   }
@@ -79,8 +87,11 @@ export function DevisImportClient({ clients }: { clients: BackendClient[] }) {
     fd.append("file", file);
     if (clientId) fd.append("client_id", clientId);
     const res = await fetch("/api/devis/import-csv", { method: "POST", body: fd });
-    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string; lignes?: number };
-    if (!res.ok) throw new Error(json.message || "Import CSV impossible");
+    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string; code?: string; lignes?: number };
+    if (!res.ok) {
+      if (handleTrialExpiredPaywallResponse(res.status, json)) return;
+      throw new Error(json.message || "Import CSV impossible");
+    }
     if (!json.id) throw new Error("Réponse serveur invalide");
     window.location.assign(`/devis/${encodeURIComponent(json.id)}`);
   }

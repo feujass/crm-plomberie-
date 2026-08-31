@@ -8,6 +8,8 @@ import {
   loadSubscriptionContext,
   recordIaDevisUsage,
 } from "@/lib/plans/subscription-context";
+import { TRIAL_EXPIRED_PAYWALL_CODE } from "@/lib/plans/paywall";
+import { isTrialExpired } from "@/lib/plans/trial";
 import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
 import { normalizeDevisIaParsed } from "@/lib/schemas/normalize-devis-ia";
@@ -28,7 +30,8 @@ export async function POST(req: Request) {
 
   const iaBlocked = assertIaDevisAllowed(ctx);
   if (iaBlocked) {
-    return NextResponse.json({ message: iaBlocked, code: "plan_ia_limit" }, { status: 403 });
+    const code = isTrialExpired(ctx.profile) ? TRIAL_EXPIRED_PAYWALL_CODE : "plan_ia_limit";
+    return NextResponse.json({ message: iaBlocked, code }, { status: 403 });
   }
 
   const profile = ctx.profile ?? {};

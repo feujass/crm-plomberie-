@@ -8,6 +8,7 @@ import {
   FLOWO_LIST_CARD_CLASS,
 } from "@/lib/flowo-ui";
 import { cx, focusRing } from "@/lib/utils";
+import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import type { BackendDevis } from "@/types/backend";
 import { Copy, FileText, MapPin, Trash2, User } from "lucide-react";
 import Link from "next/link";
@@ -53,8 +54,12 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSeg
 
   async function duplicateDevis(id: string) {
     const res = await fetch(`/api/devis/${id}/duplicate`, { method: "POST" });
-    const data = (await res.json().catch(() => null)) as { id?: string } | null;
-    if (res.ok && data?.id) {
+    const data = (await res.json().catch(() => null)) as { id?: string; message?: string; code?: string } | null;
+    if (!res.ok) {
+      if (handleTrialExpiredPaywallResponse(res.status, data ?? undefined)) return;
+      return;
+    }
+    if (data?.id) {
       router.push(`/devis/${data.id}`);
       router.refresh();
     }

@@ -5,7 +5,7 @@ import { StripeBillingPortalButton } from "@/components/stripe/StripeBillingPort
 import { StripeCheckoutAutoRedirect } from "@/components/stripe/StripeCheckoutAutoRedirect";
 import { backendFetch } from "@/lib/backend/server";
 import { facturationUpgradeMessage } from "@/lib/plans/features";
-import { isFreeTrialActive, isTrialExpired } from "@/lib/plans/trial";
+import { isFreeTrialActive, isTrialExpired, TRIAL_EXPIRED_DEVIS_MESSAGE } from "@/lib/plans/trial";
 import type { BackendMeResponse } from "@/types/backend";
 
 type Search = {
@@ -41,6 +41,11 @@ export default async function CompteDonneesPage({ searchParams }: { searchParams
       {sp.upgrade === "rentabilite" ? (
         <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
           Le suivi de rentabilité est inclus dans le plan PME.
+        </p>
+      ) : null}
+      {sp.upgrade === "devis" ? (
+        <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+          {TRIAL_EXPIRED_DEVIS_MESSAGE}
         </p>
       ) : null}
       {sp.stripe === "success" ? (
