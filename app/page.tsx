@@ -1,6 +1,9 @@
 import { MarketingLanding } from "@/components/marketing/MarketingLanding";
+import { MarketingJsonLd } from "@/components/marketing/MarketingJsonLd";
+import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseDataMode } from "@/lib/supabase/env";
@@ -19,5 +22,13 @@ export default async function HomePage() {
     if (token) redirect("/accueil");
   }
 
-  return <MarketingLanding />;
+  return (
+    <>
+      <MarketingJsonLd />
+      <Suspense fallback={null}>
+        <ReferralCapture />
+      </Suspense>
+      <MarketingLanding />
+    </>
+  );
 }
