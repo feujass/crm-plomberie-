@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { profileHasCrmAccess } from "@/lib/auth/crm-access";
 import { resolvePartnerForUser } from "@/lib/affiliate/server";
+import {
+  internalAnalyticsCookieOptions,
+  isInternalAnalyticsEmail,
+} from "@/lib/analytics/internal-cookie";
 import { isDebugApiPath, isPublicApiPath } from "@/lib/security/api-access";
 import { applySecurityHeaders } from "@/lib/security/headers";
 import {
@@ -87,6 +91,20 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
   return applySecurityHeaders(response, process.env.NODE_ENV === "production");
 }
 
+function applyInternalAnalyticsCookie(response: NextResponse, email: string | null | undefined): void {
+  if (!isInternalAnalyticsEmail(email)) return;
+  response.cookies.set("flowo_internal", "1", internalAnalyticsCookieOptions());
+}
+
+function maybeRedirectInternalFlag(request: NextRequest): NextResponse | null {
+  if (request.nextUrl.searchParams.get("flowo_internal") !== "1") return null;
+  const url = request.nextUrl.clone();
+  url.searchParams.delete("flowo_internal");
+  const response = NextResponse.redirect(url);
+  response.cookies.set("flowo_internal", "1", internalAnalyticsCookieOptions());
+  return withSecurityHeaders(response);
+}
+
 function applyRateLimit(request: NextRequest): NextResponse | null {
   const scope = matchRateLimitScope(request.nextUrl.pathname);
   if (!scope) return null;
@@ -97,6 +115,9 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
 }
 
 async function middlewareSupabase(request: NextRequest) {
+  const internalRedirect = maybeRedirectInternalFlag(request);
+  if (internalRedirect) return internalRedirect;
+
   const rateLimited = applyRateLimit(request);
   if (rateLimited) return withSecurityHeaders(rateLimited);
 
@@ -171,6 +192,7 @@ async function middlewareSupabase(request: NextRequest) {
       }
     }
 
+    applyInternalAnalyticsCookie(supabaseResponse, user?.email);
     return withSecurityHeaders(supabaseResponse);
   }
 
@@ -182,6 +204,7 @@ async function middlewareSupabase(request: NextRequest) {
   }
 
   if (isProtectedPath(pathname) && user) {
+    applyInternalAnalyticsCookie(supabaseResponse, user.email);
     if (isCrmPath(pathname) && !pathname.startsWith("/admin")) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -221,10 +244,14 @@ async function middlewareSupabase(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
+  applyInternalAnalyticsCookie(supabaseResponse, user?.email);
   return withSecurityHeaders(supabaseResponse);
 }
 
 export async function middleware(request: NextRequest) {
+  const internalRedirect = maybeRedirectInternalFlag(request);
+  if (internalRedirect) return internalRedirect;
+
   const rateLimited = applyRateLimit(request);
   if (rateLimited) return withSecurityHeaders(rateLimited);
 

@@ -10,11 +10,15 @@ export function RegisterPasswordField({
   onChange,
   serverError,
   onClearServerError,
+  onFocus,
+  onBlur,
 }: {
   value: string;
   onChange: (value: string) => void;
   serverError?: string | null;
   onClearServerError?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   const [touched, setTouched] = useState(false);
   const clientError = useMemo(() => (value ? validatePassword(value) : null), [value]);
@@ -33,7 +37,11 @@ export function RegisterPasswordField({
           onChange(e.target.value);
           onClearServerError?.();
         }}
-        onBlur={() => setTouched(true)}
+        onBlur={() => {
+          setTouched(true);
+          onBlur?.();
+        }}
+        onFocus={onFocus}
         hasError={Boolean((touched && clientError) || serverError)}
       />
       {showHint ? (

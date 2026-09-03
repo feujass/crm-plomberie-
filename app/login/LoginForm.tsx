@@ -9,6 +9,11 @@ import { useState } from "react";
 import { AuthShell } from "@/components/login/AuthShell";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { AuthButton, AuthInput, cn } from "@/components/login/auth-ui";
+import { formFieldAnalyticsHandlers } from "@/lib/analytics/form-fields";
+import {
+  isInternalAnalyticsEmail,
+  setInternalAnalyticsCookieClient,
+} from "@/lib/analytics/internal-cookie";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
 
 export function LoginForm({
@@ -37,6 +42,9 @@ export function LoginForm({
   const [isHovered, setIsHovered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const emailFieldAnalytics = formFieldAnalyticsHandlers("email", () => email);
+  const passwordFieldAnalytics = formFieldAnalyticsHandlers("password", () => password);
 
   const authDisabled = !backendConfigured;
 
@@ -70,6 +78,7 @@ export function LoginForm({
       );
       return;
     }
+    if (isInternalAnalyticsEmail(email)) setInternalAnalyticsCookieClient();
     router.replace(redirectTo);
   }
 
@@ -158,6 +167,8 @@ export function LoginForm({
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onFocus={emailFieldAnalytics.onFocus}
+            onBlur={emailFieldAnalytics.onBlur}
             placeholder="votre@email.fr"
             required
             disabled={authDisabled}
@@ -177,6 +188,8 @@ export function LoginForm({
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={passwordFieldAnalytics.onFocus}
+              onBlur={passwordFieldAnalytics.onBlur}
               placeholder="••••••••"
               required
               disabled={authDisabled}

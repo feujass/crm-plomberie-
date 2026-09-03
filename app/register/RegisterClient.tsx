@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/Button";
 import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
+import { formFieldAnalyticsHandlers } from "@/lib/analytics/form-fields";
+import {
+  isInternalAnalyticsEmail,
+  setInternalAnalyticsCookieClient,
+} from "@/lib/analytics/internal-cookie";
 import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
@@ -30,6 +35,9 @@ export function RegisterClient() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const emailFieldAnalytics = formFieldAnalyticsHandlers("email", () => email);
+  const passwordFieldAnalytics = formFieldAnalyticsHandlers("password", () => password);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,6 +97,7 @@ export function RegisterClient() {
 
     trackFunnelEvent("register_success");
     trackMetaEvent("CompleteRegistration");
+    if (isInternalAnalyticsEmail(trimmedEmail)) setInternalAnalyticsCookieClient();
 
     if (json?.needsEmailConfirmation) {
       router.replace(`/login?registered=confirm&message=${encodeURIComponent(json.message ?? "Confirme ton e-mail.")}`);
@@ -141,6 +150,8 @@ export function RegisterClient() {
             setEmail(e.target.value);
             setEmailError(null);
           }}
+          onFocus={emailFieldAnalytics.onFocus}
+          onBlur={emailFieldAnalytics.onBlur}
           hasError={Boolean(emailError)}
         />
         {emailError ? <p className="-mt-2 text-xs text-red-600">{emailError}</p> : null}
@@ -150,6 +161,8 @@ export function RegisterClient() {
           onChange={setPassword}
           serverError={passwordError}
           onClearServerError={() => setPasswordError(null)}
+          onFocus={passwordFieldAnalytics.onFocus}
+          onBlur={passwordFieldAnalytics.onBlur}
         />
 
         <label className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">

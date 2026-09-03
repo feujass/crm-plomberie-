@@ -26,6 +26,9 @@ const ALLOWED_EVENTS = new Set<AnalyticsEventPayload["event_type"]>([
   "first_devis_sent",
   "trial_expired",
   "subscription_started",
+  "human_engagement",
+  "field_focus",
+  "field_blur",
 ]);
 
 type GeoRequest = NextRequest & { geo?: { country?: string } };
@@ -122,9 +125,9 @@ export async function POST(req: NextRequest) {
           referrer_domain: attr.referrer_domain,
           landing_path: attr.landing_path,
           device_type: device,
-          viewport_width: attr.viewport_width,
+          viewport_width: attr.viewport_width && attr.viewport_width > 0 ? attr.viewport_width : null,
         },
-        { onConflict: "session_id", ignoreDuplicates: true },
+        { onConflict: "session_id" },
       );
     }
 

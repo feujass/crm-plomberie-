@@ -18,16 +18,17 @@ export function trackFunnelEvent(
   const page_path = opts?.page_path ?? window.location.pathname;
   const attach_session = !hasSentAttribution();
 
-  sendAnalyticsEvent({
-    session_id,
-    event_type,
-    page_path,
-    referrer: document.referrer || null,
-    properties: opts?.properties ?? null,
-    attach_session,
-  });
-
-  if (attach_session) markAttributionSent();
+  void (async () => {
+    const ok = await sendAnalyticsEvent({
+      session_id,
+      event_type,
+      page_path,
+      referrer: document.referrer || null,
+      properties: opts?.properties ?? null,
+      attach_session,
+    });
+    if (ok && attach_session) markAttributionSent();
+  })();
 }
 
 export function initSessionAttribution(): void {

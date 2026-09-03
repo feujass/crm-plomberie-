@@ -17,7 +17,10 @@ export type AnalyticsEventType =
   | "first_devis_created"
   | "first_devis_sent"
   | "trial_expired"
-  | "subscription_started";
+  | "subscription_started"
+  | "human_engagement"
+  | "field_focus"
+  | "field_blur";
 
 export type SessionAttributionPayload = {
   utm_source?: string | null;
