@@ -1,4 +1,5 @@
 import type { AnalyticsEventPayload } from "@/lib/analytics/types";
+import { hasInternalAnalyticsCookie } from "@/lib/analytics/internal-cookie";
 import {
   eventTypesWithAttribution,
   readSessionAttribution,
@@ -6,9 +7,14 @@ import {
 
 const TRACK_ENDPOINT = "/api/track";
 
+function withInternalFlag(payload: AnalyticsEventPayload): AnalyticsEventPayload {
+  if (payload.is_internal === true || !hasInternalAnalyticsCookie()) return payload;
+  return { ...payload, is_internal: true };
+}
+
 /** Construit le corps POST avec attribution jointe à l'événement (lisible par le dashboard). */
 export function buildAnalyticsRequestBody(payload: AnalyticsEventPayload): AnalyticsEventPayload {
-  const bodyPayload: AnalyticsEventPayload = { ...payload };
+  const bodyPayload = withInternalFlag({ ...payload });
 
   if (eventTypesWithAttribution().has(payload.event_type)) {
     bodyPayload.attribution = readSessionAttribution();
@@ -35,6 +41,7 @@ export async function sendAnalyticsEvent(payload: AnalyticsEventPayload): Promis
     const res = await fetch(TRACK_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body,
       keepalive: true,
     });
@@ -54,6 +61,7 @@ export function sendAnalyticsEventBeacon(payload: AnalyticsEventPayload): void {
   void fetch(TRACK_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body,
     keepalive: true,
   }).catch(() => undefined);

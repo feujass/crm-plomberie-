@@ -43,4 +43,6 @@ export type AnalyticsEventPayload = {
   properties?: Record<string, unknown> | null;
   attribution?: SessionAttributionPayload | null;
   attach_session?: boolean;
+  /** Marque le trafic interne (équipe) — lu par /api/track en plus du cookie flowo_internal. */
+  is_internal?: boolean;
 };

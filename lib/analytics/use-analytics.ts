@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { hasInternalAnalyticsCookie, setInternalAnalyticsCookieClient } from "@/lib/analytics/internal-cookie";
+import { syncInternalAnalyticsSession } from "@/lib/analytics/internal-cookie";
 import { installHumanEngagementTracker } from "@/lib/analytics/human-engagement";
 import { initSessionAttribution, trackFunnelEvent } from "@/lib/analytics/funnel";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
@@ -24,10 +24,6 @@ export function useAnalytics(): void {
   useEffect(() => {
     initSessionAttribution();
     refreshSessionAttributionViewport();
-    if (!hasInternalAnalyticsCookie() && typeof window !== "undefined") {
-      const flag = new URLSearchParams(window.location.search).get("flowo_internal");
-      if (flag === "1") setInternalAnalyticsCookieClient();
-    }
   }, [pathname, searchParams]);
 
   useEffect(() => {
@@ -49,6 +45,8 @@ export function useAnalytics(): void {
     pageEnteredAt.current = Date.now();
 
     void (async () => {
+      await syncInternalAnalyticsSession();
+
       const attach_session = !hasSentAttribution();
       const ok = await sendAnalyticsEvent({
         session_id: sessionId,

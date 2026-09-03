@@ -90,6 +90,9 @@ function parsePayload(body: unknown): AnalyticsEventPayload | null {
     properties,
     attribution,
     attach_session: raw.attach_session === true,
+    is_internal:
+      raw.is_internal === true ||
+      (properties != null && properties.is_internal === true),
   };
 }
 
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest) {
   const country = resolveCountry(req);
   const userAgent = req.headers.get("user-agent");
   const device = deviceTypeFromUserAgent(userAgent);
-  const isInternal = isInternalTraffic(req);
+  const isInternal = isInternalTraffic(req) || payload.is_internal === true;
   const attr = payload.attribution;
 
   const fieldFromProps =

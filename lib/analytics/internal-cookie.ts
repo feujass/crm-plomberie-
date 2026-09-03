@@ -37,3 +37,29 @@ export function hasInternalAnalyticsCookie(): boolean {
   if (typeof document === "undefined") return false;
   return document.cookie.split(";").some((c) => c.trim().startsWith(`${COOKIE_NAME}=1`));
 }
+
+/** Pose le cookie interne si l'utilisateur connecté est membre de l'équipe. */
+export async function syncInternalAnalyticsSession(): Promise<boolean> {
+  if (typeof window === "undefined") return hasInternalAnalyticsCookie();
+  if (hasInternalAnalyticsCookie()) return true;
+
+  const flag = new URLSearchParams(window.location.search).get("flowo_internal");
+  if (flag === "1") {
+    setInternalAnalyticsCookieClient();
+    return true;
+  }
+
+  try {
+    const res = await fetch("/api/auth/me", { credentials: "same-origin" });
+    if (!res.ok) return false;
+    const me = (await res.json()) as { email?: string | null };
+    if (isInternalAnalyticsEmail(me.email)) {
+      setInternalAnalyticsCookieClient();
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
