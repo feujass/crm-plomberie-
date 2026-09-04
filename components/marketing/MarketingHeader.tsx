@@ -48,6 +48,14 @@ export function MarketingHeader() {
           {!isAffiliation ? (
             <Link
               href="/login"
+              className="rounded-lg px-2 py-2 text-sm font-medium text-slate-600 sm:hidden dark:text-slate-400"
+            >
+              Connexion
+            </Link>
+          ) : null}
+          {!isAffiliation ? (
+            <Link
+              href="/login"
               className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:inline dark:text-slate-300 lg:px-4 lg:text-[15px]"
             >
               Connexion CRM
@@ -64,7 +72,7 @@ export function MarketingHeader() {
             <Link
               href="/register"
               data-cta-location="header"
-              className="rounded-xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-md md:px-5 lg:px-6 lg:py-3 lg:text-base"
+              className="hidden rounded-xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-md sm:inline-flex md:px-5 lg:px-6 lg:py-3 lg:text-base"
             >
               Essayer gratuitement — sans CB
             </Link>

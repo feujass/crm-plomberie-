@@ -261,14 +261,14 @@ export function MarketingHeroVoiceDemo() {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg dark:border-slate-700 dark:bg-slate-900 md:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-[color:var(--primary)]/30">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-700 dark:bg-slate-900 sm:p-5 md:p-6">
+      <div className="mb-3 flex items-center gap-2.5 sm:mb-4 sm:gap-3">
+        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-[color:var(--primary)]/30 sm:h-12 sm:w-12">
           <Image src={ZEUS_AVATAR} alt="Zeus" fill className="object-cover object-[center_18%]" sizes="48px" />
         </div>
-        <div>
+        <div className="min-w-0 text-left">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Essaie Zeus maintenant</p>
-          <p className="text-xs text-slate-500">Aucune inscription · Décris un chantier, tu as ton devis</p>
+          <p className="text-[11px] leading-tight text-slate-500 sm:text-xs">Aucune inscription · Décris un chantier, tu as ton devis</p>
         </div>
       </div>
 
@@ -298,7 +298,7 @@ export function MarketingHeroVoiceDemo() {
             onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
             className={cx(
               focusRing,
-              "inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white",
+              "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white sm:min-h-11",
             )}
           >
             Créer mon compte — voir le devis complet
@@ -335,7 +335,7 @@ export function MarketingHeroVoiceDemo() {
               Zeus rédige ton devis…
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:gap-3">
               {phase === "recording" ? (
                 <>
                   <p className="text-center text-sm font-medium text-red-600">{formatSeconds(elapsedMs)} / 1:00</p>
@@ -344,7 +344,7 @@ export function MarketingHeroVoiceDemo() {
                     onClick={() => void finishRecording()}
                     className={cx(
                       focusRing,
-                      "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-600 px-6 text-base font-semibold text-white",
+                      "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-6 text-base font-semibold text-white",
                     )}
                   >
                     <Square className="h-5 w-5 fill-current" />
@@ -358,10 +358,10 @@ export function MarketingHeroVoiceDemo() {
                   onClick={() => void startRecording()}
                   className={cx(
                     focusRing,
-                    "inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-[color:var(--primary)] px-6 text-base font-semibold text-white shadow-md",
+                    "inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-white shadow-md sm:min-h-14 sm:gap-3 sm:px-6 sm:text-base",
                   )}
                 >
-                  <Mic className="h-6 w-6" />
+                  <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
                   Appuie et décris ton chantier
                 </button>
               )}

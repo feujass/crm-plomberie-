@@ -21,7 +21,9 @@ export function HeroTryZeusButton() {
       }}
       className={cx(
         focusRing,
-        "inline-flex min-h-12 items-center justify-center rounded-xl bg-[color:var(--primary)] px-8 text-base font-semibold text-white shadow-md hover:opacity-95",
+        "inline-flex min-h-12 w-full items-center justify-center rounded-xl px-6 text-sm font-semibold sm:w-auto sm:px-8 sm:text-base",
+        "border border-slate-200 bg-transparent text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800/60",
+        "sm:border-0 sm:bg-[color:var(--primary)] sm:text-white sm:shadow-md sm:hover:opacity-95 dark:sm:hover:bg-[color:var(--primary)]",
       )}
     >
       Essayer Zeus gratuitement
