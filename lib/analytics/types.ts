@@ -27,7 +27,17 @@ export type AnalyticsEventType =
   | "subscription_started"
   | "human_engagement"
   | "field_focus"
-  | "field_blur";
+  | "field_blur"
+  | "demo_start"
+  | "demo_mic_permission_granted"
+  | "demo_mic_permission_denied"
+  | "demo_recording_complete"
+  | "demo_generation_success"
+  | "demo_generation_error"
+  | "demo_preview_shown"
+  | "demo_cta_signup_click"
+  | "demo_rate_limited"
+  | "demo_text_fallback_used";
 
 export type SessionAttributionPayload = {
   utm_source?: string | null;

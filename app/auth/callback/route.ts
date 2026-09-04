@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 
 import { initOAuthGoogleProfile } from "@/lib/auth/init-oauth-profile";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
+import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
+import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import {
   PENDING_CHECKOUT_COOKIE,
@@ -99,12 +101,29 @@ export async function GET(request: Request) {
         });
       }
 
+      let demoDevisId: string | null = null;
+      if (isSignup || url.searchParams.get("from") === "demo") {
+        try {
+          const demoCookie = cookieStore.get("flowo_demo_id")?.value;
+          const linked = await linkDemoQuoteToUser(user.id, demoCookie);
+          if (linked.devisId) {
+            demoDevisId = linked.devisId;
+            redirectPath = `/devis/${linked.devisId}?view=preview&from=demo`;
+          }
+        } catch {
+          /* demo link best-effort */
+        }
+      }
+
       const redirectTarget =
         isSignup && isGoogle
           ? redirectWithGoogleOAuthSuccess(redirectPath, url.origin)
           : new URL(redirectPath, url.origin);
 
       const response = NextResponse.redirect(redirectTarget);
+      if (demoDevisId) {
+        response.cookies.set(DEMO_DEVIS_COOKIE, demoDevisId, demoDevisCookieOptions());
+      }
       cookieStore.getAll().forEach((cookie) => {
         response.cookies.set(cookie.name, cookie.value);
       });

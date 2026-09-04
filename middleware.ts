@@ -7,6 +7,7 @@ import {
   internalAnalyticsCookieOptions,
   isInternalAnalyticsEmail,
 } from "@/lib/analytics/internal-cookie";
+import { DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { isDebugApiPath, isPublicApiPath } from "@/lib/security/api-access";
 import { applySecurityHeaders } from "@/lib/security/headers";
 import {
@@ -223,7 +224,11 @@ async function middlewareSupabase(request: NextRequest) {
       const skipOnboardingRedirect =
         pathname === "/onboarding" ||
         pathname.startsWith("/onboarding/") ||
-        pathname.startsWith("/compte/");
+        pathname.startsWith("/compte/") ||
+        (() => {
+          const demoDevisId = request.cookies.get(DEMO_DEVIS_COOKIE)?.value;
+          return Boolean(demoDevisId && pathname === `/devis/${demoDevisId}`);
+        })();
       if (!skipOnboardingRedirect) {
         const steps = Number(profile?.onboarding_steps_completed ?? 0);
         if (steps < 3) {

@@ -1,5 +1,5 @@
 /** Version de la politique de confidentialité (preuve de consentement). */
-export const PRIVACY_POLICY_VERSION = "2026-07-28";
+export const PRIVACY_POLICY_VERSION = "2026-09-04";
 
 /** Version des CGU (liées à l'inscription). */
 export const CGU_VERSION = "2026-07-28";

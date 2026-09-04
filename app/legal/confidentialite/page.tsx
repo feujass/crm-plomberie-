@@ -42,6 +42,11 @@ export default function ConfidentialitePage() {
             <li>Compte : identité, e-mail, téléphone, entreprise, SIRET, préférences</li>
             <li>Données métier : clients, devis, factures, catalogue, paiements</li>
             <li>Contenus vocaux ou textuels pour la génération de devis (Zeus)</li>
+            <li>
+              <strong>Démo vocale sur la page d&apos;accueil</strong> : description de chantier (voix ou texte) conservée
+              temporairement (30 jours max) pour générer un aperçu de devis avant inscription ; le fichier audio brut n&apos;est
+              pas conservé après transcription
+            </li>
             <li>Données techniques : logs, adresse IP, cookies (voir <Link href="/legal/cookies" className="text-[color:var(--primary)] hover:underline">politique cookies</Link>)</li>
             <li>Données de facturation Stripe (gérées par Stripe)</li>
           </ul>

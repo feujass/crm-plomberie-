@@ -38,6 +38,7 @@ const sql = [
   "20260831183000_analytics_funnel.sql",
   "20260831190000_human_engagement.sql",
   "20260904130000_analytics_is_internal_lot1.sql",
+  "20260904160000_demo_voice_lot2.sql",
 ]
   .map((name) => readFileSync(resolve(root, "supabase/migrations", name), "utf8"))
   .join("\n\n");

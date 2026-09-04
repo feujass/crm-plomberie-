@@ -4,7 +4,7 @@ import { FAQ } from "@/components/marketing/FAQ";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingFunnelTracker } from "@/components/marketing/MarketingFunnelTracker";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
-import { MarketingHeroProduct } from "@/components/marketing/MarketingHeroProduct";
+import { MarketingHeroVoiceDemo } from "@/components/marketing/MarketingHeroVoiceDemo";
 import { MarketingPreviewCarousel } from "@/components/marketing/MarketingPreviewCarousel";
 import { MarketingStickyCta } from "@/components/marketing/MarketingStickyCta";
 import { MarketingVslPlayer } from "@/components/marketing/MarketingVslPlayer";
@@ -79,7 +79,7 @@ export function MarketingLanding() {
               </p>
             </div>
             <div className="mt-10 lg:mt-0">
-              <MarketingHeroProduct />
+              <MarketingHeroVoiceDemo />
             </div>
           </div>
         </div>

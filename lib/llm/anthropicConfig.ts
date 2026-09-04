@@ -10,10 +10,21 @@ export function anthropicModel(): string {
   return process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-6";
 }
 
+export function anthropicDemoModel(): string {
+  return process.env.ANTHROPIC_DEMO_MODEL?.trim() || "claude-haiku-4-5-20251001";
+}
+
 export function anthropicMaxTokens(): number {
   return Math.min(
     Math.max(Number.parseInt(process.env.ANTHROPIC_MAX_TOKENS || "4096", 10) || 4096, 256),
     8192,
+  );
+}
+
+export function anthropicDemoMaxTokens(): number {
+  return Math.min(
+    Math.max(Number.parseInt(process.env.ANTHROPIC_DEMO_MAX_TOKENS || "1024", 10) || 1024, 256),
+    2048,
   );
 }
 

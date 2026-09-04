@@ -14,6 +14,8 @@ import { validatePassword } from "@/lib/security/password-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
+import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
+import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { saveMinimalSupabaseProfile, saveSupabaseProfile } from "@/lib/supabase/save-profile";
@@ -162,6 +164,17 @@ export async function POST(req: Request) {
 
     await attachReferralFromCookie(userId);
 
+    let redirectTo: string | null = null;
+    try {
+      const demoCookie = (await cookies()).get("flowo_demo_id")?.value;
+      const linked = await linkDemoQuoteToUser(userId, demoCookie);
+      if (linked.devisId) {
+        redirectTo = `/devis/${linked.devisId}?view=preview&from=demo`;
+      }
+    } catch (e) {
+      console.error("[auth/register] demo link", e);
+    }
+
     if (!hasSession && userId) {
       const { error: confirmError } = await admin.auth.admin.updateUserById(userId, {
         email_confirm: true,
@@ -208,12 +221,17 @@ export async function POST(req: Request) {
     }
 
     trackRegister(true);
-    return NextResponse.json(
-      {
-        user: { id: userId, email, role: "user" },
-      },
-      { status: 200 },
-    );
+    const successBody: Record<string, unknown> = {
+      user: { id: userId, email, role: "user" },
+    };
+    if (redirectTo) successBody.redirect_to = redirectTo;
+
+    const successRes = NextResponse.json(successBody, { status: 200 });
+    if (redirectTo) {
+      const devisId = redirectTo.split("/devis/")[1]?.split("?")[0];
+      if (devisId) successRes.cookies.set(DEMO_DEVIS_COOKIE, devisId, demoDevisCookieOptions());
+    }
+    return successRes;
   }
 
   let base: string;

@@ -83,6 +83,7 @@ function RegisterFormBody() {
       needsEmailConfirmation?: boolean;
       message?: string;
       error?: string;
+      redirect_to?: string;
     } | null;
     setLoading(false);
 
@@ -107,6 +108,11 @@ function RegisterFormBody() {
 
     if (json?.needsEmailConfirmation) {
       router.replace(`/login?registered=confirm&message=${encodeURIComponent(json.message ?? "Confirme ton e-mail.")}`);
+      return;
+    }
+
+    if (json?.redirect_to) {
+      router.replace(json.redirect_to);
       return;
     }
 
