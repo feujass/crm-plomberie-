@@ -33,6 +33,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/forgot-password" || pathname === "/reset-password") return true;
   if (pathname === "/auth/callback") return true;
   if (pathname === "/affiliation") return true;
+  if (pathname.startsWith("/dev/")) return true;
   if (pathname.startsWith("/r/")) return true;
   if (isPartnerAuthPath(pathname)) return true;
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

@@ -1,6 +1,11 @@
+import { isInAppBrowser, inAppSourceName } from "@/lib/analytics/in-app-browser";
+import { mergeAttributionWithCookie, writeAttributionCookieFirstTouch } from "@/lib/analytics/attribution-cookie";
+
 const ATTRIBUTION_KEY = "flowo_session_attribution";
 const ATTRIBUTION_SENT_KEY = "flowo_session_attribution_sent";
 const FIRST_TOUCH_KEY = "flowo_first_touch_source";
+
+const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
 
 /** Expiration après 30 min sans activité (session navigateur). */
 export const SESSION_ATTRIBUTION_TTL_MS = 30 * 60 * 1000;
@@ -55,9 +60,7 @@ function normalizeReferrerDomain(referrer: string | null | undefined): string | 
 }
 
 function hasUtmParams(params: URLSearchParams): boolean {
-  return ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"].some((key) =>
-    Boolean(params.get(key)?.trim()),
-  );
+  return UTM_KEYS.some((key) => Boolean(params.get(key)?.trim()));
 }
 
 function readStoredSession(): StoredSessionAttribution | null {
@@ -115,7 +118,23 @@ function buildAttributionFromLocation(search: string, pathname: string): Session
   };
 }
 
+function applyInAppSourceFallback(attribution: SessionAttribution): SessionAttribution {
+  const hasUtm = UTM_KEYS.some((key) => attribution[key]?.trim());
+  if (hasUtm || attribution.referrer_domain?.trim()) return attribution;
+
+  const inApp = isInAppBrowser();
+  if (!inApp.isInApp) return attribution;
+
+  return {
+    ...attribution,
+    utm_source: inAppSourceName(inApp.app),
+    utm_medium: attribution.utm_medium ?? "inapp_webview",
+  };
+}
+
 function persistFirstTouch(attribution: SessionAttribution): void {
+  writeAttributionCookieFirstTouch(attribution);
+
   const store = localStore();
   if (!store) return;
   try {
@@ -149,7 +168,7 @@ export function captureSessionAttributionFromLocation(search: string, pathname: 
   const stored = readStoredSession();
 
   if (hasUtmParams(params)) {
-    const next = buildAttributionFromLocation(search, pathname);
+    const next = applyInAppSourceFallback(buildAttributionFromLocation(search, pathname));
     if (stored?.attribution.viewport_width && stored.attribution.viewport_width > 0) {
       next.viewport_width = stored.attribution.viewport_width;
     }
@@ -164,10 +183,10 @@ export function captureSessionAttributionFromLocation(search: string, pathname: 
 
   if (stored) {
     touchStoredSession();
-    return stored.attribution;
+    return mergeAttributionWithCookie(stored.attribution);
   }
 
-  const fresh = buildAttributionFromLocation(search, pathname);
+  const fresh = applyInAppSourceFallback(buildAttributionFromLocation(search, pathname));
   persistFirstTouch(fresh);
   return writeStoredSession(fresh);
 }
@@ -176,9 +195,9 @@ export function readSessionAttribution(): SessionAttribution {
   const stored = readStoredSession();
   if (stored) {
     touchStoredSession();
-    return stored.attribution;
+    return mergeAttributionWithCookie(stored.attribution);
   }
-  return {};
+  return mergeAttributionWithCookie({});
 }
 
 /** Met à jour viewport_width après montage client (innerWidth fiable). */
@@ -209,6 +228,12 @@ export function hasSentAttribution(): boolean {
   }
 }
 
+/** Attache l'attribution UTM à tous les events sauf page_exit (beacon sortie). */
+export function shouldAttachAttribution(eventType: string): boolean {
+  return eventType !== "page_exit";
+}
+
+/** @deprecated Préférer shouldAttachAttribution — conservé pour les tests existants. */
 export function eventTypesWithAttribution(): Set<string> {
   return new Set([
     "page_view",
@@ -217,6 +242,13 @@ export function eventTypesWithAttribution(): Set<string> {
     "register_submit",
     "register_error",
     "register_success",
+    "register_field_focus",
+    "register_field_blur_empty",
+    "cgu_checkbox_checked",
+    "google_oauth_click",
+    "google_oauth_error",
+    "google_oauth_success",
+    "inapp_browser_detected",
     "cta_click",
     "pricing_view",
   ]);

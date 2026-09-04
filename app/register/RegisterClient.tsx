@@ -3,15 +3,19 @@
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { RegisterPasswordField } from "@/components/auth/RegisterPasswordField";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
+import {
+  InAppBrowserBanner,
+  useInAppBrowserDetection,
+} from "@/components/register/InAppBrowserBanner";
 import { Button } from "@/components/ui/Button";
 import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { Input } from "@/components/ui/Input";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
-import { formFieldAnalyticsHandlers } from "@/lib/analytics/form-fields";
 import {
-  isInternalAnalyticsEmail,
-  setInternalAnalyticsCookieClient,
-} from "@/lib/analytics/internal-cookie";
+  registerFieldAnalyticsHandlers,
+  trackCguCheckboxChecked,
+} from "@/lib/analytics/register-form-analytics";
+import { setInternalAnalyticsCookieClient, isInternalAnalyticsEmail } from "@/lib/analytics/internal-cookie";
 import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
@@ -21,13 +25,14 @@ import { isFlowoBilling, isFlowoPlanId } from "@/lib/stripe/plans";
 import { cx } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
-export function RegisterClient() {
+function RegisterFormBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutPlan = searchParams.get("plan") ?? "";
   const checkoutBilling = searchParams.get("billing") ?? "";
+  const inAppBrowser = useInAppBrowserDetection();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
@@ -36,8 +41,8 @@ export function RegisterClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const emailFieldAnalytics = formFieldAnalyticsHandlers("email", () => email);
-  const passwordFieldAnalytics = formFieldAnalyticsHandlers("password", () => password);
+  const emailFieldAnalytics = registerFieldAnalyticsHandlers("email", () => email);
+  const passwordFieldAnalytics = registerFieldAnalyticsHandlers("password", () => password);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,7 +68,7 @@ export function RegisterClient() {
     }
 
     setLoading(true);
-    trackFunnelEvent("register_submit");
+    trackFunnelEvent("register_submit", { properties: { method: "email" } });
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -83,8 +88,9 @@ export function RegisterClient() {
 
     if (!res.ok) {
       const msg = translateSupabaseAuthError(json?.error ?? json?.message ?? "Inscription impossible");
+      const code = json?.error ?? "register_failed";
       const field = /mot de passe|password/i.test(msg) ? "password" : /e-mail|email|mail/i.test(msg) ? "email" : "form";
-      trackFunnelEvent("register_error", { properties: { field, message: msg } });
+      trackFunnelEvent("register_error", { properties: { code, message: msg, field } });
       if (/e-mail|email|mail/i.test(msg)) {
         setEmailError(msg);
       } else if (/mot de passe|password/i.test(msg)) {
@@ -95,7 +101,7 @@ export function RegisterClient() {
       return;
     }
 
-    trackFunnelEvent("register_success");
+    trackFunnelEvent("register_success", { properties: { method: "email" } });
     trackMetaEvent("CompleteRegistration");
     if (isInternalAnalyticsEmail(trimmedEmail)) setInternalAnalyticsCookieClient();
 
@@ -122,16 +128,28 @@ export function RegisterClient() {
         Essai gratuit · accès Pro+ · teste Flowo en 20 secondes
       </p>
 
-      <GoogleAuthButton
-        mode="register"
-        label="Continuer avec Google"
-        plan={isFlowoPlanId(checkoutPlan) ? checkoutPlan : undefined}
-        billing={isFlowoBilling(checkoutBilling) ? checkoutBilling : undefined}
-        disabled={!acceptedPrivacy}
-        className="mb-4"
-      />
+      {inAppBrowser ? <InAppBrowserBanner /> : null}
 
-      <p className="mb-4 text-center text-xs font-medium uppercase tracking-wide text-gray-400">ou</p>
+      {!inAppBrowser ? (
+        <>
+          <GoogleAuthButton
+            mode="register"
+            label="Continuer avec Google"
+            plan={isFlowoPlanId(checkoutPlan) ? checkoutPlan : undefined}
+            billing={isFlowoBilling(checkoutBilling) ? checkoutBilling : undefined}
+            requirePrivacyAccepted={!acceptedPrivacy}
+            onPrivacyRequired={() => {
+              setFormError("Accepte les CGU et la politique de confidentialité pour continuer.");
+            }}
+            className="mb-4"
+          />
+          <p className="mb-4 text-center text-xs font-medium uppercase tracking-wide text-gray-400">ou</p>
+        </>
+      ) : (
+        <p className="mb-4 text-center text-sm text-gray-600 dark:text-gray-400">
+          Inscris-toi avec ton e-mail — la connexion Google n&apos;est pas disponible dans cette application.
+        </p>
+      )}
 
       <form
         onSubmit={onSubmit}
@@ -169,7 +187,11 @@ export function RegisterClient() {
           <input
             type="checkbox"
             checked={acceptedPrivacy}
-            onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setAcceptedPrivacy(checked);
+              if (checked) trackCguCheckboxChecked();
+            }}
             className="mt-0.5"
             required
           />
@@ -205,5 +227,19 @@ export function RegisterClient() {
         </Link>
       </p>
     </div>
+  );
+}
+
+export function RegisterClient() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto flex min-h-dvh max-w-md items-center justify-center px-4 text-sm text-slate-500">
+          Chargement…
+        </div>
+      }
+    >
+      <RegisterFormBody />
+    </Suspense>
   );
 }

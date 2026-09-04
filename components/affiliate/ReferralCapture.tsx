@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { AFFILIATE_REF_COOKIE, AFFILIATE_REF_MAX_AGE_DAYS, normalizeReferralCode } from "@/lib/affiliate/constants";
+import { captureSessionAttributionFromLocation } from "@/lib/analytics/session-attribution";
 
-/** Capture ?ref=CODE sur la landing et enregistre le clic. */
+/** Capture ?ref=CODE + UTM first-touch (cookie flowo_attrib 90 j). */
 export function ReferralCapture() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    captureSessionAttributionFromLocation(window.location.search, pathname || window.location.pathname);
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     const ref = searchParams.get("ref");

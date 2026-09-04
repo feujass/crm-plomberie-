@@ -2,8 +2,9 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseAuthConfigured } from "@/lib/supabase/env";
+import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import { cx, focusRing } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Variant = "register" | "login";
 
@@ -29,8 +30,9 @@ export function GoogleAuthButton({
   plan,
   billing,
   className,
-  disabled,
   label,
+  requirePrivacyAccepted,
+  onPrivacyRequired,
 }: {
   mode: Variant;
   redirectTo?: string;
@@ -38,28 +40,58 @@ export function GoogleAuthButton({
   billing?: string;
   className?: string;
   label?: string;
-  disabled?: boolean;
+  /** Si true, bloque le clic tant que les CGU ne sont pas cochées (sans attribut disabled). */
+  requirePrivacyAccepted?: boolean;
+  onPrivacyRequired?: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [pending, setPending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!isSupabaseAuthConfigured()) return null;
 
   const defaultLabel =
     mode === "register" ? "S'inscrire avec Google" : "Continuer avec Google";
 
+  if (!mounted) {
+    return (
+      <div className={className}>
+        <div
+          className={cx(
+            "inline-flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400",
+          )}
+          aria-hidden
+        >
+          <GoogleIcon />
+          Chargement…
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
       <button
         type="button"
-        disabled={pending || disabled}
+        disabled={pending}
         className={cx(
           "inline-flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800",
           focusRing,
         )}
         onClick={async () => {
+          if (requirePrivacyAccepted) {
+            onPrivacyRequired?.();
+            return;
+          }
+
           setErr(null);
           setPending(true);
+          trackFunnelEvent("google_oauth_click", { properties: { mode } });
+
           try {
             const supabase = createClient();
             const { error } = await supabase.auth.signInWithOAuth({
@@ -69,7 +101,10 @@ export function GoogleAuthButton({
                 queryParams: { prompt: mode === "register" ? "select_account" : "consent" },
               },
             });
-            if (error) setErr(error.message);
+            if (error) {
+              setErr(error.message);
+              setPending(false);
+            }
           } catch (e) {
             setErr(e instanceof Error ? e.message : "Connexion Google impossible");
             setPending(false);

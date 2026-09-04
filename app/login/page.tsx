@@ -17,6 +17,8 @@ export default async function LoginPage({
     redirect?: string;
     reset?: string;
     auth_error?: string;
+    oauth_error_code?: string;
+    oauth_error_message?: string;
     registered?: string;
     message?: string;
     deleted?: string;
@@ -29,6 +31,8 @@ export default async function LoginPage({
   const backendConfigured = Boolean(process.env.BACKEND_URL?.length) || isSupabaseAuthConfigured();
   const passwordResetOk = sp.reset === "1";
   const authError = sp.auth_error === "callback";
+  const oauthErrorCode = sp.oauth_error_code ?? null;
+  const oauthErrorMessage = sp.oauth_error_message ?? null;
   const registrationPending = sp.registered === "confirm";
   const registrationMessage = sp.message ?? null;
   const accountDeleted = sp.deleted === "1";
@@ -39,6 +43,8 @@ export default async function LoginPage({
       backendConfigured={backendConfigured}
       passwordResetOk={passwordResetOk}
       authError={authError}
+      oauthErrorCode={oauthErrorCode}
+      oauthErrorMessage={oauthErrorMessage}
       registrationPending={registrationPending}
       registrationMessage={registrationMessage}
       accountDeleted={accountDeleted}

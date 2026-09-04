@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { OAuthErrorAnalyticsCapture } from "@/components/analytics/OAuthAnalyticsCapture";
 import { AuthShell } from "@/components/login/AuthShell";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { AuthButton, AuthInput, cn } from "@/components/login/auth-ui";
@@ -21,6 +22,8 @@ export function LoginForm({
   backendConfigured,
   passwordResetOk = false,
   authError = false,
+  oauthErrorCode = null,
+  oauthErrorMessage = null,
   registrationPending = false,
   registrationMessage = null,
   accountDeleted = false,
@@ -30,6 +33,8 @@ export function LoginForm({
   backendConfigured: boolean;
   passwordResetOk?: boolean;
   authError?: boolean;
+  oauthErrorCode?: string | null;
+  oauthErrorMessage?: string | null;
   registrationPending?: boolean;
   registrationMessage?: string | null;
   accountDeleted?: boolean;
@@ -89,6 +94,11 @@ export function LoginForm({
       backHref="/"
       backLabel="Découvrir Flowo sans se connecter"
     >
+      <OAuthErrorAnalyticsCapture
+        authError={authError}
+        errorCode={oauthErrorCode}
+        errorMessage={oauthErrorMessage}
+      />
       {authDisabled ? (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
           Connexion indisponible : configurez{" "}

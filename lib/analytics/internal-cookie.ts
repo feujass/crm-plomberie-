@@ -35,7 +35,14 @@ export function setInternalAnalyticsCookieClient(): void {
 
 export function hasInternalAnalyticsCookie(): boolean {
   if (typeof document === "undefined") return false;
-  return document.cookie.split(";").some((c) => c.trim().startsWith(`${COOKIE_NAME}=1`));
+  const raw = document.cookie;
+  if (!raw) return false;
+  return raw.split(";").some((c) => c.trim().startsWith(`${COOKIE_NAME}=1`));
+}
+
+export function clearInternalAnalyticsCookieClient(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 /** Pose le cookie interne si l'utilisateur connecté est membre de l'équipe. */

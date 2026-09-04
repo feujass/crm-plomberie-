@@ -7,12 +7,17 @@ import { attachReferralFromCookie } from "@/lib/affiliate/server";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import {
   PENDING_CHECKOUT_COOKIE,
-  parsePendingCheckout,
   type PendingCheckout,
 } from "@/lib/auth/pending-checkout";
 import { resolvePostAuthRedirect } from "@/lib/auth/post-auth-redirect";
 import { isFlowoBilling, isFlowoPlanId } from "@/lib/stripe/plans";
 import { supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
+
+function redirectWithGoogleOAuthSuccess(redirectPath: string, origin: string): URL {
+  const dest = new URL(redirectPath, origin);
+  dest.searchParams.set("google_oauth", "success");
+  return dest;
+}
 
 function readPendingCheckoutFromUrl(url: URL): PendingCheckout | null {
   const plan = url.searchParams.get("plan")?.trim() ?? "";
@@ -27,6 +32,7 @@ export async function GET(request: Request) {
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type");
   const next = url.searchParams.get("next");
+  const isSignup = url.searchParams.get("signup") === "1";
   const pendingCheckout = readPendingCheckoutFromUrl(url);
 
   const cookieStore = await cookies();
@@ -93,7 +99,12 @@ export async function GET(request: Request) {
         });
       }
 
-      const response = NextResponse.redirect(new URL(redirectPath, url.origin));
+      const redirectTarget =
+        isSignup && isGoogle
+          ? redirectWithGoogleOAuthSuccess(redirectPath, url.origin)
+          : new URL(redirectPath, url.origin);
+
+      const response = NextResponse.redirect(redirectTarget);
       cookieStore.getAll().forEach((cookie) => {
         response.cookies.set(cookie.name, cookie.value);
       });
@@ -111,7 +122,18 @@ export async function GET(request: Request) {
     }
 
     console.warn("[auth/callback]", authResult.error?.message);
+    const errorParams = new URLSearchParams({
+      auth_error: "callback",
+      oauth_error_code: authResult.error?.code ?? authResult.error?.name ?? "callback",
+      oauth_error_message: authResult.error?.message ?? "Échec de la connexion Google",
+    });
+    return NextResponse.redirect(new URL(`/login?${errorParams.toString()}`, url.origin));
   }
 
-  return NextResponse.redirect(new URL("/login?auth_error=callback", url.origin));
+  const errorParams = new URLSearchParams({
+    auth_error: "callback",
+    oauth_error_code: "missing_code",
+    oauth_error_message: "Code OAuth manquant ou invalide",
+  });
+  return NextResponse.redirect(new URL(`/login?${errorParams.toString()}`, url.origin));
 }

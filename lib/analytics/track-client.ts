@@ -1,9 +1,6 @@
 import type { AnalyticsEventPayload } from "@/lib/analytics/types";
 import { hasInternalAnalyticsCookie } from "@/lib/analytics/internal-cookie";
-import {
-  eventTypesWithAttribution,
-  readSessionAttribution,
-} from "@/lib/analytics/session-attribution";
+import { readSessionAttribution, shouldAttachAttribution } from "@/lib/analytics/session-attribution";
 
 const TRACK_ENDPOINT = "/api/track";
 
@@ -16,7 +13,7 @@ function withInternalFlag(payload: AnalyticsEventPayload): AnalyticsEventPayload
 export function buildAnalyticsRequestBody(payload: AnalyticsEventPayload): AnalyticsEventPayload {
   const bodyPayload = withInternalFlag({ ...payload });
 
-  if (eventTypesWithAttribution().has(payload.event_type)) {
+  if (shouldAttachAttribution(payload.event_type)) {
     bodyPayload.attribution = readSessionAttribution();
   }
 
