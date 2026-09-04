@@ -10,6 +10,11 @@ import { buildDemoDevisPrompt } from "@/lib/demo/prompt";
 import { renderBlurredPreviewPngBase64 } from "@/lib/demo/preview-image";
 import { previewLinesFromQuote, computeDemoTotalTtc } from "@/lib/demo/quote-math";
 import { assertDemoRateLimit, recordDemoUsage } from "@/lib/demo/rate-limit";
+import {
+  DEMO_ALREADY_USED_MESSAGE,
+  demoPreviewPayloadFromRow,
+  fetchDemoQuoteForSession,
+} from "@/lib/demo/session-preview";
 import { anthropicDemoMaxTokens, anthropicDemoModel } from "@/lib/llm/anthropicConfig";
 import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
@@ -44,6 +49,16 @@ export async function POST(req: Request) {
   }
   if (text.length > MAX_TEXT_LEN) {
     return NextResponse.json({ message: "Description trop longue pour la démo.", code: "invalid_input" }, { status: 400 });
+  }
+
+  const { id: demoSessionId, setCookie } = await ensureDemoSessionId();
+  const existing = await fetchDemoQuoteForSession(demoSessionId);
+  if (existing) {
+    const preview = await demoPreviewPayloadFromRow(existing);
+    return NextResponse.json(
+      { message: DEMO_ALREADY_USED_MESSAGE, code: "demo_already_used", ...preview },
+      { status: 409 },
+    );
   }
 
   const rate = await assertDemoRateLimit(req);
@@ -89,7 +104,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Aperçu indisponible.", code: "generation_failed" }, { status: 500 });
   }
 
-  const { id: demoSessionId, setCookie } = await ensureDemoSessionId();
   const admin = createAdminClient();
   const { data: inserted, error } = await admin
     .from("demo_quotes")

@@ -37,7 +37,20 @@ export function MarketingHeroVoiceDemo() {
   const speechTranscriptRef = useRef<string>("");
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/public/demo/status");
+        const json = (await res.json()) as { used?: boolean; preview?: DemoPreviewPayload };
+        if (cancelled || !json.used || !json.preview) return;
+        setPreview(json.preview);
+        setPhase("preview");
+      } catch {
+        /* première visite */
+      }
+    })();
     return () => {
+      cancelled = true;
       if (timerRef.current) window.clearInterval(timerRef.current);
       speechRef.current?.stop();
       recorderRef.current?.abort();
@@ -74,6 +87,18 @@ export function MarketingHeroVoiceDemo() {
         trackFunnelEvent("demo_rate_limited", { properties: { reason: json.reason ?? "unknown" } });
         setRateLimitMessage(json.message ?? "Limite démo atteinte.");
         setPhase("rate_limited");
+        return;
+      }
+
+      if (res.status === 409 || json.code === "demo_already_used") {
+        setPreview({
+          demo_quote_id: json.demo_quote_id,
+          preview_image_base64: json.preview_image_base64,
+          preview_lines: json.preview_lines,
+          line_count: json.line_count,
+          total_ttc: json.total_ttc,
+        });
+        setPhase("preview");
         return;
       }
 
@@ -278,16 +303,6 @@ export function MarketingHeroVoiceDemo() {
           >
             Créer mon compte — voir le devis complet
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              setPhase("idle");
-              setPreview(null);
-            }}
-            className="w-full text-center text-xs text-slate-500 hover:underline"
-          >
-            Refaire une démo
-          </button>
         </div>
       ) : phase === "rate_limited" ? (
         <div className="space-y-3 text-center">
