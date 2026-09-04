@@ -23,11 +23,9 @@ export async function POST(req: Request) {
   }
 
   const mimeType = file.type || "audio/webm";
-  try {
-    const transcript = await transcribeDemoAudio(buffer, mimeType);
-    return NextResponse.json({ transcript });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Transcription impossible";
-    return NextResponse.json({ message, code: "transcription_failed" }, { status: 422 });
+  const result = await transcribeDemoAudio(buffer, mimeType);
+  if (!result.ok) {
+    return NextResponse.json({ message: result.message, code: result.code }, { status: 422 });
   }
+  return NextResponse.json({ transcript: result.transcript });
 }

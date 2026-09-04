@@ -44,8 +44,11 @@ function speechErrorMessage(code: string): string {
   }
 }
 
-/** Transcription vocale côté navigateur (Chrome recommandé) — sans API OpenAI. */
-export function listenForSpeech(options?: { lang?: string }): {
+/** Transcription vocale côté navigateur (Chrome, Safari…) — sans API OpenAI. */
+export function listenForSpeech(options?: {
+  lang?: string;
+  onInterim?: (text: string) => void;
+}): {
   stop: () => void;
   promise: Promise<string>;
 } {
@@ -93,6 +96,7 @@ export function listenForSpeech(options?: { lang?: string }): {
         const chunk = ev.results[i]?.[0]?.transcript?.trim();
         if (chunk) parts[i] = chunk;
       }
+      options?.onInterim?.(parts.filter(Boolean).join(" ").trim());
     };
 
     rec.onerror = (ev) => {

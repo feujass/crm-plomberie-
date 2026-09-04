@@ -32,7 +32,7 @@ export function MarketingHeroVoiceDemo() {
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
   const recorderRef = useRef<DemoAudioRecorder | null>(null);
-  const speechRef = useRef<{ stop: () => void } | null>(null);
+  const speechRef = useRef<{ stop: () => void; promise: Promise<string> } | null>(null);
   const timerRef = useRef<number | null>(null);
   const speechTranscriptRef = useRef<string>("");
 
@@ -106,28 +106,52 @@ export function MarketingHeroVoiceDemo() {
 
   const finishRecording = useCallback(async () => {
     stopTimers();
-    speechRef.current?.stop();
-    speechRef.current = null;
+    setPhase("processing");
+    setError(null);
 
     let transcript = speechTranscriptRef.current.trim();
     let durationMs = elapsedMs;
+    const speech = speechRef.current;
+    speechRef.current = null;
+
+    if (speech) {
+      speech.stop();
+      try {
+        transcript = (await Promise.race([
+          speech.promise,
+          new Promise<string>((_, reject) =>
+            window.setTimeout(() => reject(new Error("speech_timeout")), 5000),
+          ),
+        ])).trim();
+        speechTranscriptRef.current = transcript;
+      } catch {
+        transcript = speechTranscriptRef.current.trim();
+      }
+    }
 
     try {
       const rec = recorderRef.current;
-      if (rec) {
+      if (rec && !transcript) {
         const stopped = await rec.stop();
         durationMs = stopped.durationMs;
-        if (!transcript && stopped.blob.size > 0) {
+        if (stopped.blob.size > 0) {
           const form = new FormData();
           form.append("audio", stopped.blob, stopped.mimeType.includes("mp4") ? "demo.m4a" : "demo.webm");
           const tr = await fetch("/api/public/demo/transcribe", { method: "POST", body: form });
-          const trJson = (await tr.json().catch(() => ({}))) as { transcript?: string; message?: string };
-          if (tr.ok && trJson.transcript) transcript = trJson.transcript.trim();
-          else if (!transcript) throw new Error(trJson.message ?? "Transcription impossible");
+          const trJson = (await tr.json().catch(() => ({}))) as { transcript?: string; message?: string; code?: string };
+          if (tr.ok && trJson.transcript) {
+            transcript = trJson.transcript.trim();
+          } else if (trJson.code === "transcription_unconfigured") {
+            setShowText(true);
+            throw new Error("Écris ton chantier ci-dessous — la transcription vocale n'est pas disponible sur ce navigateur.");
+          } else if (!transcript) {
+            throw new Error(trJson.message ?? "Transcription impossible");
+          }
         }
+      } else if (rec) {
+        rec.abort();
       }
     } catch (e) {
-      recorderRef.current?.abort();
       recorderRef.current = null;
       const msg = e instanceof Error ? e.message : "Enregistrement impossible";
       trackFunnelEvent("demo_generation_error", { properties: { reason: "transcription", message: msg } });
@@ -142,7 +166,8 @@ export function MarketingHeroVoiceDemo() {
     });
 
     if (!transcript) {
-      setError("Aucune parole détectée. Réessaie ou écris ton chantier.");
+      setShowText(true);
+      setError("Aucune parole détectée. Réessaie ou écris ton chantier ci-dessous.");
       setPhase("error");
       return;
     }
@@ -157,21 +182,28 @@ export function MarketingHeroVoiceDemo() {
     speechTranscriptRef.current = "";
     trackFunnelEvent("demo_start", { properties: { source: "hero" } });
 
-    try {
-      const rec = new DemoAudioRecorder();
-      recorderRef.current = rec;
-      await rec.start(() => setWave((w) => (w + 1) % 5));
+    const useBrowserSpeech = isBrowserSpeechRecognitionSupported();
 
-      if (isBrowserSpeechRecognitionSupported()) {
-        const speech = listenForSpeech({ lang: "fr-FR" });
+    try {
+      if (useBrowserSpeech) {
+        const speech = listenForSpeech({
+          lang: "fr-FR",
+          onInterim: (text) => {
+            if (text) speechTranscriptRef.current = text;
+          },
+        });
         speechRef.current = speech;
         speech.promise
           .then((t) => {
             speechTranscriptRef.current = t;
           })
           .catch(() => {
-            /* transcription serveur en secours */
+            /* secours en fin d'enregistrement */
           });
+      } else {
+        const rec = new DemoAudioRecorder();
+        recorderRef.current = rec;
+        await rec.start(() => setWave((w) => (w + 1) % 5));
       }
 
       setPhase("recording");
@@ -180,6 +212,7 @@ export function MarketingHeroVoiceDemo() {
       timerRef.current = window.setInterval(() => {
         const ms = Date.now() - started;
         setElapsedMs(ms);
+        setWave((w) => (w + 1) % 5);
         if (ms >= DEMO_MAX_RECORDING_MS) void finishRecording();
       }, 200);
 
