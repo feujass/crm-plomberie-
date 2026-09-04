@@ -11,6 +11,7 @@ const ALLOWED_EVENTS = new Set<AnalyticsEventPayload["event_type"]>([
   "page_exit",
   "landing_view",
   "cta_click",
+  "cta_to_demo_click",
   "video_play",
   "video_25",
   "video_50",

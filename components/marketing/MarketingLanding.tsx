@@ -4,6 +4,7 @@ import { FAQ } from "@/components/marketing/FAQ";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingFunnelTracker } from "@/components/marketing/MarketingFunnelTracker";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
+import { HeroTryZeusButton } from "@/components/marketing/HeroTryZeusButton";
 import { MarketingHeroVoiceDemo } from "@/components/marketing/MarketingHeroVoiceDemo";
 import { MarketingPreviewCarousel } from "@/components/marketing/MarketingPreviewCarousel";
 import { MarketingStickyCta } from "@/components/marketing/MarketingStickyCta";
@@ -45,42 +46,36 @@ export function MarketingLanding() {
       <section className="px-4 pb-16 pt-8 md:pb-20 md:pt-10 lg:px-8 lg:pb-24 lg:pt-14">
         <div className="mx-auto max-w-2xl text-center lg:max-w-7xl lg:text-left">
           <div className="lg:grid lg:grid-cols-2 lg:items-center lg:gap-12 xl:gap-16">
-            <div>
-              <h1 className="mx-auto max-w-xl text-balance text-3xl font-bold leading-[1.15] tracking-[-0.02em] text-slate-800 dark:text-slate-100 md:text-4xl md:leading-[1.12] lg:mx-0 lg:max-w-none lg:text-[2.75rem] xl:text-5xl">
-                Le CRM fait pour les plombiers qui n&apos;ont pas le temps de taper.
-              </h1>
-              <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-slate-600 dark:text-slate-400 md:mt-6 md:text-lg lg:mx-0 lg:max-w-xl lg:text-xl">
-                Parle de ton chantier à voix haute. Zeus rédige le devis, calcule les totaux et l&apos;envoie à ton client en
-                moins de 30 secondes.
-              </p>
-              <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
-                <Link
-                  href="/register"
-                  data-cta-location="hero"
-                  className={cx(
-                    focusRing,
-                    "inline-flex min-h-12 items-center justify-center rounded-xl bg-[color:var(--primary)] px-8 text-base font-semibold text-white shadow-md hover:opacity-95",
-                  )}
-                >
-                  Créer mon premier devis
-                </Link>
-                <Link
-                  href="#demo"
-                  className={cx(
-                    focusRing,
-                    "inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-base font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800",
-                  )}
-                >
-                  C&apos;est quoi Flowo ?
-                </Link>
-              </div>
-              <p className="mx-auto mt-4 max-w-lg text-sm text-slate-500 lg:mx-0">
-                🔒 Sans carte bancaire · ⏱ 14 jours d&apos;essai · ✕ Résiliable en 1 clic
-              </p>
-            </div>
-            <div className="mt-10 lg:mt-0">
+            <h1 className="mx-auto max-w-xl text-balance text-3xl font-bold leading-[1.15] tracking-[-0.02em] text-slate-800 dark:text-slate-100 md:text-4xl md:leading-[1.12] lg:col-start-1 lg:row-start-1 lg:mx-0 lg:max-w-none lg:text-[2.75rem] xl:text-5xl">
+              Le CRM fait pour les plombiers qui n&apos;ont pas le temps de taper.
+            </h1>
+            <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-slate-600 dark:text-slate-400 md:mt-6 md:text-lg lg:col-start-1 lg:row-start-2 lg:mx-0 lg:max-w-xl lg:text-xl">
+              Parle de ton chantier à voix haute. Zeus rédige le devis, calcule les totaux et l&apos;envoie à ton client en
+              moins de 30 secondes.
+            </p>
+
+            <div
+              id="demo"
+              className="scroll-mt-24 mt-8 lg:col-start-2 lg:row-start-1 lg:row-span-4 lg:mt-0"
+            >
               <MarketingHeroVoiceDemo />
             </div>
+
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:col-start-1 lg:row-start-3 lg:justify-start">
+              <HeroTryZeusButton />
+              <Link
+                href="#video"
+                className={cx(
+                  focusRing,
+                  "inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-base font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800",
+                )}
+              >
+                C&apos;est quoi Flowo ?
+              </Link>
+            </div>
+            <p className="mx-auto mt-4 max-w-lg text-sm text-slate-500 lg:col-start-1 lg:row-start-4 lg:mx-0">
+              🔒 Sans carte bancaire · ⏱ 14 jours d&apos;essai · ✕ Résiliable en 1 clic
+            </p>
           </div>
         </div>
       </section>
@@ -102,7 +97,7 @@ export function MarketingLanding() {
 
       {/* VSL */}
       <section
-        id="demo"
+        id="video"
         className="scroll-mt-24 bg-slate-50 px-4 py-12 dark:bg-slate-950/50 md:py-16 lg:px-8 lg:py-20"
       >
         <div className="mx-auto max-w-4xl lg:max-w-7xl">

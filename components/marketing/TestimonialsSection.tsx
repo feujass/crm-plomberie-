@@ -19,31 +19,13 @@ function InitialsAvatar({ name }: { name: string }) {
 
 export function TestimonialsSection() {
   const items = TESTIMONIALS;
-  const single = items.length === 1;
+  if (items.length === 0) return null;
 
-  const reviewsJsonLd = {
-    "@context": "https://schema.org",
-    "@graph": items.map((t) => ({
-      "@type": "Review",
-      author: { "@type": "Person", name: t.displayName },
-      reviewBody: t.quote,
-      itemReviewed: {
-        "@type": "SoftwareApplication",
-        name: "Flowo",
-        applicationCategory: "BusinessApplication",
-      },
-    })),
-  };
+  const single = items.length === 1;
 
   return (
     <section className="border-y border-slate-200 bg-white px-4 py-14 dark:border-slate-800 dark:bg-slate-950 md:py-16 lg:px-8 lg:py-20">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewsJsonLd) }} />
       <div className="mx-auto max-w-4xl lg:max-w-7xl">
-        <h2 className="text-center text-2xl font-bold md:text-3xl">Ils utilisent Flowo</h2>
-        <p className="mx-auto mt-2 max-w-xl text-center text-sm text-slate-600 dark:text-slate-400">
-          Utilisé par des plombiers à Lyon, Villeurbanne et Vénissieux · phase beta
-        </p>
-
         <div className={cx("mt-10", single ? "mx-auto max-w-2xl" : "grid gap-6 md:grid-cols-2 lg:grid-cols-3")}>
           {items.map((t) => (
             <figure

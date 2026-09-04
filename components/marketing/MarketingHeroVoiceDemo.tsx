@@ -353,6 +353,7 @@ export function MarketingHeroVoiceDemo() {
                 </>
               ) : (
                 <button
+                  id="hero-demo-mic"
                   type="button"
                   onClick={() => void startRecording()}
                   className={cx(
