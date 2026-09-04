@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { deviceTypeFromUserAgent } from "@/lib/analytics/device";
+import {
+  attachInternalAnalyticsCookieIfNeeded,
+  resolveInternalAnalyticsTraffic,
+} from "@/lib/analytics/internal-request";
 import type { AnalyticsEventPayload } from "@/lib/analytics/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -56,8 +60,13 @@ function resolveCountry(req: NextRequest): string | null {
   return geoReq.geo?.country ?? req.headers.get("x-vercel-ip-country") ?? null;
 }
 
-function isInternalTraffic(req: NextRequest): boolean {
-  return req.cookies.get("flowo_internal")?.value === "1";
+function isInternalTraffic(req: NextRequest, payload: AnalyticsEventPayload): boolean {
+  return payload.is_internal === true;
+}
+
+async function resolveIsInternal(req: NextRequest, payload: AnalyticsEventPayload): Promise<boolean> {
+  if (isInternalTraffic(req, payload)) return true;
+  return resolveInternalAnalyticsTraffic(req);
 }
 
 function parsePayload(body: unknown): AnalyticsEventPayload | null {
@@ -122,7 +131,7 @@ export async function POST(req: NextRequest) {
   const country = resolveCountry(req);
   const userAgent = req.headers.get("user-agent");
   const device = deviceTypeFromUserAgent(userAgent);
-  const isInternal = isInternalTraffic(req) || payload.is_internal === true;
+  const isInternal = await resolveIsInternal(req, payload);
   const attr = payload.attribution;
 
   const fieldFromProps =
@@ -193,5 +202,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  attachInternalAnalyticsCookieIfNeeded(response, req, isInternal);
+  return response;
 }

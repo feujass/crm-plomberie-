@@ -1,4 +1,5 @@
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
+import { InternalAnalyticsBootstrap } from "@/components/analytics/InternalAnalyticsBootstrap";
 import { CookieConsentBanner } from "@/components/legal/CookieConsentBanner";
 import { AnalyticsProvider } from "@/components/legal/AnalyticsProvider";
 import { ChunkLoadAutoReload } from "@/components/debug/ChunkLoadAutoReload";
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <CookieConsentBanner />
           <AnalyticsProvider />
+          <InternalAnalyticsBootstrap />
           <AnalyticsTracker />
         </ThemeProvider>
       </body>
