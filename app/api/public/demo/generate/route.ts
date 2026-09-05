@@ -9,6 +9,12 @@ import {
 import { buildDemoDevisPrompt } from "@/lib/demo/prompt";
 import { renderBlurredPreviewPngBase64 } from "@/lib/demo/preview-image";
 import { previewLinesFromQuote, computeDemoTotalTtc } from "@/lib/demo/quote-math";
+import { assertDemoRateLimit, recordDemoUsage } from "@/lib/demo/rate-limit";
+import {
+  DEMO_ALREADY_USED_MESSAGE,
+  demoPreviewPayloadFromRow,
+  fetchDemoQuoteForSession,
+} from "@/lib/demo/session-preview";
 import { anthropicDemoMaxTokens, anthropicDemoModel } from "@/lib/llm/anthropicConfig";
 import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
@@ -28,6 +34,13 @@ async function ensureDemoSessionId(): Promise<{ id: string; setCookie: boolean }
   return { id: newDemoSessionId(), setCookie: true };
 }
 
+function rateLimitMessage(reason: "daily" | "weekly" | "monthly_cap"): string {
+  if (reason === "monthly_cap") {
+    return "La démo est très demandée aujourd'hui. Crée ton compte pour l'essai gratuit de 14 jours.";
+  }
+  return "Tu as déjà utilisé la démo récemment. Crée ton compte pour générer autant de devis que tu veux.";
+}
+
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { text?: string } | null;
   const text = body?.text?.trim() ?? "";
@@ -39,6 +52,22 @@ export async function POST(req: Request) {
   }
 
   const { id: demoSessionId, setCookie } = await ensureDemoSessionId();
+  const existing = await fetchDemoQuoteForSession(demoSessionId);
+  if (existing) {
+    const preview = await demoPreviewPayloadFromRow(existing);
+    return NextResponse.json(
+      { message: DEMO_ALREADY_USED_MESSAGE, code: "demo_already_used", ...preview },
+      { status: 409 },
+    );
+  }
+
+  const rate = await assertDemoRateLimit(req);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { message: rateLimitMessage(rate.reason), code: "rate_limited", reason: rate.reason },
+      { status: 429 },
+    );
+  }
 
   const llm = await completeDevisGenerateLlm(buildDemoDevisPrompt(), text, {
     model: anthropicDemoModel(),
@@ -93,6 +122,8 @@ export async function POST(req: Request) {
     console.error("[demo/generate] insert", error?.message);
     return NextResponse.json({ message: "Enregistrement démo impossible.", code: "generation_failed" }, { status: 500 });
   }
+
+  await recordDemoUsage(req);
 
   const res = NextResponse.json({
     demo_quote_id: inserted.id,
