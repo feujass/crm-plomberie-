@@ -37,6 +37,3 @@ export async function demoPreviewPayloadFromRow(row: DemoQuoteRow): Promise<Demo
     total_ttc: Number(row.total_ttc),
   };
 }
-
-export const DEMO_ALREADY_USED_MESSAGE =
-  "Tu as déjà testé la démo. Crée ton compte pour générer autant de devis que tu veux.";

@@ -14,7 +14,7 @@ import { cx, focusRing } from "@/lib/utils";
 const ZEUS_AVATAR = "/zeus-avatar.png";
 const GENERATE_TIMEOUT_MS = 30_000;
 
-type Phase = "idle" | "recording" | "processing" | "preview" | "rate_limited" | "error";
+type Phase = "idle" | "recording" | "processing" | "preview" | "error";
 
 function formatSeconds(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -29,8 +29,6 @@ export function MarketingHeroVoiceDemo() {
   const [showText, setShowText] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<DemoPreviewPayload | null>(null);
-  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
-
   const recorderRef = useRef<DemoAudioRecorder | null>(null);
   const speechRef = useRef<{ stop: () => void; promise: Promise<string> } | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -82,25 +80,6 @@ export function MarketingHeroVoiceDemo() {
         code?: string;
         reason?: string;
       };
-
-      if (res.status === 429 || json.code === "rate_limited") {
-        trackFunnelEvent("demo_rate_limited", { properties: { reason: json.reason ?? "unknown" } });
-        setRateLimitMessage(json.message ?? "Limite démo atteinte.");
-        setPhase("rate_limited");
-        return;
-      }
-
-      if (res.status === 409 || json.code === "demo_already_used") {
-        setPreview({
-          demo_quote_id: json.demo_quote_id,
-          preview_image_base64: json.preview_image_base64,
-          preview_lines: json.preview_lines,
-          line_count: json.line_count,
-          total_ttc: json.total_ttc,
-        });
-        setPhase("preview");
-        return;
-      }
 
       if (!res.ok) {
         trackFunnelEvent("demo_generation_error", {
@@ -200,10 +179,18 @@ export function MarketingHeroVoiceDemo() {
     await runGenerate(transcript, "voice");
   }, [elapsedMs, runGenerate]);
 
+  const resetDemo = () => {
+    setPhase("idle");
+    setPreview(null);
+    setError(null);
+    setTextFallback("");
+    setShowText(false);
+    setElapsedMs(0);
+  };
+
   const startRecording = async () => {
     setError(null);
     setPreview(null);
-    setRateLimitMessage(null);
     speechTranscriptRef.current = "";
     trackFunnelEvent("demo_start", { properties: { source: "hero" } });
 
@@ -268,7 +255,7 @@ export function MarketingHeroVoiceDemo() {
         </div>
         <div className="min-w-0 text-left">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Essaie Zeus maintenant</p>
-          <p className="text-[11px] leading-tight text-slate-500 sm:text-xs">Aucune inscription · Décris un chantier, tu as ton devis</p>
+          <p className="text-[11px] leading-tight text-slate-500 sm:text-xs">Aucune inscription · Teste autant de chantiers que tu veux</p>
         </div>
       </div>
 
@@ -293,27 +280,28 @@ export function MarketingHeroVoiceDemo() {
           <p className="text-lg font-bold text-slate-900 dark:text-white">
             Total TTC : {preview.total_ttc.toFixed(2)} €
           </p>
-          <Link
-            href="/register?from=demo"
-            onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
-            className={cx(
-              focusRing,
-              "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white sm:min-h-11",
-            )}
-          >
-            Créer mon compte — voir le devis complet
-          </Link>
-        </div>
-      ) : phase === "rate_limited" ? (
-        <div className="space-y-3 text-center">
-          <p className="text-sm text-slate-600 dark:text-slate-300">{rateLimitMessage}</p>
-          <Link
-            href="/register?from=demo"
-            onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "rate_limited" } })}
-            className={cx(focusRing, "inline-flex min-h-11 items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white")}
-          >
-            Créer mon compte — essai gratuit 14 jours
-          </Link>
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/register?from=demo"
+              onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
+              className={cx(
+                focusRing,
+                "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white sm:min-h-11",
+              )}
+            >
+              Créer mon compte — voir le devis complet
+            </Link>
+            <button
+              type="button"
+              onClick={resetDemo}
+              className={cx(
+                focusRing,
+                "inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200",
+              )}
+            >
+              Tester un autre chantier
+            </button>
+          </div>
         </div>
       ) : (
         <>
