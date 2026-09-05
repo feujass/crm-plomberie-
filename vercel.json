@@ -1,37 +1,18 @@
 {
-  "version": 2,
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
   "crons": [
     {
-      "path": "/api/relances/devis",
+      "path": "/api/cron/relances-devis",
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/api/cron/warranty-reminders",
+      "path": "/api/cron/relances-factures",
       "schedule": "30 8 * * *"
-    }
-  ],
-  "builds": [
-    { "src": "api/relances-devis-cron.js", "use": "@vercel/node" },
-    { "src": "api/index.js", "use": "@vercel/node" },
+    },
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "public",
-        "outputDirectory": "public",
-        "buildCommand": "npm run vercel-build"
-      }
+      "path": "/api/cron/affiliate-payouts",
+      "schedule": "0 9 * * 1"
     }
-  ],
-  "routes": [
-    { "src": "/api/relances/devis", "dest": "/api/relances-devis-cron.js" },
-    { "src": "/api/(.*)", "dest": "/api/index.js" },
-    { "src": "/sign/(.*)", "dest": "/api/index.js" },
-    { "src": "/auth/(.*)", "dest": "/api/index.js" },
-    { "src": "/public/(sign|accept)/(.*)", "dest": "/api/index.js" },
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/index.html", "dest": "/index.html" },
-    { "src": "/assets/(.*)", "dest": "/assets/$1" },
-    { "src": "/(.*)", "dest": "/$1" }
   ]
 }

@@ -1,9 +1,29 @@
 .env
+.env*.local
+.env.vercel
 node_modules/
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+# Dossier volumineux d’imports (référence) — ne doit pas impacter Next/TS/Git
+_incoming/
 data/
 .DS_Store
 .vercel
+debug-session-0f238e.ndjson
+debug-session-0f238e-peek.json
+/public/e394-last-session.json
+/public/_crm_browser_probe.json
+/public/videos/flowo-vsl.mp4
+.cursor/debug-0f238e.log
 
-# Build Vite (ne jamais versionner : les hash changent à chaque build → casse le déploiement Vercel)
+# Sentinel local uniquement — active la route `/api/debug/session-log` sans variable d'environnement
+.session-debug-enable
+.next/
+.turbo/
+out/
+
+# Legacy Vite build artifacts (si présents)
 /public/index.html
 /public/assets/
+.env*
