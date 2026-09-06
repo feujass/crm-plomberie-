@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { resolveClientLogoDisplayUrl } from "@/lib/supabase/client-logo-display";
+import { isAllowedLogoUrl } from "@/lib/security/logo-url";
 import { toStorageRef } from "@/lib/supabase/logo-storage";
 import { useEffect, useState } from "react";
 
@@ -11,16 +12,23 @@ function isSupabaseEnvConfigured(): boolean {
   );
 }
 
+function sanitizeDefaultLogo(url: string): string {
+  const v = url.trim();
+  if (!v || !isAllowedLogoUrl(v)) return "";
+  return v;
+}
+
 export function LogoUploadField({ defaultUrl = "" }: { defaultUrl?: string }) {
   const supabaseOk = isSupabaseEnvConfigured();
-  const [logoUrl, setLogoUrl] = useState(defaultUrl);
-  const [displayUrl, setDisplayUrl] = useState(defaultUrl);
+  const [logoUrl, setLogoUrl] = useState(() => sanitizeDefaultLogo(defaultUrl));
+  const [displayUrl, setDisplayUrl] = useState(() => sanitizeDefaultLogo(defaultUrl));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    setLogoUrl(defaultUrl);
-    void resolveClientLogoDisplayUrl(defaultUrl).then(setDisplayUrl);
+    const safe = sanitizeDefaultLogo(defaultUrl);
+    setLogoUrl(safe);
+    void resolveClientLogoDisplayUrl(safe).then(setDisplayUrl);
   }, [defaultUrl]);
 
   useEffect(() => {

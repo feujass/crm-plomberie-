@@ -1,5 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
-import { logoUrlValidationError } from "@/lib/security/logo-url";
+import { normalizeOptionalLogoUrl } from "@/lib/security/logo-url";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -38,10 +38,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Le SIRET doit contenir 14 chiffres." }, { status: 400 });
   }
 
-  const logo_url = raw.logo_url === undefined || raw.logo_url === "" ? null : String(raw.logo_url).trim() || null;
-  const logoErr = logoUrlValidationError(logo_url);
-  if (logoErr) {
-    return NextResponse.json({ message: logoErr }, { status: 400 });
+  const logo_url = normalizeOptionalLogoUrl(raw.logo_url);
+  if (raw.logo_url != null && String(raw.logo_url).trim() && !logo_url) {
+    console.warn("[onboarding/step-1] logo_url ignorée (format invalide)", {
+      preview: String(raw.logo_url).slice(0, 80),
+    });
   }
 
   try {

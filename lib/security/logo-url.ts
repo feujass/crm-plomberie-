@@ -24,6 +24,13 @@ export function logoUrlValidationError(value: string | null | undefined): string
   return "URL de logo invalide (HTTPS, référence stockage ou image intégrée uniquement).";
 }
 
+/** Logo optionnel : vide ou invalide → null (n'bloque pas l'inscription / onboarding). */
+export function normalizeOptionalLogoUrl(value: string | null | undefined): string | null {
+  const v = String(value ?? "").trim();
+  if (!v) return null;
+  return isAllowedLogoUrl(v) ? v : null;
+}
+
 /** Extrait le chemin storage depuis une URL publique Supabase legacy ou une ref sb:// */
 export function extractLogosStoragePath(value: string): string | null {
   const v = value.trim();

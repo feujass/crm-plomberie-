@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { normalizeOptionalLogoUrl } from "@/lib/security/logo-url";
 import { METIER_OPTIONS } from "@/lib/metier-options";
 import type { OnboardingStep1Defaults } from "@/lib/onboarding/step1-defaults";
 
@@ -30,7 +31,7 @@ export function OnboardingStep1Form({ defaults }: { defaults?: OnboardingStep1De
           nom: String(fd.get("nom") || "").trim(),
           entreprise_nom: String(fd.get("entreprise_nom") || "").trim(),
           metier: String(fd.get("metier") || "").trim(),
-          logo_url: (fd.get("logo_url") as string) || null,
+          logo_url: normalizeOptionalLogoUrl(String(fd.get("logo_url") || "")),
           siret: String(fd.get("siret") || "").trim(),
           adresse: String(fd.get("adresse") || "").trim(),
           tel: String(fd.get("tel") || "").trim(),
