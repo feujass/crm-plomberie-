@@ -1,7 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { profileHasCrmAccess } from "@/lib/auth/crm-access";
+import {
+  CRM_PROFILE_GATE_SELECT,
+  profileHasCrmAccess,
+  shouldForceOnboarding,
+} from "@/lib/auth/crm-access";
 import { resolvePartnerForUser } from "@/lib/affiliate/server";
 import {
   internalAnalyticsCookieOptions,
@@ -164,12 +168,11 @@ async function middlewareSupabase(request: NextRequest) {
     if (pathname === "/login" && user) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("onboarding_steps_completed, entreprise_nom")
+        .select(CRM_PROFILE_GATE_SELECT)
         .eq("id", user.id)
         .maybeSingle();
       if (profileHasCrmAccess(profile)) {
-        const steps = Number(profile?.onboarding_steps_completed ?? 0);
-        const dest = steps < 3 ? "/onboarding/step-1" : "/accueil";
+        const dest = shouldForceOnboarding(profile) ? "/onboarding/step-1" : "/accueil";
         return withSecurityHeaders(NextResponse.redirect(new URL(dest, request.url)));
       }
     }
@@ -184,12 +187,11 @@ async function middlewareSupabase(request: NextRequest) {
     if (pathname === "/register" && user) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("onboarding_steps_completed, entreprise_nom")
+        .select(CRM_PROFILE_GATE_SELECT)
         .eq("id", user.id)
         .maybeSingle();
       if (profileHasCrmAccess(profile)) {
-        const steps = Number(profile?.onboarding_steps_completed ?? 0);
-        const dest = steps < 3 ? "/onboarding/step-1" : "/accueil";
+        const dest = shouldForceOnboarding(profile) ? "/onboarding/step-1" : "/accueil";
         return withSecurityHeaders(NextResponse.redirect(new URL(dest, request.url)));
       }
     }
@@ -210,7 +212,7 @@ async function middlewareSupabase(request: NextRequest) {
     if (isCrmPath(pathname) && !pathname.startsWith("/admin")) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("onboarding_steps_completed, entreprise_nom")
+        .select(CRM_PROFILE_GATE_SELECT)
         .eq("id", user.id)
         .maybeSingle();
 
@@ -225,15 +227,14 @@ async function middlewareSupabase(request: NextRequest) {
         pathname === "/onboarding" ||
         pathname.startsWith("/onboarding/") ||
         pathname.startsWith("/compte/") ||
+        pathname === "/devis" ||
+        pathname.startsWith("/devis/") ||
         (() => {
           const demoDevisId = request.cookies.get(DEMO_DEVIS_COOKIE)?.value;
           return Boolean(demoDevisId && pathname === `/devis/${demoDevisId}`);
         })();
-      if (!skipOnboardingRedirect) {
-        const steps = Number(profile?.onboarding_steps_completed ?? 0);
-        if (steps < 3) {
-          return withSecurityHeaders(NextResponse.redirect(new URL("/onboarding/step-1", request.url)));
-        }
+      if (!skipOnboardingRedirect && shouldForceOnboarding(profile)) {
+        return withSecurityHeaders(NextResponse.redirect(new URL("/onboarding/step-1", request.url)));
       }
     }
   }

@@ -70,6 +70,7 @@ export function LoginForm({
     });
     const json = (await res.json().catch(() => null)) as {
       redirectTo?: string;
+      redirect_to?: string;
       partnerPortal?: boolean;
       error?: string;
     } | null;
@@ -84,7 +85,8 @@ export function LoginForm({
       return;
     }
     if (isInternalAnalyticsEmail(email)) setInternalAnalyticsCookieClient();
-    router.replace(redirectTo);
+    const destination = json?.redirectTo ?? json?.redirect_to ?? redirectTo;
+    router.replace(destination);
   }
 
   return (

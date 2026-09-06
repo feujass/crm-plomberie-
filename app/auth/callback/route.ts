@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { initOAuthGoogleProfile } from "@/lib/auth/init-oauth-profile";
+import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
-import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import {
   PENDING_CHECKOUT_COOKIE,
@@ -84,6 +84,24 @@ export async function GET(request: Request) {
         }
       }
 
+      if (user.email) {
+        await ensureArtisanProfile(user.id, user.email);
+      }
+
+      let linkedDevisId: string | null = null;
+      try {
+        const demoCookie = cookieStore.get("flowo_demo_id")?.value;
+        if (demoCookie) {
+          const linked = await linkDemoQuoteToUser(user.id, demoCookie);
+          if (linked.devisId) {
+            linkedDevisId = linked.devisId;
+            console.info("[auth/callback] demo devis linked", { userId: user.id, devisId: linked.devisId });
+          }
+        }
+      } catch (e) {
+        console.error("[auth/callback] demo link failed", e);
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("onboarding_steps_completed")
@@ -96,23 +114,9 @@ export async function GET(request: Request) {
       } else {
         redirectPath = resolvePostAuthRedirect({
           onboardingStepsCompleted: Number(profile?.onboarding_steps_completed ?? 0),
-          next,
+          next: linkedDevisId ? null : next,
           pendingCheckout: profile && Number(profile.onboarding_steps_completed ?? 0) >= 3 ? pendingCheckout : null,
         });
-      }
-
-      let demoDevisId: string | null = null;
-      if (isSignup || url.searchParams.get("from") === "demo") {
-        try {
-          const demoCookie = cookieStore.get("flowo_demo_id")?.value;
-          const linked = await linkDemoQuoteToUser(user.id, demoCookie);
-          if (linked.devisId) {
-            demoDevisId = linked.devisId;
-            redirectPath = `/devis/${linked.devisId}?view=preview&from=demo`;
-          }
-        } catch {
-          /* demo link best-effort */
-        }
       }
 
       const redirectTarget =
@@ -121,9 +125,7 @@ export async function GET(request: Request) {
           : new URL(redirectPath, url.origin);
 
       const response = NextResponse.redirect(redirectTarget);
-      if (demoDevisId) {
-        response.cookies.set(DEMO_DEVIS_COOKIE, demoDevisId, demoDevisCookieOptions());
-      }
+
       cookieStore.getAll().forEach((cookie) => {
         response.cookies.set(cookie.name, cookie.value);
       });

@@ -14,8 +14,8 @@ import { validatePassword } from "@/lib/security/password-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
+import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
-import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { saveMinimalSupabaseProfile, saveSupabaseProfile } from "@/lib/supabase/save-profile";
@@ -164,15 +164,23 @@ export async function POST(req: Request) {
 
     await attachReferralFromCookie(userId);
 
-    let redirectTo: string | null = null;
+    const ensured = await ensureArtisanProfile(userId, email);
+    if (!ensured.ok) {
+      console.error("[auth/register] ensureArtisanProfile failed", ensured.message);
+    }
+
+    let linkedDevisId: string | null = null;
     try {
       const demoCookie = (await cookies()).get("flowo_demo_id")?.value;
       const linked = await linkDemoQuoteToUser(userId, demoCookie);
       if (linked.devisId) {
-        redirectTo = `/devis/${linked.devisId}?view=preview&from=demo`;
+        linkedDevisId = linked.devisId;
+        console.info("[auth/register] demo devis linked", { userId, devisId: linked.devisId });
+      } else if (demoCookie) {
+        console.warn("[auth/register] demo cookie present but no devis linked", { userId, demoCookie });
       }
     } catch (e) {
-      console.error("[auth/register] demo link", e);
+      console.error("[auth/register] demo link failed", e);
     }
 
     if (!hasSession && userId) {
@@ -223,15 +231,11 @@ export async function POST(req: Request) {
     trackRegister(true);
     const successBody: Record<string, unknown> = {
       user: { id: userId, email, role: "user" },
+      redirect_to: "/accueil",
     };
-    if (redirectTo) successBody.redirect_to = redirectTo;
+    if (linkedDevisId) successBody.linked_devis_id = linkedDevisId;
 
-    const successRes = NextResponse.json(successBody, { status: 200 });
-    if (redirectTo) {
-      const devisId = redirectTo.split("/devis/")[1]?.split("?")[0];
-      if (devisId) successRes.cookies.set(DEMO_DEVIS_COOKIE, devisId, demoDevisCookieOptions());
-    }
-    return successRes;
+    return NextResponse.json(successBody, { status: 200 });
   }
 
   let base: string;

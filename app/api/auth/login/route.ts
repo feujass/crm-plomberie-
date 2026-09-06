@@ -6,7 +6,13 @@ import { captureLandingLead, resolveRequestCountry } from "@/lib/analytics/captu
 import { setAuthCookies } from "@/lib/backend/cookies";
 import { backendBaseUrl } from "@/lib/backend/config";
 import { fastApiDetailMessage } from "@/lib/backend/fastApiDetail";
-import { profileHasCrmAccess } from "@/lib/auth/crm-access";
+import {
+  CRM_PROFILE_GATE_SELECT,
+  logCrmAccessDenied,
+  profileHasCrmAccess,
+} from "@/lib/auth/crm-access";
+import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
+import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
 export async function POST(req: Request) {
@@ -56,13 +62,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
 
+    const userId = data.user.id;
+    const ensured = await ensureArtisanProfile(userId, email);
+    if (!ensured.ok) {
+      console.error("[auth/login] ensureArtisanProfile failed", ensured.message);
+    }
+
+    try {
+      const demoCookie = cookieStore.get("flowo_demo_id")?.value;
+      const linked = await linkDemoQuoteToUser(userId, demoCookie);
+      if (linked.devisId) {
+        console.info("[auth/login] demo devis linked", { userId, devisId: linked.devisId });
+      }
+    } catch (e) {
+      console.error("[auth/login] demo link failed", e);
+    }
+
     const { data: profile } = await supabase
       .from("profiles")
-      .select("onboarding_steps_completed, entreprise_nom")
-      .eq("id", data.user.id)
+      .select(CRM_PROFILE_GATE_SELECT)
+      .eq("id", userId)
       .maybeSingle();
 
     if (!profileHasCrmAccess(profile)) {
+      logCrmAccessDenied("auth/login", userId, data.user.email, profile);
       await supabase.auth.signOut();
       const noAccessMsg =
         "Ce compte n'a pas d'accès CRM Flowo. Utilisez l'espace partenaire si vous êtes affilié, ou créez un compte artisan.";
@@ -71,6 +94,7 @@ export async function POST(req: Request) {
         {
           error: noAccessMsg,
           partnerPortal: true,
+          code: "no_crm_access",
         },
         { status: 403 },
       );
@@ -87,6 +111,7 @@ export async function POST(req: Request) {
           nom: u.user_metadata?.nom ?? "",
           role: "user",
         },
+        redirectTo: "/accueil",
       },
       { status: 200 },
     );
