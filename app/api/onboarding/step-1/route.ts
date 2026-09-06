@@ -1,4 +1,5 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
+import { METIER_OPTIONS } from "@/lib/metier-options";
 import { normalizeOptionalLogoUrl } from "@/lib/security/logo-url";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
   const nom = String(raw.nom || "").trim();
   const entreprise = String(raw.entreprise_nom || "").trim();
   const metier = String(raw.metier || "artisan_btp").trim();
+  const metierLabel =
+    METIER_OPTIONS.find((option) => option.value === metier)?.label ?? metier;
   const siret = String(raw.siret || "").trim();
   const adresse = String(raw.adresse || "").trim();
   const tel = String(raw.tel || "").trim();
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         entreprise: entreprise || null,
         metier,
-        specialites: metier,
+        specialites: metierLabel,
         logo_url,
         siret: siret ? siret.replace(/\D/g, "") : null,
         adresse: adresse || null,

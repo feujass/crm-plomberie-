@@ -456,3 +456,11 @@ create index if not exists analytics_events_event_type_idx
 comment on table public.analytics_sessions is 'Attribution UTM/referrer/device par session analytics (1ʳᵉ page vue)';
 
 alter table public.analytics_sessions enable row level security;
+
+-- Métier artisan (onboarding step-1, compte, prompts IA).
+alter table public.profiles
+  add column if not exists metier text,
+  add column if not exists specialites text;
+
+comment on column public.profiles.metier is 'Code métier (plomberie, electricite, …)';
+comment on column public.profiles.specialites is 'Libellé libre / domaines d''intervention affichés dans l''app';

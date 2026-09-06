@@ -34,6 +34,8 @@ export function mapSupabaseProfile(row: SupabaseProfileRow | null | undefined): 
     email_facturation: (row.email_facturation as string) ?? "",
     logo_url: (row.logo_url as string) ?? "",
     avatar_url: (row.avatar_url as string) ?? "",
+    metier: (row.metier as string) ?? undefined,
+    specialites: (row.specialites as string) ?? undefined,
     tva_defaut: row.tva_defaut != null ? Number(row.tva_defaut) : undefined,
     sep_fourniture_pose: row.sep_fourniture_pose as boolean | undefined,
     structure_devis: (row.structure_devis as string) ?? undefined,
