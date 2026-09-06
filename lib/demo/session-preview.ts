@@ -39,4 +39,4 @@ export async function demoPreviewPayloadFromRow(row: DemoQuoteRow): Promise<Demo
 }
 
 export const DEMO_ALREADY_USED_MESSAGE =
-  "Tu as déjà testé la démo. Crée ton compte pour générer autant de devis que tu veux.";
+  "Tu as déjà un aperçu démo sur cet appareil. Crée ton compte pour voir le devis complet, ou efface les cookies du site pour recommencer.";

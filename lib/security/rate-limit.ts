@@ -42,8 +42,8 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
 }
 
 export const RATE_LIMITS = {
-  authLogin: { max: 12, windowMs: 15 * 60_000 },
-  authRegister: { max: 6, windowMs: 60 * 60_000 },
+  authLogin: { max: 30, windowMs: 15 * 60_000 },
+  authRegister: { max: 15, windowMs: 60 * 60_000 },
   authForgot: { max: 6, windowMs: 60 * 60_000 },
   authReset: { max: 10, windowMs: 60 * 60_000 },
   ai: { max: 30, windowMs: 60 * 60_000 },

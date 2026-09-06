@@ -16,6 +16,7 @@ import {
   setInternalAnalyticsCookieClient,
 } from "@/lib/analytics/internal-cookie";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
+import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 
 export function LoginForm({
   redirectTo,
@@ -76,7 +77,8 @@ export function LoginForm({
     } | null;
     setLoading(false);
     if (!res.ok) {
-      const msg = backendErrorMessage(json) ?? "Connexion impossible";
+      const raw = backendErrorMessage(json) ?? "Connexion impossible";
+      const msg = translateSupabaseAuthError(raw);
       setError(
         json?.partnerPortal
           ? `${msg} → utilisez l'espace partenaire.`

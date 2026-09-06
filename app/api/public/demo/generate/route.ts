@@ -34,11 +34,8 @@ async function ensureDemoSessionId(): Promise<{ id: string; setCookie: boolean }
   return { id: newDemoSessionId(), setCookie: true };
 }
 
-function rateLimitMessage(reason: "daily" | "weekly" | "monthly_cap"): string {
-  if (reason === "monthly_cap") {
-    return "La démo est très demandée aujourd'hui. Crée ton compte pour l'essai gratuit de 14 jours.";
-  }
-  return "Tu as déjà utilisé la démo récemment. Crée ton compte pour générer autant de devis que tu veux.";
+function rateLimitMessage(reason: "monthly_cap"): string {
+  return "La démo est très demandée ce mois-ci. Crée ton compte pour l'essai gratuit de 14 jours.";
 }
 
 export async function POST(req: Request) {

@@ -23,8 +23,11 @@ export function translateSupabaseAuthError(message: string): string {
   if (/email not confirmed/i.test(m)) {
     return "Confirme ton e-mail via le lien reçu avant de te connecter.";
   }
-  if (/rate limit|too many requests/i.test(m)) {
-    return "Trop de tentatives. Attends une minute et réessaie.";
+  if (/rate limit|too many requests|over_request_rate_limit|over_email_send_rate_limit/i.test(m)) {
+    return "Trop de tentatives depuis cette connexion (Wi‑Fi partagé possible). Attends 15 à 60 minutes, ou passe en 4G, puis réessaie.";
+  }
+  if (/trop de requêtes/i.test(m)) {
+    return "Trop de tentatives depuis cette connexion. Attends quelques minutes ou passe en 4G, puis réessaie.";
   }
 
   return m;
