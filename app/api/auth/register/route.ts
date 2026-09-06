@@ -1,4 +1,3 @@
-import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -12,40 +11,15 @@ import { backendBaseUrl } from "@/lib/backend/config";
 import { fastApiDetailMessage } from "@/lib/backend/fastApiDetail";
 import { validatePassword } from "@/lib/security/password-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
+import { isSupabaseDataMode } from "@/lib/supabase/env";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
 import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
+import { registerSupabaseUserWithAdmin } from "@/lib/auth/register-supabase-user";
 import { accueilPathWithDemoDevis } from "@/lib/auth/post-auth-redirect";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
 import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
-import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
-import { saveMinimalSupabaseProfile, saveSupabaseProfile } from "@/lib/supabase/save-profile";
-
-function siretDigits(value: string): string {
-  return value.replace(/\D/g, "");
-}
-
-/** Supabase renvoie parfois un « succès » sans créer l'utilisateur si l'e-mail existe déjà. */
-function signupLooksLikeDuplicate(user: { identities?: { identity_id: string }[] } | null | undefined): boolean {
-  const identities = user?.identities;
-  return Array.isArray(identities) && identities.length === 0;
-}
-
-async function signInExistingOrError(
-  supabase: ReturnType<typeof createServerClient>,
-  email: string,
-  password: string,
-): Promise<{ userId: string } | { error: string; status: number }> {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.user) {
-    return {
-      error: "Cet e-mail est déjà utilisé. Connecte-toi ou réinitialise ton mot de passe.",
-      status: 400,
-    };
-  }
-  return { userId: data.user.id };
-}
+import { saveMinimalSupabaseProfile } from "@/lib/supabase/save-profile";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -81,68 +55,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const url = supabasePublicUrl()!;
-    const key = supabaseAnonKey()!;
-    const cookieStore = await cookies();
-    const supabase = createServerClient(url, key, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options?: Parameters<typeof cookieStore.set>[2] }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-        },
-      },
-    });
-
     const admin = createAdminClient();
-    let userId: string | undefined;
-    let hasSession = false;
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
-
-    if (error) {
-      const alreadyExists =
-        /already registered|already exists|User already registered/i.test(error.message) ||
-        error.code === "user_already_exists";
-
-      if (!alreadyExists) {
-        const translated = translateSupabaseAuthError(error.message);
-        const field = /mot de passe|password/i.test(translated) ? "password" : "email";
-        trackRegister(false, translated);
-        return NextResponse.json({ error: translated, field }, { status: 400 });
-      }
-
-      const existing = await signInExistingOrError(supabase, email, password);
-      if ("error" in existing) {
-        trackRegister(false, existing.error);
-        return NextResponse.json({ error: existing.error }, { status: existing.status });
-      }
-      userId = existing.userId;
-    } else if (!data.user?.id) {
-      trackRegister(false, "Inscription incomplète — vérifiez votre e-mail.");
-      return NextResponse.json({ error: "Inscription incomplète — vérifiez votre e-mail." }, { status: 400 });
-    } else if (signupLooksLikeDuplicate(data.user)) {
-      const existing = await signInExistingOrError(supabase, email, password);
-      if ("error" in existing) {
-        trackRegister(false, existing.error);
-        return NextResponse.json({ error: existing.error }, { status: existing.status });
-      }
-      userId = existing.userId;
-    } else {
-      const { data: adminUser } = await admin.auth.admin.getUserById(data.user.id);
-      if (!adminUser.user) {
-        const existing = await signInExistingOrError(supabase, email, password);
-        if ("error" in existing) {
-          trackRegister(false, existing.error);
-          return NextResponse.json({ error: existing.error }, { status: existing.status });
-        }
-        userId = existing.userId;
-      } else {
-        userId = data.user.id;
-        hasSession = Boolean(data.session);
-      }
+    const registered = await registerSupabaseUserWithAdmin(admin, email, password);
+    if (!registered.ok) {
+      trackRegister(false, registered.error);
+      return NextResponse.json(
+        { error: registered.error, field: registered.field ?? "email" },
+        { status: registered.status },
+      );
     }
+
+    const userId = registered.userId;
 
     const profileResult = await saveMinimalSupabaseProfile(userId, email);
     if (!profileResult.ok) {
@@ -185,51 +109,6 @@ export async function POST(req: Request) {
       console.error("[auth/register] demo link failed", e);
     }
 
-    if (!hasSession && userId) {
-      const { error: confirmError } = await admin.auth.admin.updateUserById(userId, {
-        email_confirm: true,
-      });
-      if (confirmError) {
-        console.error("[auth/register] Confirmation e-mail impossible:", confirmError.message);
-        trackRegister(true);
-        return NextResponse.json(
-          {
-            needsEmailConfirmation: true,
-            message: "Compte créé. Confirme ton e-mail via le lien reçu avant de te connecter.",
-            user: { id: userId, email, role: "user" },
-          },
-          { status: 200 },
-        );
-      }
-
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError || !signInData.session) {
-        console.error("[auth/register] Connexion auto après inscription:", signInError?.message ?? "session absente");
-        trackRegister(true);
-        return NextResponse.json(
-          {
-            user: { id: userId, email, role: "user" },
-            message: "Compte créé. Tu peux te connecter.",
-          },
-          { status: 200 },
-        );
-      }
-      hasSession = true;
-    }
-
-    if (!hasSession) {
-      trackRegister(true);
-      return NextResponse.json(
-        {
-          needsEmailConfirmation: true,
-          message:
-            "Compte créé. Consultez votre boîte e-mail et cliquez sur le lien de confirmation avant de vous connecter.",
-          user: { id: userId, email, role: "user" },
-        },
-        { status: 200 },
-      );
-    }
-
     trackRegister(true);
     const redirectTo = linkedDevisId ? accueilPathWithDemoDevis(linkedDevisId) : "/accueil";
     const response = NextResponse.json(
@@ -237,6 +116,7 @@ export async function POST(req: Request) {
         user: { id: userId, email, role: "user" },
         redirect_to: redirectTo,
         linked_devis_id: linkedDevisId,
+        client_sign_in: true,
       },
       { status: 200 },
     );

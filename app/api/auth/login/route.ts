@@ -15,6 +15,7 @@ import { accueilPathWithDemoDevis } from "@/lib/auth/post-auth-redirect";
 import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
 import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
+import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
 export async function POST(req: Request) {
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const sessionBootstrap = body.session_bootstrap === true;
   const country = resolveRequestCountry(req);
   const analyticsSessionId =
     typeof body.analytics_session_id === "string" ? body.analytics_session_id.trim() : null;
@@ -58,14 +60,35 @@ export async function POST(req: Request) {
       },
     });
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      trackLoginAttempt(false, error.message);
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    let userId: string;
+    let authUserEmail: string;
+
+    if (sessionBootstrap) {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) {
+        trackLoginAttempt(false, userError?.message ?? "Session absente");
+        return NextResponse.json({ error: "Session expirée. Réessaie de te connecter." }, { status: 401 });
+      }
+      if (email && user.email?.trim().toLowerCase() !== email) {
+        trackLoginAttempt(false, "E-mail de session incohérent");
+        return NextResponse.json({ error: "Session invalide. Réessaie de te connecter." }, { status: 401 });
+      }
+      userId = user.id;
+      authUserEmail = user.email ?? email;
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        trackLoginAttempt(false, error.message);
+        return NextResponse.json({ error: translateSupabaseAuthError(error.message) }, { status: 401 });
+      }
+      userId = data.user.id;
+      authUserEmail = data.user.email ?? email;
     }
 
-    const userId = data.user.id;
-    const ensured = await ensureArtisanProfile(userId, email);
+    const ensured = await ensureArtisanProfile(userId, authUserEmail);
     if (!ensured.ok) {
       console.error("[auth/login] ensureArtisanProfile failed", ensured.message);
     }
@@ -89,7 +112,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (!profileHasCrmAccess(profile)) {
-      logCrmAccessDenied("auth/login", userId, data.user.email, profile);
+      logCrmAccessDenied("auth/login", userId, authUserEmail, profile);
       await supabase.auth.signOut();
       const noAccessMsg =
         "Ce compte n'a pas d'accès CRM Flowo. Utilisez l'espace partenaire si vous êtes affilié, ou créez un compte artisan.";
@@ -105,14 +128,11 @@ export async function POST(req: Request) {
     }
 
     trackLoginAttempt(true);
-    const u = data.user;
     const response = NextResponse.json(
       {
         user: {
-          id: u.id,
-          email: u.email,
-          prenom: u.user_metadata?.prenom ?? "",
-          nom: u.user_metadata?.nom ?? "",
+          id: userId,
+          email: authUserEmail,
           role: "user",
         },
         redirectTo: linkedDevisId ? accueilPathWithDemoDevis(linkedDevisId) : "/accueil",

@@ -16,6 +16,7 @@ import {
   setInternalAnalyticsCookieClient,
 } from "@/lib/analytics/internal-cookie";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
+import { signInSupabaseFromBrowser } from "@/lib/auth/sign-in-browser";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 
 export function LoginForm({
@@ -64,10 +65,17 @@ export function LoginForm({
       return;
     }
     setLoading(true);
+    const signedIn = await signInSupabaseFromBrowser(email, password);
+    if (!signedIn.ok) {
+      setLoading(false);
+      setError(signedIn.message);
+      return;
+    }
+
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, analytics_session_id: getOrCreateSessionId() }),
+      body: JSON.stringify({ email, session_bootstrap: true, analytics_session_id: getOrCreateSessionId() }),
     });
     const json = (await res.json().catch(() => null)) as {
       redirectTo?: string;
@@ -88,6 +96,7 @@ export function LoginForm({
     }
     if (isInternalAnalyticsEmail(email)) setInternalAnalyticsCookieClient();
     const destination = json?.redirectTo ?? json?.redirect_to ?? redirectTo;
+    router.refresh();
     router.replace(destination);
   }
 

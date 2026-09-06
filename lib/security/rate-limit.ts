@@ -70,9 +70,6 @@ export function rateLimitResponse(retryAfterSec: number) {
 }
 
 export function matchRateLimitScope(pathname: string): keyof typeof RATE_LIMITS | null {
-  if (pathname === "/api/auth/login" || pathname === "/api/auth/partner-login") return "authLogin";
-  if (pathname === "/api/auth/partner-activate") return "authRegister";
-  if (pathname === "/api/auth/register") return "authRegister";
   if (pathname === "/api/auth/forgot-password") return "authForgot";
   if (pathname === "/api/auth/reset-password") return "authReset";
   if (pathname === "/api/compte/notifications/test") return "notificationsTest";

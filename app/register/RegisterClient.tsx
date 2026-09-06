@@ -18,6 +18,7 @@ import {
 import { setInternalAnalyticsCookieClient, isInternalAnalyticsEmail } from "@/lib/analytics/internal-cookie";
 import { trackMetaEvent } from "@/lib/analytics/meta-pixel";
 import { getOrCreateSessionId } from "@/lib/analytics/session";
+import { signInSupabaseFromBrowser } from "@/lib/auth/sign-in-browser";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { FREE_TRIAL_DAYS } from "@/lib/plans/trial";
 import { validatePassword } from "@/lib/security/password-policy";
@@ -84,8 +85,8 @@ function RegisterFormBody() {
       message?: string;
       error?: string;
       redirect_to?: string;
+      client_sign_in?: boolean;
     } | null;
-    setLoading(false);
 
     if (!res.ok) {
       const msg = translateSupabaseAuthError(json?.error ?? json?.message ?? "Inscription impossible");
@@ -99,8 +100,27 @@ function RegisterFormBody() {
       } else {
         setFormError(msg);
       }
+      setLoading(false);
       return;
     }
+
+    if (json?.client_sign_in) {
+      const signedIn = await signInSupabaseFromBrowser(trimmedEmail, password);
+      if (!signedIn.ok) {
+        trackFunnelEvent("register_error", {
+          properties: { code: "client_sign_in_failed", message: signedIn.message, field: "form" },
+        });
+        setFormError(
+          signedIn.message.includes("Compte créé")
+            ? signedIn.message
+            : `${signedIn.message} Ton compte est créé — connecte-toi depuis la page Connexion.`,
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    setLoading(false);
 
     trackFunnelEvent("register_success", { properties: { method: "email" } });
     trackMetaEvent("CompleteRegistration");
@@ -112,16 +132,19 @@ function RegisterFormBody() {
     }
 
     if (json?.redirect_to) {
+      router.refresh();
       router.replace(json.redirect_to);
       return;
     }
 
     if (isFlowoPlanId(checkoutPlan) && isFlowoBilling(checkoutBilling)) {
       const params = new URLSearchParams({ checkout: "1", plan: checkoutPlan, billing: checkoutBilling });
+      router.refresh();
       router.replace(`/compte/donnees?${params.toString()}`);
       return;
     }
 
+    router.refresh();
     router.replace("/accueil");
   }
 
