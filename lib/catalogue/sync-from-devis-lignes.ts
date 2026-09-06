@@ -5,6 +5,7 @@ import {
 import { backendFetch } from "@/lib/backend/server";
 import { catalogueLimitMessage } from "@/lib/plans/limits";
 import { loadSubscriptionContext } from "@/lib/plans/subscription-context";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { BackendDevisLine, BackendOuvrage } from "@/types/backend";
 
 export type SyncCatalogueResult = {
@@ -108,6 +109,76 @@ export async function syncDevisLignesToCatalogue(
       const msg = e instanceof Error ? e.message : "Erreur création ouvrage";
       result.errors.push(msg);
     }
+  }
+
+  return result;
+}
+
+/** Sync catalogue pour un userId donné (ex. rattachement démo LP) — best-effort, sans session. */
+export async function syncDevisLignesToCatalogueForUser(
+  userId: string,
+  lignes: BackendDevisLine[],
+): Promise<SyncCatalogueResult> {
+  const result: SyncCatalogueResult = { added: 0, skipped: 0, skippedLimit: 0, errors: [] };
+  const validLignes = lignes.filter((l) => String(l.designation || "").trim());
+  if (!validLignes.length) return result;
+
+  const admin = createAdminClient();
+  const { data: existingRows } = await admin.from("ouvrages").select("*").eq("user_id", userId);
+  const ouvrages: BackendOuvrage[] = (existingRows ?? []).map((row) => ({
+    id: String(row.id),
+    nom: String(row.nom ?? ""),
+    description: (row.description as string) ?? undefined,
+    type: (row.type as string) ?? undefined,
+    prix_ht: row.prix_ht != null ? Number(row.prix_ht) : undefined,
+    unite: (row.unite as string) ?? undefined,
+    tva: row.tva != null ? Number(row.tva) : undefined,
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : undefined,
+  }));
+
+  const pendingKeys = new Set<string>();
+  const toCreate: BackendDevisLine[] = [];
+
+  for (const ligne of validLignes) {
+    const designation = ligne.designation.trim();
+    if (findBestCatalogueMatch(designation, ouvrages)) {
+      result.skipped += 1;
+      continue;
+    }
+    const key = normalizeCatalogueText(designation);
+    if (!key || pendingKeys.has(key)) {
+      result.skipped += 1;
+      continue;
+    }
+    pendingKeys.add(key);
+    toCreate.push(ligne);
+  }
+
+  for (const ligne of toCreate) {
+    const payload = ligneToOuvragePayload(ligne);
+    const { error } = await admin.from("ouvrages").insert({
+      user_id: userId,
+      nom: payload.nom,
+      description: payload.description,
+      type: payload.type,
+      prix_ht: payload.prix_ht,
+      unite: payload.unite,
+      tva: payload.tva,
+      tags: payload.tags,
+    });
+    if (error) {
+      result.errors.push(error.message);
+      continue;
+    }
+    result.added += 1;
+    ouvrages.push({
+      id: `pending-${result.added}`,
+      nom: payload.nom,
+      type: payload.type,
+      prix_ht: payload.prix_ht,
+      unite: payload.unite,
+      tva: payload.tva,
+    });
   }
 
   return result;

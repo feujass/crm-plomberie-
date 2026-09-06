@@ -33,10 +33,17 @@ function DevisStatutPill({ statut }: { statut: string }) {
   );
 }
 
-function DevisRow({ devis }: { devis: BackendDevis }) {
-  const nom = devis.client_nom?.trim() || "—";
+function DevisRow({ devis, highlighted }: { devis: BackendDevis; highlighted?: boolean }) {
+  const nom = devis.client_nom?.trim() || "Démo LP";
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-base shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+    <div
+      className={cx(
+        "flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-base shadow-[0_1px_2px_rgba(15,23,42,0.03)]",
+        highlighted
+          ? "border-[color:var(--primary)]/40 ring-2 ring-[color:var(--primary)]/20"
+          : "border-slate-100",
+      )}
+    >
       <div className="min-w-0">
         <Link href={`/devis/${devis.id}`} className="font-semibold text-[color:var(--primary)] hover:underline">
           {devis.numero ?? "Devis"}
@@ -55,9 +62,11 @@ function DevisRow({ devis }: { devis: BackendDevis }) {
 export function AccueilDashboard({
   stats,
   monthly,
+  highlightDevisId,
 }: {
   stats: BackendDashboardStats;
   monthly: { mois: string; ca: number }[];
+  highlightDevisId?: string;
 }) {
   const kpis = [
     { label: "Devis du mois", value: String(stats.devis_du_mois ?? 0) },
@@ -90,7 +99,9 @@ export function AccueilDashboard({
         <div className="space-y-3 lg:col-span-2">
           <p className="text-base font-semibold text-[var(--foreground)]">Derniers devis</p>
           {derniersDevis.length ? (
-            derniersDevis.map((d) => <DevisRow key={d.id} devis={d} />)
+            derniersDevis.map((d) => (
+              <DevisRow key={d.id} devis={d} highlighted={Boolean(highlightDevisId && d.id === highlightDevisId)} />
+            ))
           ) : (
             <p className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-5 text-center text-base text-slate-500">
               Aucun devis pour l&apos;instant.{" "}

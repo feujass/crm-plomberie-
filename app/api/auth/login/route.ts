@@ -11,8 +11,10 @@ import {
   logCrmAccessDenied,
   profileHasCrmAccess,
 } from "@/lib/auth/crm-access";
+import { accueilPathWithDemoDevis } from "@/lib/auth/post-auth-redirect";
 import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
+import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
 export async function POST(req: Request) {
@@ -68,10 +70,12 @@ export async function POST(req: Request) {
       console.error("[auth/login] ensureArtisanProfile failed", ensured.message);
     }
 
+    let linkedDevisId: string | null = null;
     try {
       const demoCookie = cookieStore.get("flowo_demo_id")?.value;
       const linked = await linkDemoQuoteToUser(userId, demoCookie);
       if (linked.devisId) {
+        linkedDevisId = linked.devisId;
         console.info("[auth/login] demo devis linked", { userId, devisId: linked.devisId });
       }
     } catch (e) {
@@ -102,7 +106,7 @@ export async function POST(req: Request) {
 
     trackLoginAttempt(true);
     const u = data.user;
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         user: {
           id: u.id,
@@ -111,10 +115,15 @@ export async function POST(req: Request) {
           nom: u.user_metadata?.nom ?? "",
           role: "user",
         },
-        redirectTo: "/accueil",
+        redirectTo: linkedDevisId ? accueilPathWithDemoDevis(linkedDevisId) : "/accueil",
+        linked_devis_id: linkedDevisId,
       },
       { status: 200 },
     );
+    if (linkedDevisId) {
+      response.cookies.set(DEMO_DEVIS_COOKIE, linkedDevisId, demoDevisCookieOptions());
+    }
+    return response;
   }
 
   let base: string;

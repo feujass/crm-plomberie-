@@ -15,7 +15,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseDataMode, supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 import { attachReferralFromCookie } from "@/lib/affiliate/server";
 import { ensureArtisanProfile } from "@/lib/auth/ensure-artisan-profile";
+import { accueilPathWithDemoDevis } from "@/lib/auth/post-auth-redirect";
 import { linkDemoQuoteToUser } from "@/lib/demo/link-to-account";
+import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { PRIVACY_POLICY_VERSION } from "@/lib/legal/constants";
 import { translateSupabaseAuthError } from "@/lib/auth/supabase-auth-errors";
 import { saveMinimalSupabaseProfile, saveSupabaseProfile } from "@/lib/supabase/save-profile";
@@ -229,13 +231,19 @@ export async function POST(req: Request) {
     }
 
     trackRegister(true);
-    const successBody: Record<string, unknown> = {
-      user: { id: userId, email, role: "user" },
-      redirect_to: "/accueil",
-    };
-    if (linkedDevisId) successBody.linked_devis_id = linkedDevisId;
-
-    return NextResponse.json(successBody, { status: 200 });
+    const redirectTo = linkedDevisId ? accueilPathWithDemoDevis(linkedDevisId) : "/accueil";
+    const response = NextResponse.json(
+      {
+        user: { id: userId, email, role: "user" },
+        redirect_to: redirectTo,
+        linked_devis_id: linkedDevisId,
+      },
+      { status: 200 },
+    );
+    if (linkedDevisId) {
+      response.cookies.set(DEMO_DEVIS_COOKIE, linkedDevisId, demoDevisCookieOptions());
+    }
+    return response;
   }
 
   let base: string;

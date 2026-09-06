@@ -5,34 +5,12 @@ import {
   pendingCheckoutRedirectPath,
 } from "@/lib/auth/pending-checkout";
 import { cookies } from "next/headers";
-import { ONBOARDING_EXAMPLE_OUVRAGES } from "@/lib/onboarding/example-ouvrages";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-type Body = { mode?: "examples" | "skip" };
-
-export async function POST(req: Request) {
-  let raw: Body;
-  try {
-    raw = (await req.json()) as Body;
-  } catch {
-    return NextResponse.json({ message: "JSON invalide" }, { status: 400 });
-  }
-
-  const mode = raw.mode ?? "skip";
-
+export async function POST() {
   try {
     await backendFetch("/api/auth/me");
-
-    if (mode === "examples") {
-      for (const o of ONBOARDING_EXAMPLE_OUVRAGES) {
-        await backendFetch("/api/ouvrages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...o, tags: [...o.tags] }),
-        });
-      }
-    }
 
     await backendFetch("/api/profile", {
       method: "PUT",

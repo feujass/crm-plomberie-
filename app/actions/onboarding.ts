@@ -70,62 +70,7 @@ export async function onboardingStep2(formData: FormData) {
   redirect("/onboarding/step-3");
 }
 
-const EXAMPLE_OUVRAGES = [
-  {
-    nom: "Main d'œuvre plomberie",
-    description: "Intervention horaire",
-    type: "main_oeuvre",
-    prix_ht: 55,
-    unite: "h",
-    tva: 10,
-    tags: ["mo"],
-  },
-  {
-    nom: "Remplacement robinet",
-    description: "Fourniture + pose",
-    type: "ouvrage",
-    prix_ht: 120,
-    unite: "forfait",
-    tva: 10,
-    tags: ["sanitaire"],
-  },
-  {
-    nom: "Pose chauffe-eau",
-    description: "Forfait pose",
-    type: "ouvrage",
-    prix_ht: 350,
-    unite: "forfait",
-    tva: 10,
-    tags: ["chauffage"],
-  },
-] as const;
-
-export async function onboardingStep3WithExamples() {
-  await requireSession();
-
-  for (const o of EXAMPLE_OUVRAGES) {
-    await backendFetch("/api/ouvrages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...o, tags: [...o.tags] }),
-    });
-  }
-
-  await backendFetch("/api/profile", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      onboarding_step: 3,
-      onboarding_complete: true,
-    }),
-  });
-
-  revalidatePath("/onboarding");
-  revalidatePath("/accueil");
-  redirect("/accueil");
-}
-
-export async function onboardingStep3Skip() {
+export async function onboardingStep3Complete() {
   await requireSession();
 
   await backendFetch("/api/profile", {

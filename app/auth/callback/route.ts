@@ -12,6 +12,7 @@ import {
   type PendingCheckout,
 } from "@/lib/auth/pending-checkout";
 import { resolvePostAuthRedirect } from "@/lib/auth/post-auth-redirect";
+import { demoDevisCookieOptions, DEMO_DEVIS_COOKIE } from "@/lib/demo/cookie";
 import { isFlowoBilling, isFlowoPlanId } from "@/lib/stripe/plans";
 import { supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
@@ -114,8 +115,9 @@ export async function GET(request: Request) {
       } else {
         redirectPath = resolvePostAuthRedirect({
           onboardingStepsCompleted: Number(profile?.onboarding_steps_completed ?? 0),
-          next: linkedDevisId ? null : next,
+          next,
           pendingCheckout: profile && Number(profile.onboarding_steps_completed ?? 0) >= 3 ? pendingCheckout : null,
+          linkedDevisId,
         });
       }
 
@@ -137,6 +139,10 @@ export async function GET(request: Request) {
           path: "/",
           maxAge: 60 * 60,
         });
+      }
+
+      if (linkedDevisId) {
+        response.cookies.set(DEMO_DEVIS_COOKIE, linkedDevisId, demoDevisCookieOptions());
       }
 
       return response;

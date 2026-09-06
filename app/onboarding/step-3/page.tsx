@@ -7,9 +7,10 @@ export default function OnboardingStep3Page() {
   return (
     <>
       <OnboardingProgress step={3} />
-      <Card title="Étape 3 — Catalogue de départ">
+      <Card title="Étape 3 — Bibliothèque personnelle">
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          Nous pouvons ajouter trois ouvrages exemples à votre catalogue (main d&apos;œuvre, robinet, chauffe-eau).
+          Votre bibliothèque démarre vide. Elle se remplit automatiquement avec vos prix à partir de vos devis — aucun
+          tarif par défaut ne sera imposé.
         </p>
         <OnboardingStep3Forms />
         <div className="mt-4 flex justify-center">

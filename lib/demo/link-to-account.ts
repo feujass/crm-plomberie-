@@ -1,4 +1,5 @@
 import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
+import { syncDevisLignesToCatalogueForUser } from "@/lib/catalogue/sync-from-devis-lignes";
 import { readDemoSessionId } from "@/lib/demo/cookie";
 import type { DevisIaResponse } from "@/lib/schemas/devis-ia";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -101,6 +102,23 @@ export async function linkDemoQuoteToUser(
 
   const devisId = String(devis.id);
   await insertDevisLignes(admin, devisId, lignesIn);
+
+  try {
+    await syncDevisLignesToCatalogueForUser(
+      userId,
+      quote.lignes.map((l) => ({
+        designation: l.designation,
+        quantite: l.quantite,
+        unite: l.unite,
+        prix_ht: l.prix_ht,
+        tva: l.tva,
+        section: l.section ?? "",
+        ligne_type: l.ligne_type,
+      })),
+    );
+  } catch (e) {
+    console.warn("[demo/link] catalogue sync failed", e);
+  }
 
   await admin
     .from("demo_quotes")

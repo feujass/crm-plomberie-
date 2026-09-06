@@ -202,55 +202,34 @@ export function OnboardingStep2Form() {
 export function OnboardingStep3Forms() {
   const router = useRouter();
   const [err, setErr] = useState<string | null>(null);
-  const [which, setWhich] = useState<null | "examples" | "skip">(null);
-
-  async function run(mode: "examples" | "skip") {
-    setErr(null);
-    setWhich(mode);
-    try {
-      const res = await fetch("/api/onboarding/step-3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { redirect?: string; message?: string };
-      if (!res.ok) {
-        setErr(json.message ?? `Erreur ${res.status}`);
-        return;
-      }
-      router.push(typeof json.redirect === "string" ? json.redirect : "/accueil");
-      router.refresh();
-    } finally {
-      setWhich(null);
-    }
-  }
+  const [pending, setPending] = useState(false);
 
   return (
     <div className="space-y-3">
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="flex-1">
-          <Button
-            type="button"
-            className="w-full"
-            disabled={which !== null}
-            onClick={() => void run("examples")}
-          >
-            {which === "examples" ? "…" : "Démarrer avec ces exemples"}
-          </Button>
-        </div>
-        <div className="flex-1">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            disabled={which !== null}
-            onClick={() => void run("skip")}
-          >
-            {which === "skip" ? "…" : "Passer"}
-          </Button>
-        </div>
-      </div>
+      <Button
+        type="button"
+        className="w-full"
+        disabled={pending}
+        onClick={async () => {
+          setErr(null);
+          setPending(true);
+          try {
+            const res = await fetch("/api/onboarding/step-3", { method: "POST" });
+            const json = (await res.json().catch(() => ({}))) as { redirect?: string; message?: string };
+            if (!res.ok) {
+              setErr(json.message ?? `Erreur ${res.status}`);
+              return;
+            }
+            router.push(typeof json.redirect === "string" ? json.redirect : "/accueil");
+            router.refresh();
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        {pending ? "…" : "Continuer"}
+      </Button>
     </div>
   );
 }
