@@ -38,7 +38,7 @@ type TvaCategory =
   | "inconnu";
 
 const CHAUDIERE_GAZ =
-  /chaudi[eè]re.*(gaz|gazoil)|remplacement.*chaudi[eè]re|chaudi[eè]re.*(condensation|murale|thpe)/i;
+  /chaudi[eè]re.*(gaz|gazoil)|remplacement.*chaudi[eè]re|chaudi[eè]re.*(condensation|murale|thpe)|\bcondensation\b.*chaudi[eè]re/i;
 const ENTRETIEN_CHAUDIERE = /entretien.*chaudi[eè]re|maintenance.*chaudi[eè]re|r[eé]vision.*chaudi[eè]re/i;
 const DECARBONISE =
   /pompe [àa] chaleur|\bpac\b|biomasse|granul[eé]|solaire thermique|chauffe-eau thermodynamique|isolation|ite\b|iti\b|doublage isolant/i;
@@ -46,11 +46,11 @@ const RENOVATION_ENTRETIEN =
   /plomberie|sanitaire|d[eé]pannage|r[eé]paration|d[eé]sembouage|d[eé]tartrage|robinet|mitigeur|wc\b|douche|salle de bain|tubage|ventouse/i;
 
 /** Taux attendu selon la prestation détectée (null si ambigu). */
-export function expectedTvaRate(designation: string, ctx: TvaContext = {}): number | null {
+export function expectedTvaRate(designation: string, ctx: TvaContext = {}, transcript = ""): number | null {
   const d = designation.trim();
   if (!d) return null;
 
-  const cat = categorizePrestation(d, ctx);
+  const cat = categorizePrestation(d, ctx, transcript);
   switch (cat) {
     case "chaudiere_gaz_remplacement":
       return 20;
@@ -69,12 +69,40 @@ export function expectedTvaRate(designation: string, ctx: TvaContext = {}): numb
   }
 }
 
-function categorizePrestation(designation: string, ctx: TvaContext): TvaCategory {
+/** Contexte TVA déduit de la dictée complète (pas seulement la désignation ligne). */
+export function buildTvaContextFromTranscript(transcript: string): TvaContext {
+  const t = transcript.toLowerCase();
+  const ctx: TvaContext = {};
+
+  if (/(plus de 2 ans|logement ancien|ancien logement)/i.test(t)) ctx.logementPlusDe2Ans = true;
+  if (/(moins de 2 ans|construction neuve|logement neuf|neuf)/i.test(t)) ctx.logementPlusDe2Ans = false;
+  if (/entretien.*chaudi[eè]re|maintenance.*chaudi[eè]re|r[eé]vision.*chaudi[eè]re/i.test(t)) {
+    ctx.entretienChaudiere = true;
+  }
+  if (/thpe/i.test(t)) ctx.chaudiereThpe = true;
+
+  return ctx;
+}
+
+export function isChaudiereGazPrestation(designation: string, transcript: string): boolean {
+  if (CHAUDIERE_GAZ.test(designation)) return true;
+  if (/chaudi[eè]re/i.test(designation) && CHAUDIERE_GAZ.test(transcript)) return true;
+  if (/condensation|gaz|thpe|murale/i.test(designation) && /chaudi[eè]re.*(gaz|condensation)|gaz.*chaudi[eè]re/i.test(transcript)) {
+    return true;
+  }
+  return false;
+}
+
+function categorizePrestation(designation: string, ctx: TvaContext, transcript = ""): TvaCategory {
   const d = designation.toLowerCase();
 
   if (ctx.entretienChaudiere || ENTRETIEN_CHAUDIERE.test(designation)) {
     if (ctx.chaudiereThpe || /thpe/i.test(d)) return "entretien_chaudiere_gaz_thpe";
     return "entretien_chaudiere_gaz";
+  }
+
+  if (isChaudiereGazPrestation(designation, transcript) && !ENTRETIEN_CHAUDIERE.test(designation)) {
+    return "chaudiere_gaz_remplacement";
   }
 
   if (CHAUDIERE_GAZ.test(designation) && !ENTRETIEN_CHAUDIERE.test(designation)) {
@@ -96,8 +124,9 @@ export function alertTvaForLigne(
   tauxApplique: number,
   ligneIndex: number,
   ctx: TvaContext = {},
+  transcript = "",
 ): TvaAlert | null {
-  const expected = expectedTvaRate(designation, ctx);
+  const expected = expectedTvaRate(designation, ctx, transcript);
   if (expected == null) return null;
 
   const applied = Math.round(tauxApplique * 10) / 10;
@@ -105,7 +134,7 @@ export function alertTvaForLigne(
   if (Math.abs(applied - exp) < 0.01) return null;
 
   let message: string;
-  if (expected === 20 && CHAUDIERE_GAZ.test(designation)) {
+  if (expected === 20 && isChaudiereGazPrestation(designation, transcript)) {
     message =
       "Depuis mars 2025, le remplacement d'une chaudière gaz (classique, condensation ou THPE) est soumis à 20 % (fourniture et pose). Vérifie le taux appliqué.";
   } else if (expected === 5.5) {

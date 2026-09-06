@@ -68,8 +68,9 @@ export function normalizeLignesWithProfile(lignes: IaLigneLike[], profile: Backe
     const prix_ht =
       typeof rawPrix === "number" && Number.isFinite(rawPrix) && rawPrix >= 0 ? rawPrix : 0;
 
-    let origine_prix = l.origine_prix ?? (prix_ht > 0 ? "dicte" : "vide");
-    if (origine_prix === "vide" && prix_ht > 0 && !l.origine_prix) origine_prix = "dicte";
+    let origine_prix = l.origine_prix ?? null;
+    if (!origine_prix && prix_ht > 0) origine_prix = null;
+    if (!origine_prix && prix_ht <= 0) origine_prix = "vide";
 
     return {
       section: section || null,

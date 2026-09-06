@@ -26,6 +26,8 @@ type Props = {
   remiseValue: number | "";
   onEditLines: () => void;
   onSend?: () => void;
+  /** Badges origine_prix — écran validation uniquement, jamais sur le PDF. */
+  showValidationHints?: boolean;
 };
 
 const fieldClass =
@@ -47,6 +49,7 @@ export function DevisDocumentPreview({
   remiseValue,
   onEditLines,
   onSend,
+  showValidationHints = false,
 }: Props) {
   const [logoDisplayUrl, setLogoDisplayUrl] = useState("");
 
@@ -160,7 +163,27 @@ export function DevisDocumentPreview({
                     key={l.id ?? `l-${idx}`}
                     className="border-b border-slate-100 dark:border-slate-800/80"
                   >
-                    <td className="py-3 pr-3 align-top text-slate-900 dark:text-slate-100">{l.designation}</td>
+                    <td className="py-3 pr-3 align-top text-slate-900 dark:text-slate-100">
+                      <div>{l.designation}</div>
+                      {showValidationHints && l.origine_prix === "prereglage" ? (
+                        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                          Tarif par défaut
+                        </span>
+                      ) : null}
+                      {showValidationHints && l.origine_prix === "dicte" ? (
+                        <span className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                          Prix dicté
+                        </span>
+                      ) : null}
+                      {showValidationHints && (l.origine_prix === "vide" || !l.prix_ht) ? (
+                        <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:bg-red-950/50 dark:text-red-200">
+                          Prix à compléter
+                        </span>
+                      ) : null}
+                      {showValidationHints && l.tva_alerte?.trim() ? (
+                        <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">⚠ {l.tva_alerte}</p>
+                      ) : null}
+                    </td>
                     <td className="py-3 px-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{l.quantite}</td>
                     <td className="py-3 px-2 text-slate-700 dark:text-slate-300">{l.unite}</td>
                     <td className="py-3 px-2 text-right tabular-nums text-slate-700 dark:text-slate-300">

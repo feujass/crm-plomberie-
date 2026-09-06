@@ -184,6 +184,12 @@ export function DevisEditor({
   const legalExport = useMemo(() => checkLegalExportReady(profile), [profile]);
   const [legalComplete, setLegalComplete] = useState(() => legalExport.ok);
   const [iaQuestions] = useState<string[]>(() => devis.ia_questions ?? []);
+  const [prixAlertsBanner] = useState<string[]>(() => {
+    const fromLines = (devis.lignes ?? [])
+      .filter((l) => l.origine_prix === "prereglage")
+      .map((l) => `« ${l.designation} » : tarif par défaut (${l.prix_ht ?? 0} € HT)`);
+    return fromLines;
+  });
   const [notes, setNotes] = useState(devis.notes ?? "");
   const [dateExp, setDateExp] = useState(devis.date_expiration ?? "");
   const [remiseType, setRemiseType] = useState<"percent" | "fixed" | "">(
@@ -205,7 +211,7 @@ export function DevisEditor({
           ? l.ligne_type
           : "prestation",
       source: l.source ?? null,
-      origine_prix: l.origine_prix ?? (Number(l.prix_ht ?? 0) > 0 ? "dicte" : "vide"),
+      origine_prix: l.origine_prix ?? null,
       tva_alerte: l.tva_alerte ?? null,
     })),
   );
@@ -487,6 +493,16 @@ export function DevisEditor({
           {linesToVerify} ligne{linesToVerify > 1 ? "s" : ""} à compléter ou à vérifier (prix par défaut ou manquant).
         </div>
       ) : null}
+      {prixAlertsBanner.length > 0 ? (
+        <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+          <p className="font-medium">Lignes avec tarif par défaut (non dictées)</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+            {prixAlertsBanner.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <CircleBackLink href="/devis" label="Retour aux devis" />
         <Button type="button" onClick={() => save()} disabled={pending}>
@@ -655,6 +671,7 @@ export function DevisEditor({
             remiseValue={remiseValue}
             onEditLines={() => setViewMode("edit")}
             onSend={() => void openSendDrawer()}
+            showValidationHints
           />
         ) : null}
 

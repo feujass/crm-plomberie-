@@ -80,11 +80,8 @@ export function applyCataloguePrices(
   if (!usePersonalLibrary || ouvrages.length === 0) return lignes;
 
   return lignes.map((ligne) => {
-    const hasDictatedPrice =
-      ligne.origine_prix === "dicte" ||
-      (typeof ligne.prix_ht === "number" && Number.isFinite(ligne.prix_ht) && ligne.prix_ht > 0);
-
-    if (hasDictatedPrice) return ligne;
+    // Préréglage uniquement si le prix n'a pas été dicté explicitement
+    if (ligne.origine_prix === "dicte") return ligne;
 
     let best: BackendOuvrage | null = null;
     let bestScore = 0;

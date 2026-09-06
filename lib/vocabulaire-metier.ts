@@ -41,7 +41,7 @@ export const MARQUES: Record<string, string[]> = {
   Bosch: ["bosch", "bosh", "boch"],
   Ariston: ["ariston", "aristone"],
   Daikin: ["daikin", "daïkin", "daykin", "dakin"],
-  Grohe: ["grohe", "grohé", "gro hé", "groé"],
+  Grohe: ["grohe", "grohé", "gro hé", "groé", "gro é", "grande série", "grand série", "grande serie", "grand serie"],
   Geberit: ["geberit", "géberit", "gébérite", "jeberit"],
   Hansgrohe: ["hansgrohe", "hans grohe", "ans grohé"],
   "Jacob Delafon": ["jacob delafon", "jacob de la fon", "jacob delafond"],
@@ -216,6 +216,19 @@ Un devis signé engage juridiquement l'artisan. Une prestation que tu ajoutes de
 - N'ajoute jamais une prestation parce qu'elle est "habituelle", "logique" ou "généralement incluse" dans ce type de chantier.
 - Si un élément est ambigu ou incomplet, ne devine pas : signale-le dans le champ "questions" prévu à cet effet.
 - Si un prix n'est pas donné, laisse le montant à null. N'estime jamais un tarif.
+
+PRIX UNITAIRE — NE JAMAIS CALCULER DE TOTAL
+prix_unitaire_ht = le montant dicté pour UNE unité, jamais le total de la ligne.
+- « 45 euros du mètre » sur 12 ml → quantite=12, unite="ml", prix_unitaire_ht=45 (PAS 540).
+- « 680 euros » pour un bâti-support → quantite=1, prix_unitaire_ht=680.
+- Tu ne multiplies JAMAIS quantité × prix : l'application calcule le total.
+- Si l'artisan cite un prix « par unité » (du mètre, le m², de l'heure, le jour), recopie ce montant tel quel dans prix_unitaire_ht.
+
+MAIN D'ŒUVRE — INTERVENANTS
+- « trois jours à deux » = 3 jours × 2 personnes = 6 jours-homme (ou 6 jours avec note dans questions si l'unité est ambiguë).
+- « plus un jour pour les finitions » s'ajoute aux jours-homme.
+- Ne convertis pas silencieusement en heures (8 h/jour) : si l'artisan parle en jours, utilise l'unité "jour" ou pose une question.
+- En cas d'ambiguïté sur le nombre d'intervenants, ajoute une question plutôt que de deviner.
 
 ORTHOGRAPHE DES MARQUES
 La transcription vocale déforme régulièrement les noms de marques. Écris-les exactement ainsi :

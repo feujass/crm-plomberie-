@@ -103,6 +103,7 @@ export async function POST(req: Request) {
     date_expiration: meta.date_expiration,
     questions: processed.questions,
     tva_alerts: processed.tvaAlerts,
+    prix_alerts: processed.prixAlerts,
     transcription_brute: brut,
     transcription_corrigee: corrige,
   });

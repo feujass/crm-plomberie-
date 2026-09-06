@@ -4,6 +4,8 @@ import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 import { assertDevisCreationAllowed, loadSubscriptionContext } from "@/lib/plans/subscription-context";
 import { TRIAL_EXPIRED_PAYWALL_CODE } from "@/lib/plans/paywall";
 import { triggerArtisanNotification } from "@/lib/notifications/trigger";
+import { isSupabaseDataMode } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
 import type { BackendDevisDetail, BackendMeResponse, BackendProfile } from "@/types/backend";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
@@ -148,6 +150,28 @@ export async function POST(req: Request) {
           })),
         }),
       })) as { id: string };
+
+      if (
+        isSupabaseDataMode() &&
+        devis.id &&
+        (transcription_brute || transcription_corrigee || iaQuestions.length > 0)
+      ) {
+        try {
+          const supabase = await createClient();
+          const { error: metaErr } = await supabase
+            .from("devis")
+            .update({
+              transcription_brute,
+              transcription_corrigee,
+              ia_questions: iaQuestions,
+              ...(adresse_chantier ? { adresse_chantier } : {}),
+            })
+            .eq("id", devis.id);
+          if (metaErr) console.error("[devis/from_ia] transcription metadata", metaErr.message);
+        } catch (e) {
+          console.error("[devis/from_ia] transcription metadata", e);
+        }
+      }
 
       try {
         await syncDevisLignesToCatalogue(

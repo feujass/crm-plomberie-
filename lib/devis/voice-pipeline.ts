@@ -1,9 +1,23 @@
+import { extractAdresseChantierFromTranscript } from "@/lib/devis/adresse-chantier";
+import {
+  alertPrixHorsTranscript,
+  correctUnitPricesFromTranscript,
+  enforceDictatedPricesFromSource,
+  extractFlatPrices,
+  extractPerUnitPrices,
+  type PrixAlert,
+} from "@/lib/devis/prix-validation";
 import { applyCataloguePrices } from "@/lib/catalogue/apply-catalogue-prices";
 import { usesPersonalLibrary } from "@/lib/catalogue/apply-catalogue-prices";
 import { normalizeLignesWithProfile, type IaLigneLike } from "@/lib/devis-ouvrage-mode";
 import { metierLabel } from "@/lib/llm/metier-labels";
 import type { DevisIaResponse } from "@/lib/schemas/devis-ia";
-import { alertTvaForLigne, tvaQuestionsForTranscript, type TvaAlert } from "@/lib/tva";
+import {
+  alertTvaForLigne,
+  buildTvaContextFromTranscript,
+  tvaQuestionsForTranscript,
+  type TvaAlert,
+} from "@/lib/tva";
 import { corrigerVocabulaire, SYSTEM_PROMPT_DEVIS } from "@/lib/vocabulaire-metier";
 import type { BackendOuvrage, BackendProfile } from "@/types/backend";
 import type { DevisLigneInput, OriginePrix } from "@/types/devis";
@@ -35,11 +49,14 @@ CHAMPS SUPPLÉMENTAIRES (même objet JSON racine, en plus des lignes et question
 }
 
 RÈGLES ADRESSE
-- Si une localisation est mentionnée ("à Vénissieux", "chez M. Dupont à Lyon"), remplis adresse_chantier avec cette localisation.
+- Si une localisation est mentionnée ("à Caluire", "à Vénissieux", "chez M. Dupont à Lyon"), remplis adresse_chantier avec cette ville ou adresse.
+- Même une ville seule ("à Caluire") suffit pour adresse_chantier.
 - client.adresse = adresse postale du client si distincte du chantier, sinon null.
 
 RÈGLES PRIX ET QUANTITÉS
 - Ne remplis prix_unitaire_ht que si un montant est explicitement dicté.
+- Un prix dicté explicitement ne doit jamais être arrondi ni modifié.
+- prix_unitaire_ht = toujours le prix PAR unité, jamais le total (voir règle ci-dessus).
 - Préfère l'unité dictée (jour, h, ml…) plutôt que de convertir silencieusement.
 - Pas de champ tva dans les lignes : l'application appliquera la TVA par ligne.`;
 
@@ -80,9 +97,16 @@ function prixFromIaLigne(l: DevisIaResponse["lignes"][number]): number | null {
   return null;
 }
 
+function hasExplicitPriceInSource(source?: string | null): boolean {
+  if (!source?.trim()) return false;
+  return extractFlatPrices(source).length > 0 || extractPerUnitPrices(source).length > 0;
+}
+
 export function iaLignesToRaw(lignes: DevisIaResponse["lignes"]): IaLigneLike[] {
   return lignes.map((l, i) => {
     const prix = prixFromIaLigne(l);
+    const origine_prix: OriginePrix =
+      prix != null ? (hasExplicitPriceInSource(l.source) ? "dicte" : "vide") : "vide";
     return {
       section: l.section,
       designation: l.designation,
@@ -93,7 +117,7 @@ export function iaLignesToRaw(lignes: DevisIaResponse["lignes"]): IaLigneLike[] 
       ordre: i,
       ligne_type: l.ligne_type,
       source: l.source,
-      origine_prix: prix != null ? ("dicte" as OriginePrix) : ("vide" as OriginePrix),
+      origine_prix,
     };
   });
 }
@@ -102,6 +126,7 @@ export type ProcessedIaDevis = {
   lignes: DevisLigneInput[];
   questions: string[];
   tvaAlerts: TvaAlert[];
+  prixAlerts: PrixAlert[];
   adresse_chantier: string | null;
 };
 
@@ -111,7 +136,18 @@ export function processIaDevisResponse(
   ouvrages: BackendOuvrage[],
   transcriptCorrige: string,
 ): ProcessedIaDevis {
-  const rawLignes = iaLignesToRaw(data.lignes);
+  let rawLignes = iaLignesToRaw(data.lignes);
+  const prixAlerts: PrixAlert[] = [];
+
+  const enforced = enforceDictatedPricesFromSource(rawLignes);
+  rawLignes = enforced.lignes;
+  prixAlerts.push(...enforced.alerts);
+
+  const unitFixed = correctUnitPricesFromTranscript(rawLignes, transcriptCorrige);
+  rawLignes = unitFixed.lignes;
+  prixAlerts.push(...unitFixed.alerts);
+
+  prixAlerts.push(...alertPrixHorsTranscript(rawLignes, transcriptCorrige));
 
   const withCatalogue = applyCataloguePrices(
     rawLignes,
@@ -120,10 +156,11 @@ export function processIaDevisResponse(
   );
 
   const lignesBase = normalizeLignesWithProfile(withCatalogue, profile);
+  const tvaCtx = buildTvaContextFromTranscript(transcriptCorrige);
 
   const tvaAlerts: TvaAlert[] = [];
   const lignes = lignesBase.map((l, i) => {
-    const alert = alertTvaForLigne(l.designation, l.tva, i);
+    const alert = alertTvaForLigne(l.designation, l.tva, i, tvaCtx, transcriptCorrige);
     if (alert) {
       tvaAlerts.push(alert);
       return { ...l, tva_alerte: alert.message };
@@ -137,11 +174,22 @@ export function processIaDevisResponse(
       questions.push(q);
     }
   }
+  for (const a of prixAlerts) {
+    const q = a.message;
+    if (!questions.some((existing) => existing.toLowerCase() === q.toLowerCase())) {
+      questions.push(q);
+    }
+  }
+
+  const adresseFromLlm = data.adresse_chantier?.trim() || null;
+  const adresseFromTranscript = extractAdresseChantierFromTranscript(transcriptCorrige);
+  const adresse_chantier = adresseFromLlm || adresseFromTranscript;
 
   return {
     lignes,
     questions,
     tvaAlerts,
-    adresse_chantier: data.adresse_chantier?.trim() || null,
+    prixAlerts,
+    adresse_chantier,
   };
 }
