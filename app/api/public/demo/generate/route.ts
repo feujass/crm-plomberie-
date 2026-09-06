@@ -15,6 +15,7 @@ import {
   demoPreviewPayloadFromRow,
   fetchDemoQuoteForSession,
 } from "@/lib/demo/session-preview";
+import { prepareTranscriptionForLlm, processIaDevisResponse } from "@/lib/devis/voice-pipeline";
 import { anthropicDemoMaxTokens, anthropicDemoModel } from "@/lib/llm/anthropicConfig";
 import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
@@ -40,11 +41,11 @@ function rateLimitMessage(reason: "monthly_cap"): string {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as { text?: string } | null;
-  const text = body?.text?.trim() ?? "";
-  if (text.length < MIN_TEXT_LEN) {
+  const rawText = body?.text?.trim() ?? "";
+  if (rawText.length < MIN_TEXT_LEN) {
     return NextResponse.json({ message: "Décris ton chantier en quelques mots.", code: "invalid_input" }, { status: 400 });
   }
-  if (text.length > MAX_TEXT_LEN) {
+  if (rawText.length > MAX_TEXT_LEN) {
     return NextResponse.json({ message: "Description trop longue pour la démo.", code: "invalid_input" }, { status: 400 });
   }
 
@@ -66,7 +67,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const llm = await completeDevisGenerateLlm(buildDemoDevisPrompt(), text, {
+  const { brut, corrige } = prepareTranscriptionForLlm(rawText);
+
+  const llm = await completeDevisGenerateLlm(buildDemoDevisPrompt(), corrige, {
     model: anthropicDemoModel(),
     maxTokens: anthropicDemoMaxTokens(),
     timeoutMs: 28_000,
@@ -88,7 +91,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const quote = parsed.data;
+  const processed = processIaDevisResponse(parsed.data, {}, [], corrige);
+  const quote = { ...parsed.data, lignes: processed.lignes.map((l) => ({
+    designation: l.designation,
+    quantite: l.quantite,
+    unite: l.unite,
+    prix_ht: l.prix_ht,
+    tva: l.tva,
+    section: l.section,
+    ligne_type: l.ligne_type,
+    source: l.source ?? undefined,
+  })), questions: processed.questions };
+
   const previewLines = previewLinesFromQuote(quote.lignes);
   const lineCount = quote.lignes.length;
   const totalTtc = computeDemoTotalTtc(quote.lignes);
@@ -106,7 +120,7 @@ export async function POST(req: Request) {
     .from("demo_quotes")
     .insert({
       demo_session_id: demoSessionId,
-      transcript: text,
+      transcript: corrige,
       quote_json: quote,
       preview_lines: previewLines,
       line_count: lineCount,
@@ -128,6 +142,8 @@ export async function POST(req: Request) {
     preview_lines: previewLines,
     line_count: lineCount,
     total_ttc: totalTtc,
+    preview_label: `${previewLines.length}/${lineCount} lignes visibles — prix masqués`,
+    transcription_brute: brut,
   });
 
   if (setCookie) {

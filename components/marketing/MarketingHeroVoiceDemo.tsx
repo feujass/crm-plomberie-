@@ -275,7 +275,10 @@ export function MarketingHeroVoiceDemo() {
       {phase === "preview" && preview ? (
         <div className="space-y-4">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Ton devis est prêt ({preview.line_count} lignes). Crée ton compte pour le voir en entier et l&apos;envoyer à ton client.
+            Ton devis est prêt ({preview.line_count} lignes). Crée ton compte pour voir les prix et l&apos;envoyer à ton client.
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Aperçu complet — {preview.preview_lines.length}/{preview.line_count} lignes visibles, prix masqués
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

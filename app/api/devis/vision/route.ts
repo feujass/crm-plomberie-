@@ -1,7 +1,9 @@
-import { applyCataloguePrices } from "@/lib/catalogue/apply-catalogue-prices";
-import { normalizeLignesWithProfile } from "@/lib/devis-ouvrage-mode";
+import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
+import {
+  buildDevisVisionPrompt,
+  processIaDevisResponse,
+} from "@/lib/devis/voice-pipeline";
 import { backendFetch } from "@/lib/backend/server";
-import { buildDevisVisionPrompt } from "@/lib/llm/artisanSystemPrompt";
 import { completeDevisVisionLlm } from "@/lib/llm/devisVisionCompletion";
 import {
   assertIaDevisAllowed,
@@ -10,7 +12,6 @@ import {
 } from "@/lib/plans/subscription-context";
 import { TRIAL_EXPIRED_PAYWALL_CODE } from "@/lib/plans/paywall";
 import { isTrialExpired } from "@/lib/plans/trial";
-import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
 import { normalizeDevisIaParsed } from "@/lib/schemas/normalize-devis-ia";
 import { NextResponse } from "next/server";
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     ouvrages = [];
   }
 
-  const system = buildDevisVisionPrompt(profile, ouvrages ?? []);
+  const system = buildDevisVisionPrompt(profile);
 
   let llmResult;
   try {
@@ -82,38 +83,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Aucune ligne reconnue sur ce document." }, { status: 422 });
   }
 
-  const rawLignes = z.data.lignes.map((l, i) => ({
-    section: l.section,
-    designation: l.designation,
-    quantite: l.quantite,
-    unite: l.unite,
-    prix_ht: l.prix_ht,
-    tva: l.tva,
-    ordre: i,
-    ligne_type: l.ligne_type,
-  }));
-
-  const withCatalogue = applyCataloguePrices(
-    rawLignes,
-    ouvrages ?? [],
-    profile.use_personal_library !== false,
-  );
-
-  const lignes = normalizeLignesWithProfile(withCatalogue, profile);
-
+  const processed = processIaDevisResponse(z.data, profile, ouvrages ?? [], "");
   const meta = buildDevisMetaFromIa(z.data);
 
   try {
     await recordIaDevisUsage(profile);
   } catch {
-    // compteur best-effort — devis déjà généré
+    // compteur best-effort
   }
 
   return NextResponse.json({
-    lignes,
-    adresse_chantier: z.data.adresse_chantier?.trim() || null,
+    lignes: processed.lignes,
+    adresse_chantier: processed.adresse_chantier,
     client: z.data.client ?? null,
     notes: meta.notes || null,
     date_expiration: meta.date_expiration,
+    questions: processed.questions,
+    tva_alerts: processed.tvaAlerts,
   });
 }

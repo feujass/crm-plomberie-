@@ -154,6 +154,9 @@ export function DevisNouveauClient({
         client?: DevisIaClient;
         notes?: string | null;
         date_expiration?: string | null;
+        questions?: string[];
+        transcription_brute?: string;
+        transcription_corrigee?: string;
       }>(res);
       if (!res.ok) {
         if (handleTrialExpiredPaywallResponse(res.status, json)) return;
@@ -196,6 +199,9 @@ export function DevisNouveauClient({
           adresse_chantier: json.adresse_chantier?.trim() || null,
           notes: json.notes?.trim() || null,
           date_expiration: json.date_expiration || null,
+          ia_questions: json.questions ?? [],
+          transcription_brute: json.transcription_brute ?? null,
+          transcription_corrigee: json.transcription_corrigee ?? null,
           lignes: json.lignes ?? [],
         }),
       });

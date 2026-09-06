@@ -4,8 +4,10 @@ export const ligneIaSchema = z.object({
   designation: z.string(),
   quantite: z.number(),
   unite: z.string(),
-  prix_ht: z.number(),
-  tva: z.number(),
+  prix_ht: z.number().nullable().optional(),
+  prix_unitaire_ht: z.number().nullable().optional(),
+  tva: z.number().optional(),
+  source: z.string().optional(),
   section: z.string().optional().nullable(),
   ligne_type: z.enum(["prestation", "fourniture", "pose"]).optional(),
 });
@@ -23,6 +25,7 @@ export const clientIaSchema = z
 
 export const devisIaResponseSchema = z.object({
   lignes: z.array(ligneIaSchema),
+  questions: z.array(z.string()).optional().default([]),
   adresse_chantier: z.string().optional().nullable(),
   client: clientIaSchema,
   /** Conditions visibles client (validité, acompte, délais…). */

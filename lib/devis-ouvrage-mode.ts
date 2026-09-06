@@ -26,10 +26,13 @@ export type IaLigneLike = {
   designation: string;
   quantite?: number;
   unite?: string;
-  prix_ht?: number;
+  prix_ht?: number | null;
   tva?: number;
   ordre?: number;
   ligne_type?: string;
+  source?: string | null;
+  origine_prix?: "dicte" | "prereglage" | "vide" | null;
+  tva_alerte?: string | null;
 };
 
 /**
@@ -61,15 +64,25 @@ export function normalizeLignesWithProfile(lignes: IaLigneLike[], profile: Backe
       else if (/(pose|main d|main-d|mise en œuvre|dépose|raccord)/i.test(d)) ligne_type = "pose";
     }
 
+    const rawPrix = l.prix_ht;
+    const prix_ht =
+      typeof rawPrix === "number" && Number.isFinite(rawPrix) && rawPrix >= 0 ? rawPrix : 0;
+
+    let origine_prix = l.origine_prix ?? (prix_ht > 0 ? "dicte" : "vide");
+    if (origine_prix === "vide" && prix_ht > 0 && !l.origine_prix) origine_prix = "dicte";
+
     return {
       section: section || null,
       designation: l.designation,
       quantite: Number(l.quantite ?? 1) || 1,
       unite: String(l.unite ?? "u").trim() || "u",
-      prix_ht: Number(l.prix_ht ?? 0) || 0,
+      prix_ht,
       tva,
       ordre: typeof l.ordre === "number" ? l.ordre : i,
       ligne_type,
+      source: l.source ?? null,
+      origine_prix,
+      tva_alerte: l.tva_alerte ?? null,
     };
   });
 }

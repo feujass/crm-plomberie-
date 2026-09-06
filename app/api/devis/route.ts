@@ -15,6 +15,10 @@ type LigneIn = {
   unite?: string;
   prix_ht?: number;
   tva?: number;
+  ligne_type?: string;
+  source?: string | null;
+  origine_prix?: string | null;
+  tva_alerte?: string | null;
 };
 
 /**
@@ -103,9 +107,21 @@ export async function POST(req: Request) {
           prix_ht: l.prix_ht,
           tva: l.tva,
           ordre: i,
+          ligne_type: l.ligne_type,
+          source: l.source,
+          origine_prix: l.origine_prix as "dicte" | "prereglage" | "vide" | null | undefined,
+          tva_alerte: l.tva_alerte,
         })),
         profile,
       );
+
+      const iaQuestions = Array.isArray(raw.ia_questions)
+        ? (raw.ia_questions as unknown[]).map((q) => String(q).trim()).filter(Boolean)
+        : [];
+      const transcription_brute =
+        typeof raw.transcription_brute === "string" ? raw.transcription_brute.trim() : null;
+      const transcription_corrigee =
+        typeof raw.transcription_corrigee === "string" ? raw.transcription_corrigee.trim() : null;
 
       const devis = (await backendFetch("/api/devis", {
         method: "POST",
@@ -115,6 +131,9 @@ export async function POST(req: Request) {
           notes,
           adresse_chantier,
           date_expiration,
+          ia_questions: iaQuestions,
+          transcription_brute,
+          transcription_corrigee,
           lignes: normalized.map((l) => ({
             section: l.section ?? "",
             designation: l.designation,
@@ -123,6 +142,9 @@ export async function POST(req: Request) {
             prix_ht: l.prix_ht,
             tva: l.tva,
             ligne_type: l.ligne_type,
+            source: l.source ?? null,
+            origine_prix: l.origine_prix ?? null,
+            tva_alerte: l.tva_alerte ?? null,
           })),
         }),
       })) as { id: string };

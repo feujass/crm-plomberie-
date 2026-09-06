@@ -34,6 +34,9 @@ export function mapDevisLineRow(row: Record<string, unknown>): BackendDevisLine 
     tva: row.tva != null ? Number(row.tva) : undefined,
     total_ht: row.total_ht != null ? Number(row.total_ht) : undefined,
     ligne_type: (row.ligne_type as string) ?? undefined,
+    source: (row.source as string) ?? undefined,
+    origine_prix: (row.origine_prix as BackendDevisLine["origine_prix"]) ?? undefined,
+    tva_alerte: (row.tva_alerte as string) ?? undefined,
   };
 }
 
@@ -76,6 +79,9 @@ export function mapDevisDetailRow(
     total_ht: row.total_ht != null ? Number(row.total_ht) : undefined,
     total_tva: row.total_tva != null ? Number(row.total_tva) : undefined,
     adresse_chantier: (row.adresse_chantier as string) ?? undefined,
+    ia_questions: Array.isArray(row.ia_questions) ? (row.ia_questions as string[]) : undefined,
+    transcription_brute: (row.transcription_brute as string) ?? undefined,
+    transcription_corrigee: (row.transcription_corrigee as string) ?? undefined,
     esign_provider: (row.esign_provider as string) ?? undefined,
     esign_envelope_id: (row.esign_envelope_id as string) ?? undefined,
     esign_status: (row.esign_status as string) ?? undefined,

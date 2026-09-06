@@ -1,3 +1,5 @@
+import { STT_PROMPT } from "@/lib/vocabulaire-metier";
+
 const MAX_AUDIO_BYTES = 2_500_000;
 
 export type TranscribeResult =
@@ -24,6 +26,7 @@ export async function transcribeDemoAudio(buffer: Buffer, mimeType: string): Pro
   form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), `demo.${ext}`);
   form.append("model", "whisper-1");
   form.append("language", "fr");
+  form.append("prompt", STT_PROMPT);
 
   try {
     const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {

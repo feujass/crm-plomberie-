@@ -53,12 +53,17 @@ function normalizeLigne(raw: unknown): Record<string, unknown> | null {
     pickString(raw, "designation", "description", "libelle", "label", "name", "nom") ?? "";
   const quantite = parseLlmNumber(raw.quantite ?? raw.quantity ?? raw.qte ?? raw.qty);
   const unite = pickString(raw, "unite", "unit", "u") ?? "u";
-  const prix_ht = parseLlmNumber(raw.prix_ht ?? raw.prixHT ?? raw.price ?? raw.pu_ht ?? raw.pu);
+  const prixRaw = raw.prix_unitaire_ht ?? raw.prix_ht ?? raw.prixHT ?? raw.price ?? raw.pu_ht ?? raw.pu;
+  const prixParsed = parseLlmNumber(prixRaw);
+  const prix_ht = prixParsed !== undefined ? prixParsed : null;
+  const prix_unitaire_ht =
+    parseLlmNumber(raw.prix_unitaire_ht) ?? (prix_ht != null ? prix_ht : null);
   const tva = parseLlmTva(raw.tva ?? raw.TVA ?? raw.vat ?? raw.taxe);
   const section = pickString(raw, "section", "piece", "groupe");
   const ligne_type = normalizeLigneType(raw.ligne_type ?? raw.type ?? raw.ligneType);
+  const source = pickString(raw, "source", "extrait", "justification");
 
-  if (!designation || quantite === undefined || prix_ht === undefined || tva === undefined) {
+  if (!designation || quantite === undefined) {
     return null;
   }
 
@@ -67,7 +72,9 @@ function normalizeLigne(raw: unknown): Record<string, unknown> | null {
     quantite,
     unite,
     prix_ht,
-    tva,
+    prix_unitaire_ht,
+    ...(tva !== undefined ? { tva } : {}),
+    ...(source ? { source } : {}),
     ...(section ? { section } : {}),
     ...(ligne_type ? { ligne_type } : {}),
   };
@@ -110,8 +117,14 @@ export function normalizeDevisIaParsed(raw: unknown): unknown {
   const validite_jours = parseLlmNumber(raw.validite_jours ?? raw.validiteJours ?? raw.validity_days);
   const acompte_pourcent = parseLlmNumber(raw.acompte_pourcent ?? raw.acomptePourcent ?? raw.deposit_percent);
 
+  const questionsRaw = raw.questions ?? raw.questions_a_verifier;
+  const questions = Array.isArray(questionsRaw)
+    ? questionsRaw.map((q) => String(q).trim()).filter(Boolean)
+    : [];
+
   return {
     lignes,
+    questions,
     adresse_chantier,
     client: normalizeClient(raw.client),
     notes,

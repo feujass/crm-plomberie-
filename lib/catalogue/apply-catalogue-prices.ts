@@ -71,7 +71,7 @@ function ligneTypeFromOuvrage(type: BackendOuvrage["type"]): IaLigneLike["ligne_
   return "prestation";
 }
 
-/** Remplace prix / unité / TVA par la bibliothèque lorsqu'une correspondance est trouvée. */
+/** Remplace prix / unité / TVA par la bibliothèque lorsqu'une correspondance est trouvée (lignes sans prix dicté uniquement). */
 export function applyCataloguePrices(
   lignes: IaLigneLike[],
   ouvrages: BackendOuvrage[],
@@ -80,6 +80,12 @@ export function applyCataloguePrices(
   if (!usePersonalLibrary || ouvrages.length === 0) return lignes;
 
   return lignes.map((ligne) => {
+    const hasDictatedPrice =
+      ligne.origine_prix === "dicte" ||
+      (typeof ligne.prix_ht === "number" && Number.isFinite(ligne.prix_ht) && ligne.prix_ht > 0);
+
+    if (hasDictatedPrice) return ligne;
+
     let best: BackendOuvrage | null = null;
     let bestScore = 0;
     for (const o of ouvrages) {
@@ -92,13 +98,17 @@ export function applyCataloguePrices(
     if (!best || bestScore < MATCH_THRESHOLD) return ligne;
 
     const prix = best.prix_ht;
+    const appliedPrice = typeof prix === "number" && Number.isFinite(prix) && prix > 0 ? prix : null;
+    if (appliedPrice == null) return ligne;
+
     return {
       ...ligne,
       designation: best.nom,
-      prix_ht: typeof prix === "number" && Number.isFinite(prix) ? prix : ligne.prix_ht,
+      prix_ht: appliedPrice,
       unite: best.unite?.trim() || ligne.unite,
       tva: typeof best.tva === "number" && Number.isFinite(best.tva) ? best.tva : ligne.tva,
       ligne_type: ligneTypeFromOuvrage(best.type) ?? ligne.ligne_type,
+      origine_prix: "prereglage",
     };
   });
 }

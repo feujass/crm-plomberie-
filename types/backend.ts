@@ -187,6 +187,9 @@ export type BackendDevisLine = {
   tva?: number;
   total_ht?: number;
   ligne_type?: "prestation" | "fourniture" | "pose" | string;
+  source?: string | null;
+  origine_prix?: "dicte" | "prereglage" | "vide" | null;
+  tva_alerte?: string | null;
 };
 
 export type BackendDevisDetail = BackendDevis & {
@@ -201,6 +204,9 @@ export type BackendDevisDetail = BackendDevis & {
   total_ht?: number;
   total_tva?: number;
   adresse_chantier?: string;
+  ia_questions?: string[];
+  transcription_brute?: string;
+  transcription_corrigee?: string;
   public_token?: string;
   date_envoi?: string;
   derniere_relance_at?: string;

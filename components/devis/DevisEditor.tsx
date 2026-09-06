@@ -2,7 +2,7 @@
 
 import { DevisDocumentPreview } from "@/components/devis/DevisDocumentPreview";
 import { LegalIdentityModal } from "@/components/profile/ProfileVoicePromptModal";
-import type { DevisLigneInput } from "@/types/devis";
+import type { DevisLigneInput, OriginePrix } from "@/types/devis";
 import { flowoSegmentTabClass } from "@/lib/flowo-ui";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -13,7 +13,7 @@ import { computeDevisTotals, ligneTotalHt } from "@/lib/devis-math";
 import { formatCurrencyEUR } from "@/lib/format";
 import { cx, focusRing } from "@/lib/utils";
 import { defaultSectionForStructure, defaultTvaFromProfile } from "@/lib/devis-ouvrage-mode";
-import { computeProfileCompletion } from "@/lib/profile/completion";
+import { checkLegalExportReady } from "@/lib/profile/legal-export";
 import { canAccessFeature } from "@/lib/plans/features";
 import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import type { BackendClient, BackendDevisDetail, BackendDevisLine, BackendProfile } from "@/types/backend";
@@ -44,6 +44,19 @@ function clientRandomId(): string {
 
 type LigneState = DevisLigneInput & { id: string };
 
+function originePrixLabel(origine: OriginePrix | null | undefined): string | null {
+  if (origine === "dicte") return "Prix dicté";
+  if (origine === "prereglage") return "Tarif par défaut";
+  if (origine === "vide") return "Prix à compléter";
+  return null;
+}
+
+function originePrixClass(origine: OriginePrix | null | undefined): string {
+  if (origine === "dicte") return "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
+  if (origine === "prereglage") return "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200";
+  return "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200";
+}
+
 function SortableLigne({
   ligne,
   onChange,
@@ -59,16 +72,23 @@ function SortableLigne({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-2 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+    <div ref={setNodeRef} style={style} className="mb-2 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex flex-wrap items-end gap-2">
       <button type="button" className="touch-target cursor-grab px-1 text-slate-400" {...attributes} {...listeners} aria-label="Déplacer">
         ⋮⋮
       </button>
-      <Input
-        label="Désignation"
-        className="min-w-[140px] flex-1"
-        value={ligne.designation}
-        onChange={(e) => onChange(ligne.id, { designation: e.target.value })}
-      />
+      <div className="min-w-[140px] flex-1">
+        <Input
+          label="Désignation"
+          value={ligne.designation}
+          onChange={(e) => onChange(ligne.id, { designation: e.target.value })}
+        />
+        {ligne.source?.trim() ? (
+          <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400" title={ligne.source}>
+            Source : « {ligne.source.length > 90 ? `${ligne.source.slice(0, 90)}…` : ligne.source} »
+          </p>
+        ) : null}
+      </div>
       {showLigneTypes ? (
         <div className="w-full min-w-[140px] sm:w-36">
           <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Type</label>
@@ -94,7 +114,17 @@ function SortableLigne({
         <Input label="Unité" value={ligne.unite} onChange={(e) => onChange(ligne.id, { unite: e.target.value })} />
       </div>
       <div className="w-28">
-        <Input label="PU HT" type="number" value={ligne.prix_ht} onChange={(e) => onChange(ligne.id, { prix_ht: Number(e.target.value) })} />
+        <Input
+          label="PU HT"
+          type="number"
+          value={ligne.prix_ht}
+          onChange={(e) =>
+            onChange(ligne.id, {
+              prix_ht: Number(e.target.value),
+              origine_prix: Number(e.target.value) > 0 ? "dicte" : "vide",
+            })
+          }
+        />
       </div>
       <div className="w-24">
         <Input label="TVA %" type="number" value={ligne.tva} onChange={(e) => onChange(ligne.id, { tva: Number(e.target.value) })} />
@@ -105,6 +135,22 @@ function SortableLigne({
       <Button type="button" variant="danger" onClick={() => onRemove(ligne.id)}>
         ×
       </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {originePrixLabel(ligne.origine_prix) ? (
+          <span className={cx("rounded-full px-2 py-0.5 text-[11px] font-medium", originePrixClass(ligne.origine_prix))}>
+            {originePrixLabel(ligne.origine_prix)}
+          </span>
+        ) : null}
+        {(!ligne.prix_ht || ligne.prix_ht <= 0) && (
+          <span className="text-[11px] font-medium text-red-600 dark:text-red-400">Prix manquant — à compléter avant envoi</span>
+        )}
+        {ligne.tva_alerte?.trim() ? (
+          <span className="text-[11px] text-amber-700 dark:text-amber-300" title={ligne.tva_alerte}>
+            ⚠ TVA : {ligne.tva_alerte.length > 80 ? `${ligne.tva_alerte.slice(0, 80)}…` : ligne.tva_alerte}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -135,9 +181,9 @@ export function DevisEditor({
   const [lastAutoEmail, setLastAutoEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [legalModalOpen, setLegalModalOpen] = useState(false);
-  const [legalComplete, setLegalComplete] = useState(
-    () => computeProfileCompletion({ id: "", email: "", profile }).legalComplete,
-  );
+  const legalExport = useMemo(() => checkLegalExportReady(profile), [profile]);
+  const [legalComplete, setLegalComplete] = useState(() => legalExport.ok);
+  const [iaQuestions] = useState<string[]>(() => devis.ia_questions ?? []);
   const [notes, setNotes] = useState(devis.notes ?? "");
   const [dateExp, setDateExp] = useState(devis.date_expiration ?? "");
   const [remiseType, setRemiseType] = useState<"percent" | "fixed" | "">(
@@ -158,6 +204,9 @@ export function DevisEditor({
         l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
           ? l.ligne_type
           : "prestation",
+      source: l.source ?? null,
+      origine_prix: l.origine_prix ?? (Number(l.prix_ht ?? 0) > 0 ? "dicte" : "vide"),
+      tva_alerte: l.tva_alerte ?? null,
     })),
   );
   const [internalNotesHist, setInternalNotesHist] = useState(devis.internal_notes ?? "");
@@ -236,6 +285,9 @@ export function DevisEditor({
         tva: l.tva,
         ordre: idx,
         ligne_type: l.ligne_type,
+        source: l.source ?? null,
+        origine_prix: l.origine_prix ?? null,
+        tva_alerte: l.tva_alerte ?? null,
       })),
     };
     start(async () => {
@@ -317,7 +369,24 @@ export function DevisEditor({
                   ? "Expiré"
                   : "Devis";
 
+  const linesToVerify = useMemo(
+    () =>
+      lignes.filter(
+        (l) => l.origine_prix === "vide" || l.origine_prix === "prereglage" || !l.prix_ht || l.prix_ht <= 0,
+      ).length,
+    [lignes],
+  );
+
+  function requireLegalExport(action: "pdf" | "email"): boolean {
+    const check = checkLegalExportReady(profile);
+    if (check.ok) return true;
+    setBannerErr(check.message);
+    if (action === "pdf") setLegalModalOpen(true);
+    return false;
+  }
+
   function openPdf() {
+    if (!requireLegalExport("pdf")) return;
     window.open(`/api/devis/${devis.id}/pdf`, "_blank", "noopener,noreferrer");
   }
 
@@ -330,6 +399,7 @@ export function DevisEditor({
 
   async function openSendDrawer() {
     setBannerErr(null);
+    if (!requireLegalExport("email")) return;
     const clientEmail = (selectedClient?.email ?? "").trim();
     if (!sendEmailTo.trim() && clientEmail) {
       setSendEmailTo(clientEmail);
@@ -402,12 +472,27 @@ export function DevisEditor({
           {bannerErr}
         </div>
       ) : null}
+      {iaQuestions.length > 0 ? (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100">
+          <p className="font-medium">Points à confirmer (Zeus)</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-sm">
+            {iaQuestions.map((q) => (
+              <li key={q}>{q}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {linesToVerify > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+          {linesToVerify} ligne{linesToVerify > 1 ? "s" : ""} à compléter ou à vérifier (prix par défaut ou manquant).
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <CircleBackLink href="/devis" label="Retour aux devis" />
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
         </Button>
-        <Button type="button" variant="secondary" onClick={() => (legalComplete ? openPdf() : setLegalModalOpen(true))}>
+        <Button type="button" variant="secondary" onClick={() => openPdf()}>
           PDF
         </Button>
         <Button type="button" disabled={pending || sending} className="min-w-0 flex-1 sm:flex-none" onClick={() => void openSendDrawer()}>

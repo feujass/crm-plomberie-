@@ -19,22 +19,31 @@ async function insertDevisLignes(
     tva: Number(l.tva ?? 10),
     ordre: Number(l.ordre ?? i),
     ligne_type: String(l.ligne_type ?? "prestation"),
+    source: l.source != null ? String(l.source) : null,
+    origine_prix: l.origine_prix != null ? String(l.origine_prix) : null,
+    tva_alerte: l.tva_alerte != null ? String(l.tva_alerte) : null,
   }));
   const { lignes } = calcDevisTotals(raw);
   if (lignes.length === 0) return;
   const { error } = await admin.from("devis_lignes").insert(
-    lignes.map((l) => ({
-      devis_id: devisId,
-      section: l.section,
-      designation: l.designation,
-      quantite: l.quantite,
-      unite: l.unite,
-      prix_ht: l.prix_ht,
-      tva: l.tva,
-      total_ht: l.total_ht,
-      ordre: l.ordre,
-      ligne_type: l.ligne_type,
-    })),
+    lignes.map((l) => {
+      const ext = l as Record<string, unknown>;
+      return {
+        devis_id: devisId,
+        section: l.section,
+        designation: l.designation,
+        quantite: l.quantite,
+        unite: l.unite,
+        prix_ht: l.prix_ht,
+        tva: l.tva,
+        total_ht: l.total_ht,
+        ordre: l.ordre,
+        ligne_type: l.ligne_type,
+        source: ext.source ?? null,
+        origine_prix: ext.origine_prix ?? null,
+        tva_alerte: ext.tva_alerte ?? null,
+      };
+    }),
   );
   if (error) throw new Error(error.message);
 }
@@ -66,10 +75,12 @@ export async function linkDemoQuoteToUser(
     designation: l.designation,
     quantite: l.quantite,
     unite: l.unite,
-    prix_ht: l.prix_ht,
-    tva: l.tva,
+    prix_ht: Number(l.prix_ht ?? l.prix_unitaire_ht ?? 0),
+    tva: Number(l.tva ?? 10),
     section: l.section ?? null,
     ligne_type: l.ligne_type ?? null,
+    source: l.source ?? null,
+    origine_prix: l.prix_ht != null || l.prix_unitaire_ht != null ? "dicte" : "vide",
     ordre: i,
   }));
 
@@ -89,6 +100,8 @@ export async function linkDemoQuoteToUser(
       notes: meta.notes,
       date_expiration: meta.date_expiration,
       adresse_chantier: quote.adresse_chantier?.trim() || null,
+      ia_questions: quote.questions ?? [],
+      transcription_corrigee: row.transcript ? String(row.transcript) : null,
       remise_type: null,
       remise_value: null,
     })
@@ -110,8 +123,8 @@ export async function linkDemoQuoteToUser(
         designation: l.designation,
         quantite: l.quantite,
         unite: l.unite,
-        prix_ht: l.prix_ht,
-        tva: l.tva,
+        prix_ht: Number(l.prix_ht ?? l.prix_unitaire_ht ?? 0),
+        tva: Number(l.tva ?? 10),
         section: l.section ?? "",
         ligne_type: l.ligne_type,
       })),

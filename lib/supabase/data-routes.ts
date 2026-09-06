@@ -90,24 +90,33 @@ async function replaceDevisLignes(
       tva: Number(row.tva ?? 10),
       ordre: Number(row.ordre ?? i),
       ligne_type: String(row.ligne_type ?? "prestation"),
+      source: row.source != null ? String(row.source) : null,
+      origine_prix: row.origine_prix != null ? String(row.origine_prix) : null,
+      tva_alerte: row.tva_alerte != null ? String(row.tva_alerte) : null,
     };
   });
   const { lignes, total_ht, total_tva, total_ttc } = calcDevisTotals(raw);
   await supabase.from("devis_lignes").delete().eq("devis_id", devisId);
   if (lignes.length > 0) {
     const { error } = await supabase.from("devis_lignes").insert(
-      lignes.map((l) => ({
-        devis_id: devisId,
-        section: l.section,
-        designation: l.designation,
-        quantite: l.quantite,
-        unite: l.unite,
-        prix_ht: l.prix_ht,
-        tva: l.tva,
-        total_ht: l.total_ht,
-        ordre: l.ordre,
-        ligne_type: l.ligne_type,
-      })),
+      lignes.map((l) => {
+        const ext = l as Record<string, unknown>;
+        return {
+          devis_id: devisId,
+          section: l.section,
+          designation: l.designation,
+          quantite: l.quantite,
+          unite: l.unite,
+          prix_ht: l.prix_ht,
+          tva: l.tva,
+          total_ht: l.total_ht,
+          ordre: l.ordre,
+          ligne_type: l.ligne_type,
+          source: ext.source ?? null,
+          origine_prix: ext.origine_prix ?? null,
+          tva_alerte: ext.tva_alerte ?? null,
+        };
+      }),
     );
     if (error) throw new Error(error.message);
   }
@@ -296,9 +305,13 @@ async function handleDevis(
         total_tva,
         total_ttc,
         notes: String(b.notes ?? ""),
+        adresse_chantier: b.adresse_chantier ? String(b.adresse_chantier).trim() : null,
         date_expiration: b.date_expiration ? String(b.date_expiration) : null,
         remise_type: remiseTypeToDb(b.remise_type),
         remise_value: Number(b.remise_valeur ?? b.remise_value ?? 0) || null,
+        transcription_brute: b.transcription_brute ? String(b.transcription_brute) : null,
+        transcription_corrigee: b.transcription_corrigee ? String(b.transcription_corrigee) : null,
+        ia_questions: Array.isArray(b.ia_questions) ? b.ia_questions : [],
       })
       .select("*")
       .single();

@@ -19,6 +19,9 @@ type SaveBody = {
     tva: number;
     ordre?: number;
     ligne_type?: string;
+    source?: string | null;
+    origine_prix?: string | null;
+    tva_alerte?: string | null;
   }>;
 };
 
@@ -70,6 +73,9 @@ export async function POST(req: Request, ctx: Ctx) {
             l.ligne_type === "fourniture" || l.ligne_type === "pose" || l.ligne_type === "prestation"
               ? l.ligne_type
               : "prestation",
+          source: l.source ?? null,
+          origine_prix: l.origine_prix ?? null,
+          tva_alerte: l.tva_alerte ?? null,
         })),
       ),
     });
