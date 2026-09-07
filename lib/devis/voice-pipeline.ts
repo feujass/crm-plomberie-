@@ -3,8 +3,6 @@ import {
   alertPrixHorsTranscript,
   correctUnitPricesFromTranscript,
   enforceDictatedPricesFromSource,
-  extractFlatPrices,
-  extractPerUnitPrices,
   type PrixAlert,
 } from "@/lib/devis/prix-validation";
 import { applyCataloguePrices } from "@/lib/catalogue/apply-catalogue-prices";
@@ -97,16 +95,11 @@ function prixFromIaLigne(l: DevisIaResponse["lignes"][number]): number | null {
   return null;
 }
 
-function hasExplicitPriceInSource(source?: string | null): boolean {
-  if (!source?.trim()) return false;
-  return extractFlatPrices(source).length > 0 || extractPerUnitPrices(source).length > 0;
-}
-
 export function iaLignesToRaw(lignes: DevisIaResponse["lignes"]): IaLigneLike[] {
   return lignes.map((l, i) => {
     const prix = prixFromIaLigne(l);
-    const origine_prix: OriginePrix =
-      prix != null ? (hasExplicitPriceInSource(l.source) ? "dicte" : "vide") : "vide";
+    // Le prompt LLM n'autorise prix_unitaire_ht que si explicitement dicté.
+    const origine_prix: OriginePrix = prix != null ? "dicte" : "vide";
     return {
       section: l.section,
       designation: l.designation,

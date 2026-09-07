@@ -147,10 +147,11 @@ export function enforceDictatedPricesFromSource(lignes: IaLigneLike[]): {
     const dictated = prices[0]!;
     const current = typeof ligne.prix_ht === "number" ? ligne.prix_ht : null;
     if (current == null || Math.abs(current - dictated) < 0.01) {
-      if (current == null) {
-        return { ...ligne, prix_ht: dictated, origine_prix: "dicte" as const };
-      }
-      return ligne;
+      return {
+        ...ligne,
+        prix_ht: current ?? dictated,
+        origine_prix: "dicte" as const,
+      };
     }
 
     alerts.push({

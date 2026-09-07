@@ -459,7 +459,7 @@ export function DevisEditor({
   }
 
   return (
-    <div className="space-y-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] md:pb-24">
+    <div className="space-y-4 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-24">
       {info === "no-ai" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
           IA non configurée : devis créé en brouillon (tu peux le remplir manuellement).
@@ -507,13 +507,14 @@ export function DevisEditor({
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <CircleBackLink href="/devis" label="Retour aux devis" />
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
         <Button type="button" onClick={() => save()} disabled={pending}>
           Enregistrer
         </Button>
         <Button type="button" variant="secondary" onClick={() => openPdf()}>
           PDF
         </Button>
-        <Button type="button" disabled={pending || sending} className="min-w-0 flex-1 sm:flex-none" onClick={() => void openSendDrawer()}>
+        <Button type="button" disabled={pending || sending} onClick={() => void openSendDrawer()}>
           Envoyer le devis
         </Button>
         <DropdownMenu>
@@ -620,6 +621,7 @@ export function DevisEditor({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -672,7 +674,6 @@ export function DevisEditor({
             remiseType={remiseType}
             remiseValue={remiseValue}
             onEditLines={() => setViewMode("edit")}
-            onSend={() => void openSendDrawer()}
             showValidationHints
           />
         ) : null}
@@ -826,12 +827,15 @@ export function DevisEditor({
       ) : null}
 
       {/* Au-dessus de la barre d’onglets mobile (PlannerAppShell) */}
-      <div className="fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-50 border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:bottom-0">
+      <div className="fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-50 border-t border-gray-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           <Button type="button" variant="secondary" disabled={pending} onClick={() => save()}>
             Enregistrer
           </Button>
-          <Button type="button" disabled={pending} className="flex-1" onClick={() => void openSendDrawer()}>
+          <Button type="button" variant="secondary" disabled={pending} onClick={() => openPdf()}>
+            PDF
+          </Button>
+          <Button type="button" disabled={pending || sending} className="flex-1" onClick={() => void openSendDrawer()}>
             Envoyer le devis
           </Button>
         </div>

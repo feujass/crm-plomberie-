@@ -25,7 +25,6 @@ type Props = {
   remiseType: "percent" | "fixed" | "";
   remiseValue: number | "";
   onEditLines: () => void;
-  onSend?: () => void;
   /** Badges origine_prix — écran validation uniquement, jamais sur le PDF. */
   showValidationHints?: boolean;
 };
@@ -80,7 +79,6 @@ export function DevisDocumentPreview({
   remiseType,
   remiseValue,
   onEditLines,
-  onSend,
   showValidationHints = false,
 }: Props) {
   const [logoDisplayUrl, setLogoDisplayUrl] = useState("");
@@ -270,20 +268,6 @@ export function DevisDocumentPreview({
           ) : null}
         </div>
 
-        {onSend ? (
-          <div className="border-t border-slate-100 px-5 py-4 sm:px-8 dark:border-slate-800 md:hidden">
-            <button
-              type="button"
-              onClick={onSend}
-              className={cx(
-                focusRing,
-                "h-11 w-full rounded-full bg-[color:var(--primary)] text-sm font-semibold text-white hover:opacity-95",
-              )}
-            >
-              Envoyer le devis
-            </button>
-          </div>
-        ) : null}
       </div>
     </div>
   );
