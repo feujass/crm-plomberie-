@@ -189,6 +189,7 @@ export type BackendDevisLine = {
   ligne_type?: "prestation" | "fourniture" | "pose" | string;
   source?: string | null;
   origine_prix?: "dicte" | "prereglage" | "vide" | null;
+  catalogue_ouvrage_id?: string | null;
   tva_alerte?: string | null;
 };
 

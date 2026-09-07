@@ -14,6 +14,8 @@ export type DevisLigneInput = {
   /** Extrait de la dictée justifiant la ligne */
   source?: string | null;
   origine_prix?: OriginePrix | null;
+  /** Ouvrage catalogue source du tarif par défaut */
+  catalogue_ouvrage_id?: string | null;
   /** Alerte TVA non bloquante */
   tva_alerte?: string | null;
 };

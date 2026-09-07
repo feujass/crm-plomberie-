@@ -32,6 +32,7 @@ export type IaLigneLike = {
   ligne_type?: string;
   source?: string | null;
   origine_prix?: "dicte" | "prereglage" | "vide" | null;
+  catalogue_ouvrage_id?: string | null;
   tva_alerte?: string | null;
 };
 
@@ -83,6 +84,7 @@ export function normalizeLignesWithProfile(lignes: IaLigneLike[], profile: Backe
       ligne_type,
       source: l.source ?? null,
       origine_prix,
+      catalogue_ouvrage_id: l.catalogue_ouvrage_id ?? null,
       tva_alerte: l.tva_alerte ?? null,
     };
   });

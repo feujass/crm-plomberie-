@@ -213,6 +213,7 @@ export function DevisEditor({
       source: l.source ?? null,
       origine_prix: l.origine_prix ?? null,
       tva_alerte: l.tva_alerte ?? null,
+      catalogue_ouvrage_id: l.catalogue_ouvrage_id ?? null,
     })),
   );
   const [internalNotesHist, setInternalNotesHist] = useState(devis.internal_notes ?? "");
@@ -294,6 +295,7 @@ export function DevisEditor({
         source: l.source ?? null,
         origine_prix: l.origine_prix ?? null,
         tva_alerte: l.tva_alerte ?? null,
+        catalogue_ouvrage_id: l.catalogue_ouvrage_id ?? null,
       })),
     };
     start(async () => {

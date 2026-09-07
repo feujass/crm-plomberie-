@@ -1,7 +1,7 @@
 import type { BackendOuvrage } from "@/types/backend";
 import type { IaLigneLike } from "@/lib/devis-ouvrage-mode";
 
-const MATCH_THRESHOLD = 55;
+const MATCH_THRESHOLD = 70;
 
 export { MATCH_THRESHOLD };
 
@@ -71,7 +71,7 @@ function ligneTypeFromOuvrage(type: BackendOuvrage["type"]): IaLigneLike["ligne_
   return "prestation";
 }
 
-/** Remplace prix / unité / TVA par la bibliothèque lorsqu'une correspondance est trouvée (lignes sans prix dicté uniquement). */
+/** Applique prix / unité / TVA depuis la bibliothèque lorsqu'une correspondance est trouvée (désignation dictée conservée). */
 export function applyCataloguePrices(
   lignes: IaLigneLike[],
   ouvrages: BackendOuvrage[],
@@ -100,12 +100,12 @@ export function applyCataloguePrices(
 
     return {
       ...ligne,
-      designation: best.nom,
       prix_ht: appliedPrice,
       unite: best.unite?.trim() || ligne.unite,
       tva: typeof best.tva === "number" && Number.isFinite(best.tva) ? best.tva : ligne.tva,
       ligne_type: ligneTypeFromOuvrage(best.type) ?? ligne.ligne_type,
       origine_prix: "prereglage",
+      catalogue_ouvrage_id: best.id,
     };
   });
 }

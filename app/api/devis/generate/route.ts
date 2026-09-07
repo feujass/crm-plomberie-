@@ -1,4 +1,3 @@
-import { applyCataloguePrices } from "@/lib/catalogue/apply-catalogue-prices";
 import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
 import {
   buildDevisGeneratePrompt,

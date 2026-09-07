@@ -93,6 +93,7 @@ async function replaceDevisLignes(
       source: row.source != null ? String(row.source) : null,
       origine_prix: row.origine_prix != null ? String(row.origine_prix) : null,
       tva_alerte: row.tva_alerte != null ? String(row.tva_alerte) : null,
+      catalogue_ouvrage_id: row.catalogue_ouvrage_id != null ? String(row.catalogue_ouvrage_id) : null,
     };
   });
   const { lignes, total_ht, total_tva, total_ttc } = calcDevisTotals(raw);
@@ -115,6 +116,7 @@ async function replaceDevisLignes(
           source: ext.source ?? null,
           origine_prix: ext.origine_prix ?? null,
           tva_alerte: ext.tva_alerte ?? null,
+          catalogue_ouvrage_id: ext.catalogue_ouvrage_id ?? null,
         };
       }),
     );

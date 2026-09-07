@@ -22,6 +22,7 @@ type SaveBody = {
     source?: string | null;
     origine_prix?: string | null;
     tva_alerte?: string | null;
+    catalogue_ouvrage_id?: string | null;
   }>;
 };
 
@@ -76,6 +77,7 @@ export async function POST(req: Request, ctx: Ctx) {
           source: l.source ?? null,
           origine_prix: l.origine_prix ?? null,
           tva_alerte: l.tva_alerte ?? null,
+          catalogue_ouvrage_id: l.catalogue_ouvrage_id ?? null,
         })),
       ),
     });

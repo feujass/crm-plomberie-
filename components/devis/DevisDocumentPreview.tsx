@@ -33,6 +33,38 @@ type Props = {
 const fieldClass =
   "w-full border-0 border-b border-transparent bg-transparent px-0 py-1 text-inherit shadow-none focus:border-[color:var(--primary)]/40 focus:outline-none focus:ring-0";
 
+function LigneValidationHints({
+  l,
+  showValidationHints,
+}: {
+  l: LignePreview;
+  showValidationHints: boolean;
+}) {
+  if (!showValidationHints) return null;
+  return (
+    <>
+      {l.origine_prix === "prereglage" ? (
+        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+          Tarif par défaut
+        </span>
+      ) : null}
+      {l.origine_prix === "dicte" ? (
+        <span className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+          Prix dicté
+        </span>
+      ) : null}
+      {(l.origine_prix === "vide" || !l.prix_ht) ? (
+        <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:bg-red-950/50 dark:text-red-200">
+          Prix à compléter
+        </span>
+      ) : null}
+      {l.tva_alerte?.trim() ? (
+        <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">⚠ {l.tva_alerte}</p>
+      ) : null}
+    </>
+  );
+}
+
 export function DevisDocumentPreview({
   numero,
   statutLabel,
@@ -145,8 +177,29 @@ export function DevisDocumentPreview({
         </div>
 
         <div className="px-5 sm:px-8">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+            {lignes.map((l, idx) => {
+              const lineTotal = ligneTotalHt({ quantite: l.quantite, prix_ht: l.prix_ht });
+              return (
+                <div key={l.id ?? `l-${idx}`} className="py-4 first:pt-0">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{l.designation}</p>
+                  <LigneValidationHints l={l} showValidationHints={showValidationHints} />
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    {l.quantite} {l.unite} × {formatCurrencyEUR(l.prix_ht)} HT
+                  </p>
+                  <div className="mt-2 flex items-baseline justify-end gap-2">
+                    <span className="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                      {formatCurrencyEUR(lineTotal)}
+                    </span>
+                    <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{l.tva} %</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block">
+            <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b-2 border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700">
                   <th className="py-2 pr-3 font-semibold">Désignation</th>
@@ -165,24 +218,7 @@ export function DevisDocumentPreview({
                   >
                     <td className="py-3 pr-3 align-top text-slate-900 dark:text-slate-100">
                       <div>{l.designation}</div>
-                      {showValidationHints && l.origine_prix === "prereglage" ? (
-                        <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
-                          Tarif par défaut
-                        </span>
-                      ) : null}
-                      {showValidationHints && l.origine_prix === "dicte" ? (
-                        <span className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
-                          Prix dicté
-                        </span>
-                      ) : null}
-                      {showValidationHints && (l.origine_prix === "vide" || !l.prix_ht) ? (
-                        <span className="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 dark:bg-red-950/50 dark:text-red-200">
-                          Prix à compléter
-                        </span>
-                      ) : null}
-                      {showValidationHints && l.tva_alerte?.trim() ? (
-                        <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">⚠ {l.tva_alerte}</p>
-                      ) : null}
+                      <LigneValidationHints l={l} showValidationHints={showValidationHints} />
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{l.quantite}</td>
                     <td className="py-3 px-2 text-slate-700 dark:text-slate-300">{l.unite}</td>
@@ -199,7 +235,7 @@ export function DevisDocumentPreview({
             </table>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-start justify-between gap-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
               onClick={onEditLines}
@@ -207,7 +243,7 @@ export function DevisDocumentPreview({
             >
               Modifier les lignes
             </button>
-            <div className="space-y-1 text-right text-sm">
+            <div className="w-full space-y-1 text-right text-sm sm:w-auto">
               <p className="text-slate-600 dark:text-slate-400">Total HT : {formatCurrencyEUR(totals.total_ht)}</p>
               <p className="text-slate-600 dark:text-slate-400">Total TVA : {formatCurrencyEUR(totals.total_tva)}</p>
               <p className="text-lg font-bold text-slate-900 dark:text-slate-50">

@@ -36,6 +36,7 @@ export function mapDevisLineRow(row: Record<string, unknown>): BackendDevisLine 
     ligne_type: (row.ligne_type as string) ?? undefined,
     source: (row.source as string) ?? undefined,
     origine_prix: (row.origine_prix as BackendDevisLine["origine_prix"]) ?? undefined,
+    catalogue_ouvrage_id: row.catalogue_ouvrage_id != null ? String(row.catalogue_ouvrage_id) : undefined,
     tva_alerte: (row.tva_alerte as string) ?? undefined,
   };
 }
