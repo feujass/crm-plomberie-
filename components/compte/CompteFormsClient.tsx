@@ -130,6 +130,7 @@ export function CompteEntrepriseFormClient({
             rcs_ville: String(fd.get("rcs_ville") || ""),
             numero_tva_intracom: String(fd.get("numero_tva_intracom") || ""),
             regime_tva: String(fd.get("regime_tva") || "encaissements"),
+            tva_periodicite_declaration: String(fd.get("tva_periodicite_declaration") || ""),
             confirmer_adresse_structure: fd.get("confirmer_adresse_structure") === "on",
             decennale_mention: String(fd.get("decennale_mention") || ""),
             iban: String(fd.get("iban") || ""),
@@ -227,6 +228,23 @@ export function CompteEntrepriseFormClient({
               <option value="franchise_293b">Franchise en base (art. 293 B du CGI)</option>
             </select>
           </label>
+          <label className="block text-sm font-medium">
+            Périodicité de déclaration de TVA
+            <select
+              name="tva_periodicite_declaration"
+              defaultValue={profile.tva_periodicite_declaration ?? ""}
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            >
+              <option value="">Non renseignée</option>
+              <option value="monthly">Réel normal — mensuel</option>
+              <option value="quarterly">Réel normal — trimestriel</option>
+              <option value="simplified">Régime simplifié d’imposition</option>
+            </select>
+          </label>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            Indispensable hors franchise en base : la plateforme agréée l’envoie au PPF comme périodicité de
+            déclaration (ce n’est pas le régime d’exigibilité ci-dessus).
+          </p>
           <Textarea
             label="Assurance décennale / RC pro (BTP)"
             name="decennale_mention"

@@ -7,8 +7,7 @@ import type { RegimeTva } from "@/lib/facturation/regime-tva";
  *   monthly | quarterly | simplified | vat_exemption
  * Ce n’est pas le régime d’exigibilité Flowo (encaissements | debits | franchise_293b).
  *
- * Manque en base Flowo : la périodicité mensuel / trimestriel / simplifié.
- * Colonne prévue : `profiles.tva_periodicite_declaration` (nullable).
+ * Saisie artisan : Compte → Entreprise → périodicité (`profiles.tva_periodicite_declaration`).
  * Tant qu’elle est nulle, on n’envoie pas `vat_regime` autre que `vat_exemption`
  * (déductible de la franchise 293 B). Les autres cas restent `incomplete`.
  */

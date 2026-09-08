@@ -27,6 +27,8 @@ export function mapSupabaseProfile(row: SupabaseProfileRow | null | undefined): 
     tva_sur_encaissements: row.tva_sur_encaissements as boolean | undefined,
     tva_sur_debits_opt_in: row.tva_sur_debits_opt_in as boolean | undefined,
     regime_tva: (row.regime_tva as BackendProfile["regime_tva"]) ?? undefined,
+    tva_periodicite_declaration:
+      (row.tva_periodicite_declaration as BackendProfile["tva_periodicite_declaration"]) ?? null,
     adresse_ligne1: (row.adresse_ligne1 as string) ?? undefined,
     adresse_ligne2: (row.adresse_ligne2 as string) ?? undefined,
     adresse_cp: (row.adresse_cp as string) ?? undefined,

@@ -1,8 +1,11 @@
 import { backendFetch, type BackendFetchError } from "@/lib/backend/server";
 import { isAdresseComplete, proposerAdresseDepuisBlob } from "@/lib/facturation/adresse";
+import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
+import { syncConnectedVatRegime } from "@/lib/facturation/pa/sync-vat-regime";
 import { parseRegimeTva } from "@/lib/facturation/regime-tva";
 import { isValidSiren, isValidSiret } from "@/lib/legal/siren";
 import { logoUrlValidationError } from "@/lib/security/logo-url";
+import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -12,7 +15,15 @@ function revalidateCompteAll() {
   revalidatePath("/compte/entreprise");
   revalidatePath("/compte/devis-apparence");
   revalidatePath("/compte/devis-regles");
+  revalidatePath("/compte/e-facturation");
   revalidatePath("/accueil");
+}
+
+function parsePeriodicite(
+  raw: unknown,
+): "monthly" | "quarterly" | "simplified" | null {
+  if (raw === "monthly" || raw === "quarterly" || raw === "simplified") return raw;
+  return null;
 }
 
 type Body = {
@@ -24,6 +35,7 @@ type Body = {
   rcs_ville?: string | null;
   numero_tva_intracom?: string | null;
   regime_tva?: "encaissements" | "debits" | "franchise_293b" | null;
+  tva_periodicite_declaration?: "monthly" | "quarterly" | "simplified" | "" | null;
   tva_sur_encaissements?: boolean | null;
   tva_sur_debits_opt_in?: boolean | null;
   decennale_mention?: string | null;
@@ -101,6 +113,7 @@ export async function POST(req: Request) {
         rcs_ville: String(raw.rcs_ville ?? "").trim() || null,
         numero_tva_intracom: String(raw.numero_tva_intracom ?? "").trim() || null,
         regime_tva: parseRegimeTva(raw.regime_tva),
+        tva_periodicite_declaration: parsePeriodicite(raw.tva_periodicite_declaration),
         decennale_mention: String(raw.decennale_mention ?? "").trim() || null,
         iban: String(raw.iban ?? "").trim() || null,
         bic: String(raw.bic ?? "").trim() || null,
@@ -122,6 +135,17 @@ export async function POST(req: Request) {
           typeof raw.feature_flag_esign_advanced === "boolean" ? raw.feature_flag_esign_advanced : undefined,
       }),
     });
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        await syncConnectedVatRegime(supabase, getEInvoicingProvider(), user.id);
+      }
+    } catch {
+      /* PATCH PA optionnel — la fiche entreprise est déjà enregistrée */
+    }
     revalidateCompteAll();
     return NextResponse.json({ ok: true });
   } catch (err) {
