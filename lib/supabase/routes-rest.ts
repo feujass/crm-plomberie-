@@ -14,7 +14,6 @@ import {
   mapDevisDetailRow,
   mapDevisLineRow,
   mapProfileRow,
-  nextFactureNumero,
 } from "@/lib/supabase/row-maps";
 import { fetchDevisLignesHelper } from "@/lib/supabase/routes-shared";
 import { fromDbAdresse } from "@/lib/facturation/adresse";
@@ -690,7 +689,6 @@ export async function handleFacturesExtended(
     const branche =
       typeClient === "public" ? "secteur_public" : typeClient === "entreprise" ? "b2b_fr_tva" : "b2c";
 
-    const numero = await nextFactureNumero(supabase, user.id);
     const now = new Date();
     const echeance = new Date(now);
     echeance.setDate(echeance.getDate() + 30);
@@ -703,7 +701,6 @@ export async function handleFacturesExtended(
         user_id: user.id,
         devis_id: devisId,
         client_id: devis.client_id,
-        numero,
         statut: "emise",
         statut_cycle_vie: "emise",
         total_ht: devis.total_ht,
@@ -752,7 +749,7 @@ export async function handleFacturesExtended(
 
     await supabase.from("devis").update({ statut: "accepte" }).eq("id", devisId);
     await createDefaultTransmissions(supabase, user.id, fid, branche);
-    await auditLog(supabase, user.id, "facture.created", "facture", fid, { numero, branche });
+    await auditLog(supabase, user.id, "facture.created", "facture", fid, { numero: facture.numero, branche });
 
     return mapFactureDetail(facture as Record<string, unknown>, lignes, [], clientNom);
   }

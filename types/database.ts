@@ -13,31 +13,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       affiliate_applications: {
@@ -783,7 +758,7 @@ export type Database = {
           tel: string | null
           tva_intracom: string | null
           type: string
-          type_client: string | null
+          type_client: Database["public"]["Enums"]["type_client"] | null
           user_id: string
         }
         Insert: {
@@ -815,7 +790,7 @@ export type Database = {
           tel?: string | null
           tva_intracom?: string | null
           type?: string
-          type_client?: string | null
+          type_client?: Database["public"]["Enums"]["type_client"] | null
           user_id: string
         }
         Update: {
@@ -847,7 +822,7 @@ export type Database = {
           tel?: string | null
           tva_intracom?: string | null
           type?: string
-          type_client?: string | null
+          type_client?: Database["public"]["Enums"]["type_client"] | null
           user_id?: string
         }
         Relationships: []
@@ -1167,7 +1142,7 @@ export type Database = {
           designation: string
           devis_id: string
           id: string
-          ligne_type: string | null
+          ligne_type: Database["public"]["Enums"]["ligne_type"] | null
           ordre: number
           origine_prix: string | null
           prix_ht: number
@@ -1184,7 +1159,7 @@ export type Database = {
           designation: string
           devis_id: string
           id?: string
-          ligne_type?: string | null
+          ligne_type?: Database["public"]["Enums"]["ligne_type"] | null
           ordre?: number
           origine_prix?: string | null
           prix_ht?: number
@@ -1201,7 +1176,7 @@ export type Database = {
           designation?: string
           devis_id?: string
           id?: string
-          ligne_type?: string | null
+          ligne_type?: Database["public"]["Enums"]["ligne_type"] | null
           ordre?: number
           origine_prix?: string | null
           prix_ht?: number
@@ -1291,7 +1266,7 @@ export type Database = {
           section: string | null
           total_ht: number
           tva: number
-          type_ligne: string
+          type_ligne: Database["public"]["Enums"]["type_ligne"]
           unite: string
         }
         Insert: {
@@ -1304,7 +1279,7 @@ export type Database = {
           section?: string | null
           total_ht?: number
           tva?: number
-          type_ligne?: string
+          type_ligne?: Database["public"]["Enums"]["type_ligne"]
           unite?: string
         }
         Update: {
@@ -1317,7 +1292,7 @@ export type Database = {
           section?: string | null
           total_ht?: number
           tva?: number
-          type_ligne?: string
+          type_ligne?: Database["public"]["Enums"]["type_ligne"]
           unite?: string
         }
         Relationships: [
@@ -1354,7 +1329,9 @@ export type Database = {
           id: string
           immutable: boolean | null
           locked_at: string | null
-          nature_operation: string | null
+          nature_operation:
+            | Database["public"]["Enums"]["nature_operation"]
+            | null
           numero: string | null
           operations_type: string | null
           option_tva_debits: boolean
@@ -1364,7 +1341,7 @@ export type Database = {
           snapshot_client: Json | null
           snapshot_emetteur: Json | null
           statut: string
-          statut_cycle_vie: string
+          statut_cycle_vie: Database["public"]["Enums"]["statut_cycle_vie"]
           total_ht: number
           total_ttc: number
           total_tva: number
@@ -1394,7 +1371,9 @@ export type Database = {
           id?: string
           immutable?: boolean | null
           locked_at?: string | null
-          nature_operation?: string | null
+          nature_operation?:
+            | Database["public"]["Enums"]["nature_operation"]
+            | null
           numero?: string | null
           operations_type?: string | null
           option_tva_debits?: boolean
@@ -1404,7 +1383,7 @@ export type Database = {
           snapshot_client?: Json | null
           snapshot_emetteur?: Json | null
           statut?: string
-          statut_cycle_vie?: string
+          statut_cycle_vie?: Database["public"]["Enums"]["statut_cycle_vie"]
           total_ht?: number
           total_ttc?: number
           total_tva?: number
@@ -1434,7 +1413,9 @@ export type Database = {
           id?: string
           immutable?: boolean | null
           locked_at?: string | null
-          nature_operation?: string | null
+          nature_operation?:
+            | Database["public"]["Enums"]["nature_operation"]
+            | null
           numero?: string | null
           operations_type?: string | null
           option_tva_debits?: boolean
@@ -1444,7 +1425,7 @@ export type Database = {
           snapshot_client?: Json | null
           snapshot_emetteur?: Json | null
           statut?: string
-          statut_cycle_vie?: string
+          statut_cycle_vie?: Database["public"]["Enums"]["statut_cycle_vie"]
           total_ht?: number
           total_ttc?: number
           total_tva?: number
@@ -1870,7 +1851,7 @@ export type Database = {
           profile_voice_prompt_skipped_at: string | null
           rcs_ville: string | null
           referred_by_partner_id: string | null
-          regime_tva: string
+          regime_tva: Database["public"]["Enums"]["regime_tva"]
           relance_devis_echeances: string
           relance_devis_jours: number
           relance_facture_echeances: string
@@ -1936,7 +1917,7 @@ export type Database = {
           profile_voice_prompt_skipped_at?: string | null
           rcs_ville?: string | null
           referred_by_partner_id?: string | null
-          regime_tva?: string
+          regime_tva?: Database["public"]["Enums"]["regime_tva"]
           relance_devis_echeances?: string
           relance_devis_jours?: number
           relance_facture_echeances?: string
@@ -2002,7 +1983,7 @@ export type Database = {
           profile_voice_prompt_skipped_at?: string | null
           rcs_ville?: string | null
           referred_by_partner_id?: string | null
-          regime_tva?: string
+          regime_tva?: Database["public"]["Enums"]["regime_tva"]
           relance_devis_echeances?: string
           relance_devis_jours?: number
           relance_facture_echeances?: string
@@ -2420,7 +2401,17 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      ligne_type: "prestation" | "fourniture" | "pose"
+      nature_operation: "biens" | "services" | "mixte"
+      regime_tva: "encaissements" | "debits" | "franchise_293b"
+      statut_cycle_vie:
+        | "brouillon"
+        | "emise"
+        | "deposee"
+        | "rejetee"
+        | "encaissee"
+      type_client: "particulier" | "entreprise" | "public"
+      type_ligne: "bien" | "service"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2546,11 +2537,21 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
-    Enums: {},
+    Enums: {
+      ligne_type: ["prestation", "fourniture", "pose"],
+      nature_operation: ["biens", "services", "mixte"],
+      regime_tva: ["encaissements", "debits", "franchise_293b"],
+      statut_cycle_vie: [
+        "brouillon",
+        "emise",
+        "deposee",
+        "rejetee",
+        "encaissee",
+      ],
+      type_client: ["particulier", "entreprise", "public"],
+      type_ligne: ["bien", "service"],
+    },
   },
 } as const
 
