@@ -43,9 +43,18 @@ export function FacturXActionsClient({
                     method: "POST",
                     credentials: "same-origin",
                   });
-                  const data = (await res.json().catch(() => ({}))) as { message?: string };
+                  const data = (await res.json().catch(() => ({}))) as {
+                    message?: string;
+                    failures?: string[];
+                  };
                   if (!res.ok) {
-                    setErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
+                    setErr(
+                      Array.isArray(data.failures) && data.failures.length > 0
+                        ? data.failures.join("\n")
+                        : typeof data.message === "string"
+                          ? data.message
+                          : `Erreur ${res.status}`,
+                    );
                     return;
                   }
                   router.refresh();
@@ -60,7 +69,7 @@ export function FacturXActionsClient({
           ) : null}
         </div>
         <p className="text-xs text-slate-500">Document légal verrouillé — plus de régénération.</p>
-        {err ? <p className="text-sm text-red-600">{err}</p> : null}
+        {err ? <p className="text-sm text-red-600 whitespace-pre-line">{err}</p> : null}
       </div>
     );
   }

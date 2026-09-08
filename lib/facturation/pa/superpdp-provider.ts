@@ -15,6 +15,8 @@ import {
   parseLifecycleEvents,
   parseOauthSession,
   parseSubmitInvoiceResult,
+  parseValidationReport,
+  pickDirectoryRoutingAddress,
   snapshotFromOauthSession,
 } from "@/lib/facturation/pa/superpdp-parse";
 import type { SuperPdpVatMapping } from "@/lib/facturation/pa/tva-mapping";
@@ -25,10 +27,12 @@ import type {
   EReportingSubmitInput,
   FiscalEntityRef,
   IncomingInvoice,
+  InvoiceValidationResult,
   LifecycleEvent,
   OAuthTokenSet,
   SubmitInvoiceInput,
   SubmitInvoiceResult,
+  ValidateInvoiceInput,
 } from "@/lib/facturation/pa/types";
 
 export interface SuperPdpProviderDeps {
@@ -151,6 +155,27 @@ export class SuperPdpProvider implements EInvoicingProvider {
     });
   }
 
+  async validateInvoice(
+    _entity: FiscalEntityRef,
+    tokens: OAuthTokenSet,
+    input: ValidateInvoiceInput,
+  ): Promise<InvoiceValidationResult> {
+    const usePdf = Boolean(input.pdf && input.pdf.byteLength > 0);
+    const filename = usePdf ? "facture.pdf" : "facture.xml";
+    const type = usePdf ? "application/pdf" : "application/xml";
+    const bytes = usePdf ? Buffer.from(input.pdf!) : Buffer.from(input.xml, "utf8");
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type }), filename);
+    const res = await this.http.request({
+      method: "POST",
+      path: "/v1.beta/validation_reports",
+      accessToken: tokens.accessToken,
+      headers: { Accept: "application/json" },
+      body: form,
+    });
+    return parseValidationReport(res.json);
+  }
+
   async submitInvoice(
     _entity: FiscalEntityRef,
     tokens: OAuthTokenSet,
@@ -219,6 +244,24 @@ export class SuperPdpProvider implements EInvoicingProvider {
       },
     });
     return { invoices: parseIncomingInvoices(res.json) };
+  }
+
+  async lookupRoutingAddress(
+    tokens: OAuthTokenSet,
+    input: { companyNumber: string; preferredCompanyId?: string | null },
+  ): Promise<{ schemeId: string; value: string } | null> {
+    const number = input.companyNumber.trim();
+    if (!number) return null;
+    const res = await this.http.request({
+      method: "GET",
+      path: "/v1.beta/directory_entries",
+      accessToken: tokens.accessToken,
+      query: { q: number, limit: 50 },
+    });
+    return pickDirectoryRoutingAddress(res.json, {
+      companyNumber: number,
+      preferredCompanyId: input.preferredCompanyId,
+    });
   }
 
   async submitEReporting(): Promise<{ providerRef: string }> {

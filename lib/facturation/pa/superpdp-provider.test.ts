@@ -11,6 +11,8 @@ import {
   parseLifecycleEvents,
   parseOauthSession,
   parseSubmitInvoiceResult,
+  parseValidationReport,
+  pickDirectoryRoutingAddress,
   snapshotFromOauthSession,
 } from "@/lib/facturation/pa/superpdp-parse";
 import { SuperPdpProvider } from "@/lib/facturation/pa/superpdp-provider";
@@ -183,6 +185,25 @@ describe("émission et événements", () => {
     expect(seen).toContain("/v1.beta/invoices");
   });
 
+  it("valide via /v1.beta/validation_reports (multipart, sans /invoices)", async () => {
+    const seen: string[] = [];
+    const provider = new SuperPdpProvider({
+      config: CONFIG,
+      fetch: async (url, init) => {
+        seen.push(`${init?.method} ${url}`);
+        expect(init?.body).toBeInstanceOf(FormData);
+        expect(String(url)).toContain("/v1.beta/validation_reports");
+        expect(String(url)).not.toContain("/invoices");
+        return jsonResponse(200, {
+          data: [{ file_name: "facture.xml", is_valid: false, subreports: [{ failures: [{ message: "BR-FR-08" }] }] }],
+        });
+      },
+    });
+    const result = await provider.validateInvoice({ userId: "u1" }, TOKENS, { xml: "<xml/>" });
+    expect(result).toEqual({ ok: false, failures: ["BR-FR-08"] });
+    expect(seen).toEqual(["POST https://api.superpdp.tech/v1.beta/validation_reports"]);
+  });
+
   it("parse invoice_events vers LifecycleEvent", () => {
     const parsed = parseLifecycleEvents({
       has_after: false,
@@ -208,8 +229,90 @@ describe("émission et événements", () => {
     expect(asStartingAfterId("9")).toBe(9);
   });
 
+  it("extrait le motif Schematron de api:invalid depuis details.failures", () => {
+    const parsed = parseLifecycleEvents({
+      has_after: false,
+      data: [
+        {
+          id: 10,
+          invoice_id: 42,
+          status_code: "api:invalid",
+          status_text: "Invalid",
+          created_at: "2026-09-08T10:00:00Z",
+          data: { reason: null },
+          details: [
+            {
+              failures: [{ message: "Value of '@schemeID' is not allowed.", rule: "FX-SCH-A-000570" }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(parsed.events[0]?.payload?.reason).toBe("Value of '@schemeID' is not allowed.");
+  });
+
+  it("choisit 0225:315143296_{id} et ignore _replyto", () => {
+    expect(
+      pickDirectoryRoutingAddress(
+        {
+          data: [
+            {
+              identifier: "0225:315143296_97118_replyto",
+              status: "created",
+              company: { id: 97118, number: "000000002" },
+            },
+            {
+              identifier: "0225:315143296_97118",
+              status: "created",
+              company: { id: 97118, number: "000000002" },
+            },
+          ],
+        },
+        { companyNumber: "000000002" },
+      ),
+    ).toEqual({ schemeId: "0225", value: "315143296_97118" });
+  });
+
   it("conserve processing_rule de la réponse", () => {
     expect(parseSubmitInvoiceResult({ id: 1, processing_rule: "B2C" }, "B2B").processingRule).toBe("B2C");
+  });
+
+  it("parse validation_reports sans id de facture", () => {
+    expect(
+      parseValidationReport({
+        data: [
+          {
+            file_name: "facture.xml",
+            is_valid: true,
+            subreports: [{ validator: "FX-SCH", failures: [], messages: [] }],
+          },
+        ],
+      }),
+    ).toEqual({ ok: true });
+
+    const invalid = parseValidationReport({
+      data: [
+        {
+          file_name: "facture.xml",
+          is_valid: false,
+          subreports: [
+            {
+              validator: "FX-SCH",
+              failures: [
+                {
+                  message:
+                    "Value of '@schemeID' is not allowed. at /*:CrossIndustryInvoice[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) {
+      expect(invalid.failures).toEqual(["Value of '@schemeID' is not allowed."]);
+    }
   });
 });
 

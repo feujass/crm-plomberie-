@@ -10,6 +10,7 @@ Adaptateur réel Super PDP : `EINVOICING_PROVIDER=superpdp`. Défaut `mock` (auc
 - Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction, puis `dispatchCycleSignalNotifications` pour fr:207 / fr:211.
 - Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron). Planifié dans `vercel.json` (`*/15 * * * *`).
 - Après un dépôt : poll ciblé **immédiat**, puis **5 s** et **30 s** (`after()` + `POST /api/factures/[id]/cycle-refresh` côté UI). Le premier `invoice_events` ne contient souvent que `api:uploaded`.
+- Avant tout dépôt réel : `POST /v1.beta/validation_reports` (multipart, **pas** d’id facture — l’endpoint ne consomme pas de facture). `is_valid: false` → 422 immédiat à l’artisan, aucun `POST /invoices`.
 
 ## Réception (incoming) — stratégie de rapprochement
 

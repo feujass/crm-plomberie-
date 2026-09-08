@@ -45,6 +45,11 @@ describe("MockProvider — cas d’échec", () => {
     expect(tokens.accessToken).toContain("verified");
   });
 
+  it("valide sans réseau quand la session est verified", async () => {
+    const { tokens } = await provider.exchangeAuthorizationCode(entity, { code: MOCK_CODES.verified });
+    await expect(provider.validateInvoice(entity, tokens, { xml: "<xml/>" })).resolves.toEqual({ ok: true });
+  });
+
   it("dépose B2B et B2C quand la session est verified", async () => {
     const { tokens } = await provider.exchangeAuthorizationCode(entity, { code: MOCK_CODES.verified });
     const b2b = await provider.submitInvoice(entity, tokens, {

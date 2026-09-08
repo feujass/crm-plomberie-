@@ -1,6 +1,6 @@
 import { FACTURES_EINVOICING_BUCKET } from "@/lib/facturation/embed-facturx";
 import { dispatchCycleSignalNotifications } from "@/lib/facturation/pa/dispatch-cycle-signals";
-import { EinvoicingError } from "@/lib/facturation/pa/errors";
+import { EinvoicingError, InvoiceValidationError } from "@/lib/facturation/pa/errors";
 import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { pollAndIngestLifecycleEvents } from "@/lib/facturation/pa/poll-events";
 import { schedulePostDepositIngest } from "@/lib/facturation/pa/post-deposit-ingest";
@@ -79,13 +79,18 @@ export async function submitFactureToPa(
     provider,
     userId,
     supabaseStoredTokenGate(supabase, userId, provider.id),
-    (t) =>
-      provider.submitInvoice(entity, t, {
+    async (t) => {
+      const report = await provider.validateInvoice(entity, t, { xml, pdf });
+      if (!report.ok) {
+        throw new InvoiceValidationError(report.failures);
+      }
+      return provider.submitInvoice(entity, t, {
         factureId,
         xml,
         pdf,
         externalId: factureId,
-      }),
+      });
+    },
   );
 
   const { error: updateError } = await supabase

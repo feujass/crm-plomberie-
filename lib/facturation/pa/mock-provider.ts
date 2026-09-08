@@ -17,6 +17,7 @@ import type {
   EReportingSubmitInput,
   FiscalEntityRef,
   IncomingInvoice,
+  InvoiceValidationResult,
   LifecycleEvent,
   OAuthTokenSet,
   SubmitInvoiceInput,
@@ -95,6 +96,15 @@ export class MockProvider implements EInvoicingProvider {
 
   async syncCompanyVatRegime(): Promise<void> {
     /* mock : pas d’appel réseau */
+  }
+
+  async validateInvoice(
+    _entity: FiscalEntityRef,
+    tokens: OAuthTokenSet,
+  ): Promise<InvoiceValidationResult> {
+    const scenario = scenarioFromToken(tokens);
+    assertUsable(tokens, scenario);
+    return { ok: true };
   }
 
   async submitInvoice(

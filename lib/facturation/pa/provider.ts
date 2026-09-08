@@ -6,11 +6,13 @@ import type {
   EReportingSubmitInput,
   FiscalEntityRef,
   IncomingInvoice,
+  InvoiceValidationResult,
   LifecycleEvent,
   OAuthTokenSet,
   ProviderId,
   SubmitInvoiceInput,
   SubmitInvoiceResult,
+  ValidateInvoiceInput,
 } from "@/lib/facturation/pa/types";
 
 /**
@@ -40,6 +42,16 @@ export interface EInvoicingProvider {
     tokens: OAuthTokenSet,
     mapping: SuperPdpVatMapping,
   ): Promise<void>;
+
+  /**
+   * Valide un Factur-X (PDF ou XML) sans créer de facture côté PA.
+   * Super PDP : `POST /v1.beta/validation_reports`.
+   */
+  validateInvoice(
+    entity: FiscalEntityRef,
+    tokens: OAuthTokenSet,
+    input: ValidateInvoiceInput,
+  ): Promise<InvoiceValidationResult>;
 
   submitInvoice(
     entity: FiscalEntityRef,

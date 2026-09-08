@@ -31,6 +31,24 @@ export class InvoiceRejectedError extends EinvoicingError {
   }
 }
 
+/** Échec de `POST /v1.beta/validation_reports` — aucun dépôt n’a eu lieu. */
+export class InvoiceValidationError extends EinvoicingError {
+  readonly failures: string[];
+
+  constructor(failures: string[]) {
+    const unique = [...new Set(failures.map((s) => s.trim()).filter(Boolean))];
+    const message =
+      unique.length === 1
+        ? unique[0]!
+        : unique.length > 1
+          ? `Le document n’a pas passé la validation de la plateforme (${unique.length} erreurs).`
+          : "Le document n’a pas passé la validation de la plateforme.";
+    super("invoice_invalid", message, 422);
+    this.name = "InvoiceValidationError";
+    this.failures = unique.length > 0 ? unique : [message];
+  }
+}
+
 export class IllegalCycleTransitionError extends EinvoicingError {
   constructor(from: string, to: string) {
     super("illegal_cycle_transition", `Transition de cycle interdite : ${from} → ${to}.`, 409);

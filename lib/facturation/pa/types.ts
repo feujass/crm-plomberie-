@@ -65,6 +65,13 @@ export interface SubmitInvoiceResult {
   processingRule: ProcessingRule;
 }
 
+export type ValidateInvoiceInput = {
+  xml: string;
+  pdf?: Uint8Array;
+};
+
+export type InvoiceValidationResult = { ok: true } | { ok: false; failures: string[] };
+
 export interface LifecycleEvent {
   providerEventId: string;
   providerInvoiceId: string;
