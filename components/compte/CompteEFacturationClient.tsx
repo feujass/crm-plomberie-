@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { CONNECTION_STATUS_COPY } from "@/lib/facturation/pa/connection-copy";
 import type { MockScenario } from "@/lib/facturation/pa/mock-fixtures";
-import type { ConnectionSnapshot } from "@/lib/facturation/pa/types";
+import type { ConnectionSnapshot, ProviderId } from "@/lib/facturation/pa/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -26,17 +26,22 @@ function toneClass(tone: string): string {
 
 export function CompteEFacturationClient({
   initialSnapshot,
+  providerId,
+  oauthError,
 }: {
   initialSnapshot: ConnectionSnapshot;
+  providerId: ProviderId;
+  oauthError?: string | null;
 }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [scenario, setScenario] = useState<MockScenario>("verified");
   const [pending, setPending] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(oauthError ?? null);
   const copy = CONNECTION_STATUS_COPY[snapshot.status];
+  const real = providerId === "superpdp";
 
-  async function connect(next: MockScenario) {
+  async function connectMock(next: MockScenario) {
     setPending(true);
     setErr(null);
     try {
@@ -66,33 +71,58 @@ export function CompteEFacturationClient({
         {snapshot.lastError ? <p className="mt-2 text-sm text-red-700 dark:text-red-400">{snapshot.lastError}</p> : null}
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <p className="font-semibold text-[var(--foreground)]">Simuler un raccordement</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Aucun appel vers Super PDP. Le mock sert à valider les écrans KYB et les cas d’échec.
-        </p>
-        <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="pa-scenario">
-          Scénario
-        </label>
-        <select
-          id="pa-scenario"
-          className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
-          value={scenario}
-          onChange={(e) => setScenario(e.target.value as MockScenario)}
-        >
-          {SCENARIOS.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <div className="mt-3">
-          <Button type="button" disabled={pending} isLoading={pending} onClick={() => void connect(scenario)}>
-            {snapshot.status === "disconnected" ? "Connecter" : "Mettre à jour le raccordement"}
-          </Button>
+      {real ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <p className="font-semibold text-[var(--foreground)]">Raccordement Super PDP</p>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Vous serez redirigé vers Super PDP pour autoriser Flowo. Le SIREN et l’e-mail du compte sont
+            préremplis quand ils sont connus.
+          </p>
+          <div className="mt-3">
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setPending(true);
+                window.location.href = "/api/compte/e-facturation/connect";
+              }}
+            >
+              {snapshot.status === "disconnected" || snapshot.status === "token_expired" || snapshot.status === "failed"
+                ? "Connecter mon entreprise"
+                : "Reconnecter"}
+            </Button>
+          </div>
+          {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
         </div>
-        {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
-      </div>
+      ) : (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <p className="font-semibold text-[var(--foreground)]">Simuler un raccordement</p>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Aucun appel vers Super PDP. Le mock sert à valider les écrans KYB et les cas d’échec.
+          </p>
+          <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="pa-scenario">
+            Scénario
+          </label>
+          <select
+            id="pa-scenario"
+            className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+            value={scenario}
+            onChange={(e) => setScenario(e.target.value as MockScenario)}
+          >
+            {SCENARIOS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <div className="mt-3">
+            <Button type="button" disabled={pending} isLoading={pending} onClick={() => void connectMock(scenario)}>
+              {snapshot.status === "disconnected" ? "Connecter" : "Mettre à jour le raccordement"}
+            </Button>
+          </div>
+          {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
+        </div>
+      )}
     </div>
   );
 }

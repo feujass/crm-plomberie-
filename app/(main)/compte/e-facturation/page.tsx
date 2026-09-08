@@ -7,6 +7,7 @@ import type { ConnectionSnapshot } from "@/lib/facturation/pa/types";
 import { parseRegimeTva } from "@/lib/facturation/regime-tva";
 import { requireFeature } from "@/lib/plans/require-feature";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 function disconnected(provider: ConnectionSnapshot["provider"]): ConnectionSnapshot {
   return {
@@ -20,13 +21,18 @@ function disconnected(provider: ConnectionSnapshot["provider"]): ConnectionSnaps
   };
 }
 
-export default async function CompteEFacturationPage() {
+export default async function CompteEFacturationPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
   const profile = await requireFeature("conformite");
   const provider = getEInvoicingProvider();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const params = searchParams ? await searchParams : {};
 
   let snapshot = disconnected(provider.id);
   if (user) {
@@ -47,7 +53,11 @@ export default async function CompteEFacturationPage() {
       title="Facturation électronique"
       description="Raccordement à la plateforme agréée (une application Flowo, votre compte entreprise)."
     >
-      <CompteEFacturationClient initialSnapshot={snapshot} />
+      <CompteEFacturationClient
+        initialSnapshot={snapshot}
+        providerId={provider.id}
+        oauthError={params.error ?? null}
+      />
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <p className="font-semibold text-[var(--foreground)]">Régime TVA transmis à la PA</p>
@@ -64,9 +74,12 @@ export default async function CompteEFacturationPage() {
         </p>
         {mapping.status === "incomplete" ? (
           <p className="mt-2 text-amber-800 dark:text-amber-300">
-            Il manque la périodicité de déclaration (mensuel / trimestriel / régime simplifié) pour
-            remplir <code>vat_regime</code> Super PDP. Colonne prévue :{" "}
-            <code>tva_periodicite_declaration</code>.
+            Il manque la périodicité de déclaration (mensuel / trimestriel / régime simplifié). Renseignez-la
+            dans{" "}
+            <Link href="/compte/entreprise" className="underline">
+              Compte → Entreprise
+            </Link>
+            .
           </p>
         ) : null}
       </div>

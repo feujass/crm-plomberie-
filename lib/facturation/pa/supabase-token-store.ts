@@ -120,3 +120,25 @@ export async function setLastInvoiceEventId(
     .eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
+
+export async function saveConnectionSnapshot(
+  supabase: Db,
+  userId: string,
+  provider: ProviderId,
+  snapshot: ConnectionSnapshot,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("einvoicing_connections")
+    .update({
+      provider,
+      status: snapshot.status,
+      provider_company_id: snapshot.providerCompanyId,
+      company_verification_status: snapshot.companyVerificationStatus,
+      last_error: snapshot.lastError,
+      connected_at: snapshot.connectedAt ?? now,
+      updated_at: now,
+    })
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
