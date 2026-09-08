@@ -72,9 +72,20 @@ Les credentials **doivent** être en HTTP Basic (comme l’indique Scalar : *Cre
 }
 ```
 
-Conséquence : le parcours **authorization_code + KYB 403** n’est pas exécutable avec `SUPERPDP_SELLER_*` / `BUYER_*`. Ces apps acceptent le grant (ce n’est pas `invalid_client`) mais n’ont pas notre callback. Il faut une **application Flowo** dans le dashboard Super PDP (`SUPERPDP_CLIENT_ID`) avec redirect `http://localhost:3000/api/compte/e-facturation/callback` (et l’URL prod). Sans ça, `client_credentials` reste le seul chemin sandbox — session déjà `verified`, pas de 403 KYB.
+Toujours vrai pour `SUPERPDP_SELLER_*` / `BUYER_*`. L’application Flowo (`SUPERPDP_CLIENT_ID`, redirect localhost + flowo.agency whitelistés) accepte désormais le `redirect_uri` : **HTTP 303** vers `https://www.superpdp.tech/app/oauth2/authorize?authorize_request_id=…`.
 
-Inscription artisan Super PDP : `https://www.superpdp.tech/app/users/create` (SPA). Inutile tant que le `redirect_uri` Flowo n’est pas whitelisté : on n’obtient jamais le `code`.
+### GET `/oauth2/authorize` — `state` trop court
+
+**HTTP 303** vers notre callback :
+
+`error=invalid_state` — *The state is missing or does not have enough characters and is therefore considered too weak. Request parameter 'state' must be at least be 8 characters long to ensure sufficient entropy.*
+
+Flowo envoie 48 hex (24 octets) : OK.
+
+### GET `/oauth2/authorize` — prefill entreprise
+
+- Numéro sandbox inconnu (`000000099`) → callback `error=invalid_request`, *No company found with these superpdp_company_number_scheme and superpdp_company_number.*
+- SIREN hors sandbox (`fr_siren` + 853322915) sur l’app sandbox → *Application environment do not match company environement.* (typo Super PDP).
 
 ### GET `/oauth2/authorize` sans `client_id`
 
@@ -199,6 +210,74 @@ Liste `direction=in` juste après le POST : **count=0**. Après quelques seconde
 
 ## OAuth artisan vs sandbox client_credentials
 
-`client_credentials` = « vos propres données » (pas de refresh rotatif). Le raccordement produit Flowo utilise **authorization_code** (`SUPERPDP_CLIENT_ID` / `SECRET`, fallback sandbox `SUPERPDP_SELLER_*`) : redirect `GET /oauth2/authorize` avec `login_hint`, `superpdp_company_number`, `superpdp_company_number_scheme`, callback `/api/compte/e-facturation/callback`. Prefill sandbox : `SUPERPDP_COMPANY_NUMBER_SCHEME=sandbox` + numéro `000000002` (Burger Queen).
+`client_credentials` = « vos propres données » (pas de `refresh_token`). Le raccordement produit Flowo utilise **authorization_code** (`SUPERPDP_CLIENT_ID` / `SECRET`) : `GET /oauth2/authorize` → SPA onboarding → callback `/api/compte/e-facturation/callback`. Script de sonde : `node scripts/superpdp-oauth-authcode.mjs`.
 
 `EINVOICING_PROVIDER=mock` (défaut) ou `superpdp`.
+
+---
+
+## Parcours authorization_code (app Flowo, 2026-09-08)
+
+Compte artisan **nouveau** (e-mail jetable), prefill `superpdp_company_number=000000001` / `sandbox` (Tricatel). Wizard SPA : e-mail + CGU → code alphanumérique (sujet « XXXXXXXX est votre code de vérification SUPER PDP ») → accord formel + inscription annuaire `000000001` → vérification d’identité → autorisation.
+
+Sandbox : `https://www.superpdp.tech/app/users/sandbox_identity_verification_status` propose « Simuler une vérification d’identité réussie / qui a échoué ». Après succès, Super PDP crée une entreprise **distincte** `id=97471` (Tricatel `000000001`), puis l’écran d’autorisation.
+
+Acceptation observée : `GET /internal/oauth2/authorize/accept?…&company_id=97471` (entreprise du consentant, **pas** Burger Queen `97118`).
+
+### Jetons authorization_code
+
+`POST /oauth2/token` → **200**, `expires_in=1800`, `token_type=bearer`, **`refresh_token` présent**, `scope` vide.
+
+| Appel | HTTP | Constat |
+|---|---|---|
+| `GET /v1.beta/oauth2_sessions/me` | 200 | `company_verification_status=verified`, `user_identity_verification_status=verified`, `client_id` = app Flowo |
+| `GET /v1.beta/companies/me` | 200 | **`id=97471` Tricatel** (`000000001` / `sandbox`) |
+
+Même app, `client_credentials` : toujours **`id=97118` Burger Queen**. L’acheteur historique `SUPERPDP_BUYER_*` reste `97117` (autre instance Tricatel, même numéro sandbox).
+
+Chiffrement Flowo : `EINVOICING_TOKEN_ENCRYPTION_KEY` (32 octets) roundtrip AES-256-GCM OK (`key_id=v1`). Ce run a capturé le `code` sur `:3000` pour isoler Super PDP ; le callback Next (`saveConnectionAndTokens`) n’a pas été exercé avec une session artisan Flowo.
+
+### Restriction dashboard « entreprise sélectionnée »
+
+Texte dashboard / GrandTotal : *« Les droits d'une application OAuth sont restreints à l'entreprise choisie. »* Ici : Burger Queen.
+
+**Ce que ça fait vraiment (sandbox) :**
+
+1. **`client_credentials`** de `SUPERPDP_CLIENT_ID` = Burger Queen `97118` uniquement. Aligné avec le texte.
+2. **`authorization_code`** n’empêche **pas** d’agir sur un tiers après consentement : Bearer artisan = Tricatel `97471`. Spec OpenAPI : *Use authorization code to access data of another user after he gives his consent.*
+3. **Marque / UX** : l’écran final dit *« Autoriser **Burger Queen** à gérer mon compte SUPER PDP. Burger Queen aura accès à mes factures… »* — pas « Flowo ». L’app est affichée sous le nom de l’entreprise propriétaire, pas sous un nom d’ISV.
+
+Le modèle multi-tenant Flowo (un `client_id`, N artisans) **n’est pas cassé** sur l’accès API. En revanche le consentement est trompeur tant que l’app est créée sous Burger Queen.
+
+**Questions support Super PDP :**
+
+1. Confirmer qu’en production, `authorization_code` reste scopé sur l’entreprise du consentant, même si l’app a été créée sous une autre entreprise.
+2. Comment nommer l’application **Flowo** sur l’écran d’autorisation (indépendamment de l’entreprise sélectionnée au dashboard) ?
+3. Faut-il créer l’app OAuth sous une entreprise « éditeur » Flowo / Super G plutôt que sous un client sandbox ?
+4. `POST /v1.beta/companies` (accountants) reste interdit ; l’onboarding artisan passe uniquement par ce wizard — confirmer.
+
+### 403 KYB — non observé sur ce chemin
+
+OpenAPI : si `company_verification_status ≠ verified`, les **autres** routes répondent 403 ; `/oauth2_sessions/me` sert à lire le statut.
+
+Le wizard **n’émet le `code` qu’après** l’étape 4 (identité). En sandbox, la simulation « réussie » passe la session à `verified` **avant** l’étape 5. Donc : pas de Bearer « en attente de KYB », pas de 403. `client_credentials` Burger Queen / Tricatel est déjà `verified` et masque le cas.
+
+La simulation « échouée » existe ; on ne l’a pas poussée jusqu’à un jeton. Flowo mappe déjà un 403 `/oauth2_sessions/me` → `pending_verification`. Enum public : `verified` \| `needs_review` \| `failed` (pas de `pending` dans la spec).
+
+### Refresh rotatif (OAuth 2.1) — observé
+
+Uniquement sur **authorization_code** (`client_credentials` : pas de refresh).
+
+1. Refresh #1 → **200**, nouveau `refresh_token` (`refresh_changed=true`), `expires_in=1800`.
+2. Rejouer l’**ancien** refresh → **400**
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "The provided authorization grant (e.g., authorization code, resource owner credentials) or refresh token is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client. The refresh token is malformed or not valid."
+}
+```
+
+3. Refresh #2 avec le **nouveau** jeton → **200**, rotation encore (`refresh_changed_again=true`). `companies/me` reste `97471`.
+
+Flowo doit persister le nouveau refresh à chaque `withFreshTokens` (déjà le cas via `saveTokens`). Deux refresh concurrents avec le même jeton : le second prendra ce 400.

@@ -4,9 +4,9 @@ Adaptateur réel Super PDP : `EINVOICING_PROVIDER=superpdp`. Défaut `mock` (auc
 
 ## Architecture
 
-- Une **application Flowo** (client_id/secret globaux, pas encore branchés).
-- **OAuth2 authorization code par artisan** : jetons dans `einvoicing_oauth_tokens`, chiffrés AES-256-GCM. Chaque blob porte un `key_id` (`EINVOICING_TOKEN_ENCRYPTION_KEY_ID`, défaut `v1`).
-- Jamais de `client_id` par entité fiscale.
+- Une **application Flowo** (`SUPERPDP_CLIENT_ID` / `SECRET` globaux). Jamais de `client_id` par entité fiscale.
+- **OAuth2 authorization code par artisan** : jetons dans `einvoicing_oauth_tokens`, chiffrés AES-256-GCM. Chaque blob porte un `key_id` (`EINVOICING_TOKEN_ENCRYPTION_KEY_ID`, défaut `v1`). Le callback persiste via `saveConnectionAndTokens`. Après chaque refresh, `withFreshTokens` réécrit le blob : Super PDP **invalide** l’ancien `refresh_token` (OAuth 2.1 rotatif).
+- **Multi-tenant** (sandbox 2026-09-08) : `client_credentials` de l’app agit sur l’entreprise sélectionnée au dashboard (Burger Queen). Après consentement, le Bearer artisan agit sur **l’entreprise du consentant**, pas sur Burger Queen. L’écran de consentement affiche toutefois le nom de l’entreprise propriétaire de l’app — question support (voir journal sandbox).
 - Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction, puis `dispatchCycleSignalNotifications` pour fr:207 / fr:211.
 - Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron). Planifié dans `vercel.json` (`*/15 * * * *`).
 - Après un dépôt : poll ciblé **immédiat**, puis **5 s** et **30 s** (`after()` + `POST /api/factures/[id]/cycle-refresh` côté UI). Le premier `invoice_events` ne contient souvent que `api:uploaded`.
