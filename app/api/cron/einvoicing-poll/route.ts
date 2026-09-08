@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: "admin_client" });
   }
 
-  const { data: connections, error } = await supabase.from("einvoicing_connections").select("user_id, last_invoice_event_id, status");
+  const { data: connections, error } = await supabase
+    .from("einvoicing_connections")
+    .select("user_id, last_invoice_event_id, status, provider")
+    .eq("provider", provider.id);
   if (error) {
     return NextResponse.json({ ok: true, skipped: true, reason: error.message });
   }
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
           afterEventId: row.last_invoice_event_id ? String(row.last_invoice_event_id) : undefined,
         }),
       );
-      if (fresh.expiresAt !== tokens.expiresAt) {
+      if (fresh.expiresAt !== tokens.expiresAt || fresh.accessToken !== tokens.accessToken || fresh.refreshToken !== tokens.refreshToken) {
         await saveTokens(supabase, userId, provider.id, fresh);
       }
       ingested += result.applied;

@@ -68,6 +68,7 @@ Copier [`.env.example`](../.env.example) → `.env.local` (jamais commité).
 | Paiement | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, etc. + URL webhook = déploiement actuel |
 | Crons (Vercel, etc.) | `CRON_SECRET` identique à l’en-tête `Authorization: Bearer …` envoyé automatiquement par Vercel Cron. Protège `/api/cron/*` **et** côté `backend/.env` pour `/api/cron/devis-a-relancer` |
 | Jetons e-facturation (Vercel) | `EINVOICING_TOKEN_ENCRYPTION_KEY` (32 octets base64), `EINVOICING_TOKEN_ENCRYPTION_KEY_ID` (ex. `v1`), `EINVOICING_TOKEN_ENCRYPTION_KEYS` (JSON des anciennes clés). Voir [`docs/einvoicing-pa-phase1.md`](einvoicing-pa-phase1.md). À ajouter dans Vercel → Project → Settings → Environment Variables (Production, Preview, Development) — pas seulement `.env.local`. |
+| Super PDP | `EINVOICING_PROVIDER=superpdp`, `SUPERPDP_ENDPOINT`, `SUPERPDP_CLIENT_ID`, `SUPERPDP_CLIENT_SECRET`. URI de callback : `$NEXT_PUBLIC_SITE_URL/api/compte/e-facturation/callback`. Cron poll : `GET /api/cron/einvoicing-poll` (toutes les 15 min, `vercel.json`). |
 
 ## 3. Backend FastAPI (Mongo)
 

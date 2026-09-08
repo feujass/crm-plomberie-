@@ -106,6 +106,10 @@ export default async function FactureDetailPage({ params }: Props) {
         <FacturXActionsClient
           factureId={id}
           existingPath={facture.facturx_pdf_path || facture.facturx_xml}
+          canDeposit={
+            Boolean(facture.facturx_pdf_path || facture.facturx_xml) &&
+            (facture.statut_cycle_vie === "emise" || !facture.statut_cycle_vie)
+          }
         />
       </div>
       {mismatch ? (
