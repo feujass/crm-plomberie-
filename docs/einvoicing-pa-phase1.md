@@ -1,6 +1,6 @@
 # Facturation électronique — Phase 1 (couche PA, sans réseau)
 
-Adaptateur réel Super PDP : plus tard. Aujourd’hui `getEInvoicingProvider()` renvoie `MockProvider`.
+Adaptateur réel Super PDP : `EINVOICING_PROVIDER=superpdp`. Défaut `mock` (aucun appel réseau).
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Adaptateur réel Super PDP : plus tard. Aujourd’hui `getEInvoicingProvider()` 
 - **OAuth2 authorization code par artisan** : jetons dans `einvoicing_oauth_tokens`, chiffrés AES-256-GCM. Chaque blob porte un `key_id` (`EINVOICING_TOKEN_ENCRYPTION_KEY_ID`, défaut `v1`).
 - Jamais de `client_id` par entité fiscale.
 - Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction, puis `dispatchCycleSignalNotifications` pour fr:207 / fr:211.
-- Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron).
+- Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron). Planifié dans `vercel.json` (`*/15 * * * *`).
 
 ## Mapping régime TVA Flowo → Super PDP
 
@@ -20,7 +20,7 @@ Adaptateur réel Super PDP : plus tard. Aujourd’hui `getEInvoicingProvider()` 
 
 `vat_regime` Super PDP n’est **pas** l’exigibilité : c’est la périodicité PPF (`monthly` \| `quarterly` \| `simplified` \| `vat_exemption`).
 
-**Manque en base (et à l’UI entreprise) :** la périodicité mensuel / trimestriel / simplifié. Colonne nullable `profiles.tva_periodicite_declaration`. Tant qu’elle est vide, le mapping est `incomplete` hors franchise.
+Saisie artisan : Compte → Entreprise → **Périodicité de déclaration de TVA**. Colonne `profiles.tva_periodicite_declaration`. Tant qu’elle est vide, le mapping est `incomplete` hors franchise. Au raccordement (et à chaque sauvegarde entreprise si déjà raccordé), Flowo envoie `PATCH /v1.beta/companies`.
 
 ## Cycle de vie `statut_cycle_vie`
 

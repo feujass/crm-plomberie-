@@ -37,3 +37,25 @@ export class IllegalCycleTransitionError extends EinvoicingError {
     this.name = "IllegalCycleTransitionError";
   }
 }
+
+/** Erreur HTTP Super PDP — corps conservé (jamais de jeton) pour le journal sandbox. */
+export class SuperPdpApiError extends EinvoicingError {
+  readonly method: string;
+  readonly path: string;
+  readonly responseBody: unknown;
+
+  constructor(input: {
+    method: string;
+    path: string;
+    status: number;
+    message: string;
+    responseBody?: unknown;
+    code?: string;
+  }) {
+    super(input.code ?? "superpdp_api_error", input.message, input.status);
+    this.name = "SuperPdpApiError";
+    this.method = input.method;
+    this.path = input.path;
+    this.responseBody = input.responseBody ?? null;
+  }
+}

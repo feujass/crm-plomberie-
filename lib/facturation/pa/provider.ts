@@ -1,3 +1,4 @@
+import type { SuperPdpVatMapping } from "@/lib/facturation/pa/tva-mapping";
 import type {
   AuthorizationStartInput,
   ConnectionSnapshot,
@@ -32,6 +33,13 @@ export interface EInvoicingProvider {
   refreshAccessToken(entity: FiscalEntityRef, tokens: OAuthTokenSet): Promise<OAuthTokenSet>;
 
   getConnectionStatus(entity: FiscalEntityRef, tokens: OAuthTokenSet): Promise<ConnectionSnapshot>;
+
+  /** PATCH /v1.beta/companies — no-op si le mapping est incomplet. */
+  syncCompanyVatRegime(
+    entity: FiscalEntityRef,
+    tokens: OAuthTokenSet,
+    mapping: SuperPdpVatMapping,
+  ): Promise<void>;
 
   submitInvoice(
     entity: FiscalEntityRef,

@@ -93,6 +93,10 @@ export class MockProvider implements EInvoicingProvider {
     return snapshotForScenario(scenario);
   }
 
+  async syncCompanyVatRegime(): Promise<void> {
+    /* mock : pas d’appel réseau */
+  }
+
   async submitInvoice(
     _entity: FiscalEntityRef,
     tokens: OAuthTokenSet,
