@@ -176,6 +176,7 @@ export type BackendFactureDetail = BackendFacture & {
   facturx_xml?: string | null;
   facture_origine_numero?: string | null;
   facture_origine_date?: string | null;
+  facture_origine_id?: string | null;
   montant_paye_decimal?: string;
   facture_type?: string;
   adresse_livraison_chantier?: string;

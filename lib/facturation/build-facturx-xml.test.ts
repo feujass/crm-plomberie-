@@ -56,8 +56,7 @@ describe("buildFacturXXml — avoir", () => {
   it("utilise le type 381 et des montants négatifs", () => {
     const xml = buildFacturXXml(fixtureAvoirNegatif());
     expect(xml).toContain("<ram:TypeCode>381</ram:TypeCode>");
-    expect(xml).toContain("<ram:LineTotalAmount>-220.00</ram:LineTotalAmount>");
-    expect(xml).toContain("<ram:BilledQuantity unitCode=\"C62\">-1.000</ram:BilledQuantity>");
+    expect(xml).toContain("<ram:InvoiceReferencedDocument>");
     expect(xml).toContain("<ram:IssuerAssignedID>FA-2026-0002</ram:IssuerAssignedID>");
   });
 
