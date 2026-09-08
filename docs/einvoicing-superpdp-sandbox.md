@@ -235,7 +235,7 @@ Acceptation observée : `GET /internal/oauth2/authorize/accept?…&company_id=97
 
 Même app, `client_credentials` : toujours **`id=97118` Burger Queen**. L’acheteur historique `SUPERPDP_BUYER_*` reste `97117` (autre instance Tricatel, même numéro sandbox).
 
-Chiffrement Flowo : `EINVOICING_TOKEN_ENCRYPTION_KEY` (32 octets) roundtrip AES-256-GCM OK (`key_id=v1`). Ce run a capturé le `code` sur `:3000` pour isoler Super PDP ; le callback Next (`saveConnectionAndTokens`) n’a pas été exercé avec une session artisan Flowo.
+Chiffrement Flowo : `EINVOICING_TOKEN_ENCRYPTION_KEY` (32 octets) roundtrip AES-256-GCM OK (`key_id=v1`). Le premier run a capturé le `code` sur `:3000` sans Next ; le parcours callback + émission réelle est décrit ci-dessous.
 
 ### Restriction dashboard « entreprise sélectionnée »
 
@@ -280,4 +280,26 @@ Uniquement sur **authorization_code** (`client_credentials` : pas de refresh).
 
 3. Refresh #2 avec le **nouveau** jeton → **200**, rotation encore (`refresh_changed_again=true`). `companies/me` reste `97471`.
 
-Flowo doit persister le nouveau refresh à chaque `withFreshTokens` (déjà le cas via `saveTokens`). Deux refresh concurrents avec le même jeton : le second prendra ce 400.
+Flowo doit persister le nouveau refresh à chaque `withFreshTokens` (déjà le cas via `saveTokens`). Deux refresh concurrents avec le même jeton : le second prendra ce 400. Lease Postgres `einvoicing_lock_oauth_tokens` appliqué sur le projet distant (2026-09-08).
+
+---
+
+## Parcours Next réel (session Flowo locale, 2026-09-08)
+
+`next dev` sur `http://localhost:3000` avec `EINVOICING_PROVIDER=superpdp`, `SUPERPDP_COMPANY_NUMBER_SCHEME=sandbox`, `SUPERPDP_COMPANY_NUMBER=000000001`. Compte artisan **nouveau**, bouton **Connecter mon entreprise** depuis `/compte/e-facturation`.
+
+### Callback Next
+
+Wizard Super PDP identique (OTP alphanumérique, simulation d’identité réussie, écran « Autoriser **Burger Queen** » inchangé). Retour sur `/api/compte/e-facturation/callback` :
+
+- cookie CSRF `flowo_einvoicing_oauth_state` accepté ;
+- `exchangeAuthorizationCode` + `saveConnectionAndTokens` OK ;
+- `GET /api/compte/e-facturation` → `verified`, `providerCompanyId=97519` (nouvelle instance Tricatel `000000001`, distincte de `97471` / `97117`).
+
+Premier essai : après la persistance, `syncConnectedVatRegime` appelait le RPC de lock **absent** du schéma distant → redirection `?error=Could not find the function public.einvoicing_lock_oauth_tokens…` alors que l’écran affichait déjà « Raccordé ». Migration lock poussée. Le callback **ne fait plus échouer** le raccordement si le PATCH TVA rate : les jetons sont déjà sauvés.
+
+### Émission depuis le compte raccordé
+
+1. SIREN profil Luhn (`732829320`) + session `000000001` → **HTTP 400** *« L’entreprise (000000001) liée à cette session ne correspond pas au vendeur de la facture (732829320). »* Le vendeur Factur-X doit porter le numéro de l’entreprise consentante. Les numéros sandbox ne passent pas Luhn : Flowo les accepte seulement si `SUPERPDP_COMPANY_NUMBER_SCHEME=sandbox`.
+2. Vendeur `000000001`, acheteur `000000002`, devis 1 ligne fourniture → facture `FACT-2026-0001` → Factur-X → `POST /deposit` **200**, `providerInvoiceId=484732`, `processing_rule=B2B` (calculé par Super PDP).
+3. Poll 5 s / 30 s + `cycle-refresh` : journal `api:uploaded` puis `api:invalid` → `statut_cycle_vie=irrecevable` (« Rejetée ») sur `/facturation/{id}`. Le HTTP de dépôt a réussi ; le rejet est sémantique, après file d’attente. Motif PA non affiché tant que `api:invalid` n’était pas dans les codes de motif (corrigé). Webhooks toujours en attente du support — rien branché.

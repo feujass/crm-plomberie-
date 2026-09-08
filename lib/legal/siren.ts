@@ -26,6 +26,23 @@ export function isValidSiren(value: string | null | undefined): boolean {
   return d.length === 9 && luhnValid(d);
 }
 
+/**
+ * Sandbox Super PDP : les numéros d’entreprise (`000000001`, `000000002`) ne
+ * passent pas Luhn. On les accepte uniquement si `SUPERPDP_COMPANY_NUMBER_SCHEME=sandbox`.
+ */
+export function isSandboxCompanyNumber(value: string | null | undefined): boolean {
+  const scheme = String(process.env.SUPERPDP_COMPANY_NUMBER_SCHEME ?? "")
+    .trim()
+    .toLowerCase();
+  if (scheme !== "sandbox") return false;
+  const d = digitsOnly(String(value ?? ""));
+  return d.length === 9;
+}
+
+export function isAllowedSiren(value: string | null | undefined): boolean {
+  return isValidSiren(value) || isSandboxCompanyNumber(value);
+}
+
 export function isValidSiret(value: string | null | undefined): boolean {
   const d = digitsOnly(String(value ?? ""));
   return d.length === 14 && luhnValid(d);
@@ -47,13 +64,13 @@ export function assertSirenOrSiretForPro(input: {
   if (input.typeClient === "particulier") return { ok: true };
   const siren = String(input.siren ?? "").trim();
   const siret = String(input.siret ?? "").trim();
-  if (siren && !isValidSiren(siren)) {
+  if (siren && !isAllowedSiren(siren)) {
     return { ok: false, message: "SIREN invalide (9 chiffres, clé Luhn)." };
   }
   if (siret && !isValidSiret(siret)) {
     return { ok: false, message: "SIRET invalide (14 chiffres, clé Luhn)." };
   }
-  if (!isValidSiren(siren) && !isValidSiret(siret)) {
+  if (!isAllowedSiren(siren) && !isValidSiret(siret)) {
     return { ok: false, message: "SIREN ou SIRET obligatoire pour un client professionnel ou public." };
   }
   return { ok: true };

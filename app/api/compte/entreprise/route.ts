@@ -3,7 +3,7 @@ import { isAdresseComplete, proposerAdresseDepuisBlob } from "@/lib/facturation/
 import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { syncConnectedVatRegime } from "@/lib/facturation/pa/sync-vat-regime";
 import { parseRegimeTva } from "@/lib/facturation/regime-tva";
-import { isValidSiren, isValidSiret } from "@/lib/legal/siren";
+import { isAllowedSiren, isValidSiret } from "@/lib/legal/siren";
 import { logoUrlValidationError } from "@/lib/security/logo-url";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     const siren = String(raw.siren ?? "").trim() || null;
     const siret = String(raw.siret ?? "").trim() || null;
-    if (siren && !isValidSiren(siren)) {
+    if (siren && !isAllowedSiren(siren)) {
       return NextResponse.json({ message: "SIREN invalide (9 chiffres, clé Luhn)." }, { status: 400 });
     }
     if (siret && !isValidSiret(siret)) {

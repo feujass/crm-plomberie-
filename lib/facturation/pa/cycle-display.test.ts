@@ -20,6 +20,9 @@ describe("cycle-display", () => {
       "SIRET destinataire inconnu",
     );
     expect(rejectionReasonFromEvent("fr:207", { reason: "peu importe" })).toBeNull();
+    expect(rejectionReasonFromEvent("api:invalid", { reason: "XML CII incomplet" })).toBe(
+      "XML CII incomplet",
+    );
   });
 
   it("prend le dernier motif fr:210 / 213 / 501", () => {

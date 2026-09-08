@@ -4,7 +4,7 @@ import type { StatutCycleVie } from "@/lib/facturation/pa/types";
 export const MAX_REDEPOSITS = 3;
 export const REDEPOSIT_STATUS_CODE = "flowo:redeposit";
 
-const REJECTION_CODES = new Set(["fr:210", "fr:213", "fr:501"]);
+const REJECTION_CODES = new Set(["fr:210", "fr:213", "fr:501", "api:invalid", "api:rejected"]);
 
 const REASON_KEYS = [
   "reason",

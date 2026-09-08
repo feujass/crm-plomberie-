@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
       { code, redirectUri, state },
     );
     await saveConnectionAndTokens(supabase, user.id, provider.id, snapshot, tokens);
-    await syncConnectedVatRegime(supabase, provider, user.id);
   } catch (err) {
     if (err instanceof EinvoicingError) {
       return redirectCompte(request, err.message);
@@ -62,6 +61,13 @@ export async function GET(request: NextRequest) {
       return redirectCompte(request, "Clé de chiffrement des jetons manquante.");
     }
     return redirectCompte(request, message);
+  }
+
+  try {
+    await syncConnectedVatRegime(supabase, provider, user.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[e-facturation/callback] sync TVA après raccordement", message);
   }
 
   return redirectCompte(request);

@@ -54,4 +54,27 @@ describe("assertSirenOrSiretForPro", () => {
   it("accepte un SIREN valide pour un client public", () => {
     expect(assertSirenOrSiretForPro({ typeClient: "public", siren: "356000000" }).ok).toBe(true);
   });
+
+  it("refuse un numéro sandbox hors scheme sandbox", () => {
+    const prev = process.env.SUPERPDP_COMPANY_NUMBER_SCHEME;
+    delete process.env.SUPERPDP_COMPANY_NUMBER_SCHEME;
+    try {
+      expect(assertSirenOrSiretForPro({ typeClient: "entreprise", siren: "000000001" }).ok).toBe(false);
+    } finally {
+      if (prev == null) delete process.env.SUPERPDP_COMPANY_NUMBER_SCHEME;
+      else process.env.SUPERPDP_COMPANY_NUMBER_SCHEME = prev;
+    }
+  });
+
+  it("accepte un numéro sandbox Super PDP quand le scheme est sandbox", () => {
+    const prev = process.env.SUPERPDP_COMPANY_NUMBER_SCHEME;
+    process.env.SUPERPDP_COMPANY_NUMBER_SCHEME = "sandbox";
+    try {
+      expect(assertSirenOrSiretForPro({ typeClient: "entreprise", siren: "000000001" }).ok).toBe(true);
+      expect(assertSirenOrSiretForPro({ typeClient: "entreprise", siren: "000000002" }).ok).toBe(true);
+    } finally {
+      if (prev == null) delete process.env.SUPERPDP_COMPANY_NUMBER_SCHEME;
+      else process.env.SUPERPDP_COMPANY_NUMBER_SCHEME = prev;
+    }
+  });
 });
