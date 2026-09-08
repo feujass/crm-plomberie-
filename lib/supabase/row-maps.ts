@@ -17,7 +17,25 @@ export function mapClientRow(row: Record<string, unknown>): BackendClient {
     tel: (row.tel as string) ?? undefined,
     adresse: (row.adresse as string) ?? undefined,
     type: (row.type as string) ?? "particulier",
+    type_client: (row.type_client as BackendClient["type_client"]) ?? undefined,
     siret: (row.siret as string) ?? undefined,
+    siren: (row.siren as string) ?? undefined,
+    tva_intracom: (row.tva_intracom as string) ?? undefined,
+    categorie_fiscale: (row.categorie_fiscale as string) ?? undefined,
+    secteur_public: row.secteur_public != null ? Boolean(row.secteur_public) : undefined,
+    chorus_service_code: (row.chorus_service_code as string) ?? undefined,
+    adresse_facturation_ligne1: (row.adresse_facturation_ligne1 as string) ?? undefined,
+    adresse_facturation_ligne2: (row.adresse_facturation_ligne2 as string) ?? undefined,
+    adresse_facturation_cp: (row.adresse_facturation_cp as string) ?? undefined,
+    adresse_facturation_ville: (row.adresse_facturation_ville as string) ?? undefined,
+    adresse_facturation_pays: (row.adresse_facturation_pays as string) ?? undefined,
+    adresse_livraison_ligne1: (row.adresse_livraison_ligne1 as string) ?? undefined,
+    adresse_livraison_ligne2: (row.adresse_livraison_ligne2 as string) ?? undefined,
+    adresse_livraison_cp: (row.adresse_livraison_cp as string) ?? undefined,
+    adresse_livraison_ville: (row.adresse_livraison_ville as string) ?? undefined,
+    adresse_livraison_pays: (row.adresse_livraison_pays as string) ?? undefined,
+    adresse_structure_proposition: row.adresse_structure_proposition as BackendClient["adresse_structure_proposition"],
+    adresse_structure_confirmee_at: (row.adresse_structure_confirmee_at as string) ?? undefined,
     notes: (row.notes as string) ?? undefined,
     inactive: Boolean(row.inactive),
     created_at: (row.created_at as string) ?? undefined,
@@ -169,8 +187,15 @@ export function profileUpdateFromBody(body: Record<string, unknown>): Record<str
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue;
     if (key === "onboarding_complete") continue;
+    if (key === "tva_sur_encaissements" || key === "tva_sur_debits_opt_in") continue;
     const col = map[key] ?? key;
     out[col] = value;
+  }
+  if (body.regime_tva == null) {
+    if (body.tva_sur_debits_opt_in === true) out.regime_tva = "debits";
+    else if (body.tva_sur_encaissements === false && body.tva_sur_debits_opt_in === false) {
+      /* inchangé — un false/false n'implique pas la franchise */
+    }
   }
   if (body.onboarding_complete === true && out.onboarding_steps_completed == null) {
     out.onboarding_steps_completed = 3;
@@ -178,14 +203,15 @@ export function profileUpdateFromBody(body: Record<string, unknown>): Record<str
   return out;
 }
 
+/** Numéro de facture : séquence verrouillée par émetteur/année, à n'appeler qu'à l'émission. */
 export async function nextFactureNumero(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
   userId: string,
 ): Promise<string> {
-  const year = new Date().getFullYear();
-  const { count } = await supabase
-    .from("factures")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId);
-  return `FACT-${year}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+  const { data, error } = await supabase.rpc("allocate_facture_numero", { p_user_id: userId });
+  if (error) throw new Error(error.message);
+  if (typeof data !== "string" || !data.trim()) {
+    throw new Error("Impossible d'attribuer un numéro de facture.");
+  }
+  return data;
 }

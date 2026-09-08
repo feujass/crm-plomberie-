@@ -18,6 +18,9 @@ import {
   remiseTypeToDb,
 } from "@/lib/supabase/row-maps";
 import { fetchDevisLignesHelper } from "@/lib/supabase/routes-shared";
+import { proposerAdresseDepuisBlob } from "@/lib/facturation/adresse";
+import { assertSirenOrSiretForPro } from "@/lib/legal/siren";
+import { deriveTypeClient, syncCategorieFiscaleFromType } from "@/lib/facturation/snapshots";
 import {
   handleAuthMeUpdate,
   handleConformite,
@@ -152,6 +155,18 @@ async function handleClients(
   if (method === "POST" && !clientId) {
     const nom = String(b.nom ?? "").trim();
     if (!nom) throw new Error("Nom requis");
+    const type = String(b.type ?? "particulier");
+    const secteurPublic = Boolean(b.secteur_public);
+    const categorie = syncCategorieFiscaleFromType(type, secteurPublic, String(b.categorie_fiscale ?? "").trim() || null);
+    const typeClient = deriveTypeClient({ secteur_public: secteurPublic, categorie_fiscale: categorie });
+    const ident = assertSirenOrSiretForPro({
+      typeClient,
+      siren: String(b.siren ?? ""),
+      siret: String(b.siret ?? ""),
+    });
+    if (!ident.ok) throw new Error(ident.message);
+    const blob = String(b.adresse ?? "").trim() || null;
+    const proposition = proposerAdresseDepuisBlob(blob);
     const { data, error } = await supabase
       .from("clients")
       .insert({
@@ -160,10 +175,16 @@ async function handleClients(
         prenom: String(b.prenom ?? "").trim() || null,
         email: String(b.email ?? "").trim() || null,
         tel: String(b.tel ?? "").trim() || null,
-        adresse: String(b.adresse ?? "").trim() || null,
-        type: String(b.type ?? "particulier"),
+        adresse: blob,
+        type,
         siret: String(b.siret ?? "").trim() || null,
+        siren: String(b.siren ?? "").trim() || null,
+        tva_intracom: String(b.tva_intracom ?? "").trim() || null,
+        categorie_fiscale: categorie,
+        secteur_public: secteurPublic,
+        chorus_service_code: String(b.chorus_service_code ?? "").trim() || null,
         notes: String(b.notes ?? "").trim() || null,
+        adresse_structure_proposition: proposition,
       })
       .select("*")
       .single();
@@ -208,8 +229,57 @@ async function handleClients(
 
   if ((method === "PUT" || method === "PATCH") && clientId) {
     const update: Record<string, unknown> = {};
-    for (const key of ["nom", "prenom", "email", "tel", "adresse", "type", "siret", "notes", "inactive"]) {
+    const scalarKeys = [
+      "nom",
+      "prenom",
+      "email",
+      "tel",
+      "adresse",
+      "type",
+      "siret",
+      "siren",
+      "tva_intracom",
+      "categorie_fiscale",
+      "secteur_public",
+      "chorus_service_code",
+      "notes",
+      "inactive",
+      "adresse_facturation_ligne1",
+      "adresse_facturation_ligne2",
+      "adresse_facturation_cp",
+      "adresse_facturation_ville",
+      "adresse_facturation_pays",
+      "adresse_livraison_ligne1",
+      "adresse_livraison_ligne2",
+      "adresse_livraison_cp",
+      "adresse_livraison_ville",
+      "adresse_livraison_pays",
+      "adresse_structure_confirmee_at",
+    ];
+    for (const key of scalarKeys) {
       if (b[key] !== undefined) update[key] = b[key];
+    }
+    if (update.type !== undefined || update.secteur_public !== undefined || update.categorie_fiscale !== undefined) {
+      const type = String(update.type ?? b.type ?? "particulier");
+      const secteurPublic = Boolean(update.secteur_public ?? b.secteur_public);
+      update.categorie_fiscale = syncCategorieFiscaleFromType(
+        type,
+        secteurPublic,
+        String(update.categorie_fiscale ?? b.categorie_fiscale ?? "").trim() || null,
+      );
+      const typeClient = deriveTypeClient({
+        secteur_public: secteurPublic,
+        categorie_fiscale: String(update.categorie_fiscale),
+      });
+      const ident = assertSirenOrSiretForPro({
+        typeClient,
+        siren: String(update.siren ?? b.siren ?? ""),
+        siret: String(update.siret ?? b.siret ?? ""),
+      });
+      if (!ident.ok) throw new Error(ident.message);
+    }
+    if (update.adresse !== undefined && String(update.adresse).trim()) {
+      update.adresse_structure_proposition = proposerAdresseDepuisBlob(String(update.adresse));
     }
     const { data, error } = await supabase
       .from("clients")

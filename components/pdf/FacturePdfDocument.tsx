@@ -1,9 +1,12 @@
 import { Document, Page, StyleSheet, Text, View, Image } from "@react-pdf/renderer";
+import React from "react";
+
+import { FACTURE_PDF_FONT, registerFacturePdfFonts } from "@/lib/facturation/pdf-fonts";
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 9, fontFamily: "Helvetica" },
+  page: { padding: 36, fontSize: 9, fontFamily: FACTURE_PDF_FONT, backgroundColor: "#ffffff" },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
-  title: { fontSize: 16, marginBottom: 8 },
+  title: { fontSize: 16, marginBottom: 8, fontFamily: FACTURE_PDF_FONT, fontWeight: "bold" },
   table: { marginTop: 12 },
   row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e2e8f0", paddingVertical: 4 },
   th: { fontWeight: "bold" },
@@ -17,7 +20,7 @@ const styles = StyleSheet.create({
   footer: { marginTop: 24, fontSize: 8, color: "#64748b" },
 });
 
-type ProfilePdf = {
+export type ProfilePdf = {
   entreprise_nom: string | null;
   adresse: string | null;
   tel: string | null;
@@ -28,16 +31,17 @@ type ProfilePdf = {
   conditions_paiement_defaut: string | null;
 };
 
-type ClientPdf = { nom: string; prenom: string | null; adresse: string | null } | null;
+export type ClientPdf = { nom: string; prenom: string | null; adresse: string | null } | null;
 
-type LignePdf = {
+export type LignePdf = {
   id: string;
   designation: string;
-  quantite: number;
+  /** Déjà formaté depuis les centimes / milli-unités (pas de float). */
+  quantite: string;
   unite: string;
-  prix_ht: number;
-  tva: number;
-  total_ht: number;
+  prix_ht: string;
+  tva: string;
+  total_ht: string;
 };
 
 export function FacturePdfDocument({
@@ -45,6 +49,7 @@ export function FacturePdfDocument({
   client,
   numero,
   dateEmissionLabel,
+  documentTitle,
   lignes,
   total_ht,
   total_tva,
@@ -55,13 +60,16 @@ export function FacturePdfDocument({
   client: ClientPdf;
   numero: string;
   dateEmissionLabel: string;
+  documentTitle?: string;
   lignes: LignePdf[];
-  total_ht: number;
-  total_tva: number;
-  total_ttc: number;
+  total_ht: string;
+  total_tva: string;
+  total_ttc: string;
   notes: string | null;
 }) {
+  registerFacturePdfFonts();
   const clientName = client ? [client.prenom, client.nom].filter(Boolean).join(" ") || client.nom : "—";
+  const title = documentTitle ?? "Facture";
 
   return (
     <Document>
@@ -70,7 +78,7 @@ export function FacturePdfDocument({
           <View>
             {profile.logo_url ? (
               /* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image sans alt */
-              <Image src={profile.logo_url} style={{ width: 72, height: 72, objectFit: "contain" }} />
+              <Image src={profile.logo_url} style={{ width: 72, height: 72 }} />
             ) : null}
             <Text style={styles.title}>{profile.entreprise_nom || "Entreprise"}</Text>
             <Text>{profile.adresse}</Text>
@@ -79,7 +87,7 @@ export function FacturePdfDocument({
             <Text>SIRET : {profile.siret || "—"}</Text>
           </View>
           <View>
-            <Text style={styles.title}>Facture {numero}</Text>
+            <Text style={styles.title}>{title} {numero}</Text>
             <Text>Date d&apos;émission : {dateEmissionLabel}</Text>
             <Text>Client : {clientName}</Text>
             <Text>Adresse / chantier : {client?.adresse || "—"}</Text>
@@ -100,17 +108,17 @@ export function FacturePdfDocument({
               <Text style={styles.col1}>{l.designation}</Text>
               <Text style={styles.col2}>{l.quantite}</Text>
               <Text style={styles.col3}>{l.unite}</Text>
-              <Text style={styles.col4}>{l.prix_ht.toFixed(2)} €</Text>
+              <Text style={styles.col4}>{l.prix_ht} €</Text>
               <Text style={styles.col5}>{l.tva}%</Text>
-              <Text style={styles.col6}>{l.total_ht.toFixed(2)} €</Text>
+              <Text style={styles.col6}>{l.total_ht} €</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.totals}>
-          <Text>Total HT : {total_ht.toFixed(2)} €</Text>
-          <Text>Total TVA : {total_tva.toFixed(2)} €</Text>
-          <Text style={{ marginTop: 4, fontSize: 11 }}>Total TTC : {total_ttc.toFixed(2)} €</Text>
+          <Text>Total HT : {total_ht} €</Text>
+          <Text>Total TVA : {total_tva} €</Text>
+          <Text style={{ marginTop: 4, fontSize: 11 }}>Total TTC : {total_ttc} €</Text>
         </View>
 
         {notes ? (
@@ -121,7 +129,11 @@ export function FacturePdfDocument({
         ) : null}
 
         <View style={styles.footer}>
-          {profile.mention_legale ? <Text>{profile.mention_legale}</Text> : null}
+          {profile.mention_legale
+            ? profile.mention_legale.split("\n").map((line) => (
+                <Text key={line}>{line}</Text>
+              ))
+            : null}
           {profile.conditions_paiement_defaut ? <Text>{profile.conditions_paiement_defaut}</Text> : null}
         </View>
       </Page>

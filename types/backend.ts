@@ -18,6 +18,15 @@ export type BackendProfile = {
   numero_tva_intracom?: string;
   tva_sur_encaissements?: boolean;
   tva_sur_debits_opt_in?: boolean;
+  /** Source de vérité TVA (les deux booléens ci-dessus sont générés en base). */
+  regime_tva?: "encaissements" | "debits" | "franchise_293b";
+  adresse_ligne1?: string;
+  adresse_ligne2?: string;
+  adresse_cp?: string;
+  adresse_ville?: string;
+  adresse_pays?: string;
+  adresse_structure_proposition?: Record<string, unknown> | null;
+  adresse_structure_confirmee_at?: string | null;
   decennale_mention?: string;
   iban?: string;
   bic?: string;
@@ -89,6 +98,8 @@ export type BackendDashboardStats = {
   relances: BackendDevis[];
 };
 
+export type ClientTypeEinvoicing = "particulier" | "entreprise" | "public";
+
 export type BackendClient = {
   id: string;
   nom: string;
@@ -97,12 +108,26 @@ export type BackendClient = {
   tel?: string;
   adresse?: string;
   type?: "particulier" | "professionnel" | string;
+  /** GENERATED en base : particulier | entreprise | public */
+  type_client?: ClientTypeEinvoicing;
   siret?: string;
   siren?: string;
   tva_intracom?: string;
   categorie_fiscale?: string;
   secteur_public?: boolean;
   chorus_service_code?: string;
+  adresse_facturation_ligne1?: string;
+  adresse_facturation_ligne2?: string;
+  adresse_facturation_cp?: string;
+  adresse_facturation_ville?: string;
+  adresse_facturation_pays?: string;
+  adresse_livraison_ligne1?: string;
+  adresse_livraison_ligne2?: string;
+  adresse_livraison_cp?: string;
+  adresse_livraison_ville?: string;
+  adresse_livraison_pays?: string;
+  adresse_structure_proposition?: Record<string, unknown> | null;
+  adresse_structure_confirmee_at?: string | null;
   notes?: string;
   inactive?: boolean;
   created_at?: string;
@@ -122,6 +147,7 @@ export type BackendFacture = {
 export type BackendPaiement = {
   id: string;
   montant: number;
+  montant_decimal?: string;
   date?: string;
   mode?: string;
 };
@@ -140,8 +166,21 @@ export type BackendFactureDetail = BackendFacture & {
   conformite_branche?: string;
   conformite_warnings?: string[];
   operations_type?: string;
+  nature_operation?: "biens" | "services" | "mixte" | string;
+  option_tva_debits?: boolean;
+  devise?: string;
+  statut_cycle_vie?: "brouillon" | "emise" | "deposee" | "rejetee" | "encaissee" | string;
+  snapshot_emetteur?: Record<string, unknown> | null;
+  snapshot_client?: Record<string, unknown> | null;
+  facturx_pdf_path?: string | null;
+  facturx_xml?: string | null;
+  facture_origine_numero?: string | null;
+  facture_origine_date?: string | null;
+  montant_paye_decimal?: string;
   facture_type?: string;
   adresse_livraison_chantier?: string;
+  date_prestation_debut?: string | null;
+  date_prestation_fin?: string | null;
   chorus_service_code?: string;
   immutable?: boolean;
   locked_at?: string;
@@ -187,10 +226,15 @@ export type BackendDevisLine = {
   tva?: number;
   total_ht?: number;
   ligne_type?: "prestation" | "fourniture" | "pose" | string;
+  type_ligne?: "bien" | "service" | string;
   source?: string | null;
   origine_prix?: "dicte" | "prereglage" | "vide" | null;
   catalogue_ouvrage_id?: string | null;
   tva_alerte?: string | null;
+  /** Décimales brutes (Postgres numeric) — utilisées pour Factur-X, sans Number(). */
+  quantite_decimal?: string;
+  prix_ht_decimal?: string;
+  tva_decimal?: string;
 };
 
 export type BackendDevisDetail = BackendDevis & {

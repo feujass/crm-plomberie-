@@ -1,9 +1,19 @@
-import { FacturePdfDocument } from "@/components/pdf/FacturePdfDocument";
 import { backendFetch } from "@/lib/backend/server";
+import { fromDbAdresse } from "@/lib/facturation/adresse";
+import { facturXAlreadyGenerated, FACTURES_EINVOICING_BUCKET } from "@/lib/facturation/embed-facturx";
+import { facturXSourceFromDetail } from "@/lib/facturation/from-detail";
+import { parseRegimeTva } from "@/lib/facturation/regime-tva";
+import { renderFactureVisualPdf } from "@/lib/facturation/render-facture-visual";
+import {
+  buildSnapshotClient,
+  buildSnapshotEmetteur,
+  deriveTypeClient,
+  parseSnapshotClient,
+  parseSnapshotEmetteur,
+} from "@/lib/facturation/snapshots";
 import { resolveProfileLogoUrl } from "@/lib/supabase/logo-storage";
-import { formatDateFr } from "@/lib/format";
+import { createClient } from "@/lib/supabase/server";
 import type { BackendClient, BackendFactureDetail, BackendProfile } from "@/types/backend";
-import { pdf } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -20,6 +30,21 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
   if (!facture) return NextResponse.json({ message: "Introuvable" }, { status: 404 });
 
+  const safeName = (facture.numero ?? `facture-${id}`).replace(/[^\w.-]+/g, "_");
+  const pdfHeaders = {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="${safeName}.pdf"`,
+    "Cache-Control": "no-store",
+  };
+
+  if (facturXAlreadyGenerated(facture) && facture.facturx_pdf_path) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.storage.from(FACTURES_EINVOICING_BUCKET).download(facture.facturx_pdf_path);
+    if (!error && data) {
+      return new NextResponse(Buffer.from(await data.arrayBuffer()), { headers: pdfHeaders });
+    }
+  }
+
   let profile: BackendProfile = {};
   try {
     profile = (await backendFetch("/api/profile")) as BackendProfile;
@@ -27,61 +52,51 @@ export async function GET(_req: Request, ctx: Ctx) {
     profile = {};
   }
 
-  let client: { nom: string; prenom: string | null; adresse: string | null } | null = null;
+  let clientRow: BackendClient | null = null;
   if (facture.client_id) {
     try {
-      const c = (await backendFetch(`/api/clients/${facture.client_id}`)) as BackendClient;
-      client = { nom: c.nom, prenom: c.prenom ?? null, adresse: c.adresse ?? null };
+      clientRow = (await backendFetch(`/api/clients/${facture.client_id}`)) as BackendClient;
     } catch {
-      client = null;
+      clientRow = null;
     }
   }
 
-  const sorted = (facture.lignes ?? []).map((l, idx) => ({
-    id: `l-${idx}`,
-    designation: l.designation,
-    quantite: Number(l.quantite ?? 1),
-    unite: l.unite ?? "u",
-    prix_ht: Number(l.prix_ht ?? 0),
-    tva: Number(l.tva ?? 10),
-    total_ht: Number(l.total_ht ?? (Number(l.quantite ?? 1) * Number(l.prix_ht ?? 0))),
-  }));
+  const emetteur =
+    parseSnapshotEmetteur(facture.snapshot_emetteur) ??
+    buildSnapshotEmetteur({
+      ...profile,
+      regime_tva: parseRegimeTva(profile.regime_tva),
+    });
+  const typeClient = clientRow
+    ? deriveTypeClient({
+        secteur_public: clientRow.secteur_public,
+        categorie_fiscale: clientRow.categorie_fiscale,
+      })
+    : "particulier";
+  const clientSnap =
+    parseSnapshotClient(facture.snapshot_client) ??
+    buildSnapshotClient({
+      nom: clientRow?.nom ?? facture.client_nom ?? "Client",
+      prenom: clientRow?.prenom,
+      type_client: typeClient,
+      siren: clientRow?.siren,
+      siret: clientRow?.siret,
+      tva_intracom: clientRow?.tva_intracom,
+      email: clientRow?.email,
+      tel: clientRow?.tel,
+      adresse_facturation: clientRow
+        ? fromDbAdresse(clientRow as unknown as Record<string, unknown>, {
+            ligne1: "adresse_facturation_ligne1",
+            ligne2: "adresse_facturation_ligne2",
+            cp: "adresse_facturation_cp",
+            ville: "adresse_facturation_ville",
+            pays: "adresse_facturation_pays",
+          })
+        : undefined,
+    });
 
-  const profilePdf = {
-    entreprise_nom: (profile.entreprise ?? null) as string | null,
-    adresse: (profile.adresse ?? null) as string | null,
-    tel: (profile.tel ?? null) as string | null,
-    email_facturation: (profile.email_facturation ?? null) as string | null,
-    siret: (profile.siret ?? null) as string | null,
-    logo_url: await resolveProfileLogoUrl((profile.logo_url ?? null) as string | null),
-    mention_legale: (profile.mention_legale ?? null) as string | null,
-    conditions_paiement_defaut: (profile.conditions_paiement ?? null) as string | null,
-  };
-
-  const rawDate = facture.date_emission ?? facture.created_at;
-  const dateEmissionLabel = rawDate ? formatDateFr(String(rawDate)) : "—";
-
-  const blob = await pdf(
-    <FacturePdfDocument
-      profile={profilePdf}
-      client={client}
-      numero={facture.numero ?? `FACT-${id}`}
-      dateEmissionLabel={dateEmissionLabel}
-      lignes={sorted}
-      total_ht={Number(facture.total_ht ?? 0)}
-      total_tva={Number(facture.total_tva ?? 0)}
-      total_ttc={Number(facture.total_ttc ?? 0)}
-      notes={facture.notes ?? null}
-    />,
-  ).toBlob();
-  const buf = Buffer.from(await blob.arrayBuffer());
-
-  const safeName = (facture.numero ?? `facture-${id}`).replace(/[^\w.-]+/g, "_");
-
-  return new NextResponse(buf, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${safeName}.pdf"`,
-    },
-  });
+  const source = facturXSourceFromDetail({ facture, emetteur, client: clientSnap });
+  const logo = await resolveProfileLogoUrl((profile.logo_url ?? null) as string | null);
+  const bytes = await renderFactureVisualPdf(source, logo);
+  return new NextResponse(Buffer.from(bytes), { headers: pdfHeaders });
 }

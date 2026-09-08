@@ -119,6 +119,26 @@ const nextConfig: NextConfig = {
       process.env.NODE_ENV !== "production" ? "1" : "0",
   },
   outputFileTracingRoot: path.join(__dirname),
+  serverExternalPackages: [
+    "@stafyniaksacha/facturx",
+    "libxml2-wasm",
+    "saxon-js",
+    "pdf-lib",
+    "@pdf-lib/fontkit",
+    "sharp",
+  ],
+  outputFileTracingIncludes: {
+    "/api/factures/[id]/facturx": [
+      "./lib/facturation/fonts/**/*",
+      "./lib/facturation/icc/**/*",
+      "./node_modules/@stafyniaksacha/facturx/**/*",
+      "./node_modules/libxml2-wasm/**/*",
+    ],
+    "/api/factures/[id]/pdf": [
+      "./lib/facturation/fonts/**/*",
+      "./lib/facturation/icc/**/*",
+    ],
+  },
   webpack: (config, { dev }) => {
     if (dev) {
       const root = __dirname;

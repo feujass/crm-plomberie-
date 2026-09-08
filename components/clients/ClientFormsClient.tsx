@@ -22,6 +22,17 @@ type ClientInitial = {
   chorus_service_code?: string | null;
   notes?: string | null;
   inactive?: boolean;
+  adresse_facturation_ligne1?: string | null;
+  adresse_facturation_ligne2?: string | null;
+  adresse_facturation_cp?: string | null;
+  adresse_facturation_ville?: string | null;
+  adresse_facturation_pays?: string | null;
+  adresse_livraison_ligne1?: string | null;
+  adresse_livraison_ligne2?: string | null;
+  adresse_livraison_cp?: string | null;
+  adresse_livraison_ville?: string | null;
+  adresse_livraison_pays?: string | null;
+  adresse_structure_confirmee_at?: string | null;
 };
 
 export function NouveauClientFormClient() {
@@ -151,6 +162,17 @@ export function EditClientFormClient({ clientId, initial }: { clientId: string; 
           chorus_service_code: String(fd.get("chorus_service_code") || "").trim(),
           notes: String(fd.get("notes") || "").trim(),
           inactive: fd.get("inactive") === "on",
+          adresse_facturation_ligne1: String(fd.get("adresse_facturation_ligne1") || "").trim(),
+          adresse_facturation_ligne2: String(fd.get("adresse_facturation_ligne2") || "").trim(),
+          adresse_facturation_cp: String(fd.get("adresse_facturation_cp") || "").trim(),
+          adresse_facturation_ville: String(fd.get("adresse_facturation_ville") || "").trim(),
+          adresse_facturation_pays: String(fd.get("adresse_facturation_pays") || "FR").trim(),
+          adresse_livraison_ligne1: String(fd.get("adresse_livraison_ligne1") || "").trim(),
+          adresse_livraison_ligne2: String(fd.get("adresse_livraison_ligne2") || "").trim(),
+          adresse_livraison_cp: String(fd.get("adresse_livraison_cp") || "").trim(),
+          adresse_livraison_ville: String(fd.get("adresse_livraison_ville") || "").trim(),
+          adresse_livraison_pays: String(fd.get("adresse_livraison_pays") || "").trim(),
+          confirmer_adresse_structure: fd.get("confirmer_adresse_structure") === "on",
         };
         try {
           const res = await fetch(`/api/clients/${clientId}`, {
@@ -174,6 +196,28 @@ export function EditClientFormClient({ clientId, initial }: { clientId: string; 
       <Input label="Email" name="email" type="email" defaultValue={initial.email ?? ""} />
       <Input label="Téléphone" name="tel" type="tel" defaultValue={initial.tel ?? ""} />
       <Input label="Adresse" name="adresse" defaultValue={initial.adresse ?? ""} />
+      <p className="text-xs text-slate-500">
+        Adresse de facturation structurée (facturation électronique). Ne pas se fier au champ libre ci-dessus.
+      </p>
+      <Input label="Facturation — ligne 1" name="adresse_facturation_ligne1" defaultValue={initial.adresse_facturation_ligne1 ?? ""} />
+      <Input label="Facturation — ligne 2" name="adresse_facturation_ligne2" defaultValue={initial.adresse_facturation_ligne2 ?? ""} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Input label="CP" name="adresse_facturation_cp" defaultValue={initial.adresse_facturation_cp ?? ""} />
+        <Input label="Ville" name="adresse_facturation_ville" defaultValue={initial.adresse_facturation_ville ?? ""} />
+        <Input label="Pays" name="adresse_facturation_pays" defaultValue={initial.adresse_facturation_pays ?? "FR"} />
+      </div>
+      <p className="text-xs text-slate-500">Livraison — uniquement si différente de la facturation.</p>
+      <Input label="Livraison — ligne 1" name="adresse_livraison_ligne1" defaultValue={initial.adresse_livraison_ligne1 ?? ""} />
+      <Input label="Livraison — ligne 2" name="adresse_livraison_ligne2" defaultValue={initial.adresse_livraison_ligne2 ?? ""} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Input label="CP" name="adresse_livraison_cp" defaultValue={initial.adresse_livraison_cp ?? ""} />
+        <Input label="Ville" name="adresse_livraison_ville" defaultValue={initial.adresse_livraison_ville ?? ""} />
+        <Input label="Pays" name="adresse_livraison_pays" defaultValue={initial.adresse_livraison_pays ?? ""} />
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="confirmer_adresse_structure" defaultChecked={Boolean(initial.adresse_structure_confirmee_at)} />
+        Je confirme l’adresse de facturation pour l’émission électronique
+      </label>
       <label className="block text-sm font-medium">
         Type
         <select

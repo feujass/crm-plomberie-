@@ -10,11 +10,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildMeResponse } from "@/lib/supabase/profile-map";
 import {
   clientDisplayName,
+  mapClientRow,
   mapDevisDetailRow,
   mapDevisLineRow,
+  mapProfileRow,
   nextFactureNumero,
 } from "@/lib/supabase/row-maps";
 import { fetchDevisLignesHelper } from "@/lib/supabase/routes-shared";
+import { fromDbAdresse } from "@/lib/facturation/adresse";
+import { centsToXml, decimalFromDb, toCents } from "@/lib/facturation/cents";
+import { transmissionKindsForBranche, type ConformiteBranche } from "@/lib/conformite/matrix";
+import { optionTvaDebitsFromRegime, parseRegimeTva } from "@/lib/facturation/regime-tva";
+import {
+  buildSnapshotClient,
+  buildSnapshotEmetteur,
+  deriveTypeClient,
+} from "@/lib/facturation/snapshots";
+import { natureOperationFromLignes, typeLigneFromDevis } from "@/lib/facturation/type-ligne";
 
 function asObject(body: unknown): Record<string, unknown> {
   if (body && typeof body === "object" && !Array.isArray(body)) {
@@ -79,12 +91,11 @@ async function createDefaultTransmissions(
   factureId: string,
   branche: string,
 ) {
-  const kinds =
-    branche === "public"
-      ? ["chorus_pro"]
-      : branche === "pro_ue"
-        ? ["pdp", "ereporting"]
-        : ["pdp"];
+  const kinds = transmissionKindsForBranche(
+    (branche === "secteur_public" || branche === "b2b_fr_tva" || branche === "b2c" || branche === "b2b_intl" || branche === "b2b_fr_non_assujetti"
+      ? branche
+      : "b2c") as ConformiteBranche,
+  );
   for (const kind of kinds) {
     await supabase.from("compliance_transmissions").insert({
       user_id: userId,
@@ -611,12 +622,80 @@ export async function handleFacturesExtended(
     if (!devis) throw new Error("Devis non trouvé");
 
     const lignes = await fetchDevisLignesHelper(supabase, devisId);
+    const ligneTypes = lignes.map((l) => typeLigneFromDevis(l.ligne_type));
+    const nature = natureOperationFromLignes(ligneTypes);
+
+    const [{ data: profileRow }, { data: clientRow }, { data: chantier }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      devis.client_id
+        ? supabase.from("clients").select("*").eq("id", devis.client_id).eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("chantiers")
+        .select("date_debut, date_fin")
+        .eq("devis_id", devisId)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const profile = mapProfileRow(profileRow as Record<string, unknown> | null);
+    const regime = parseRegimeTva(profile.regime_tva);
+    const client = clientRow ? mapClientRow(clientRow as Record<string, unknown>) : null;
+    const typeClient = client
+      ? deriveTypeClient({
+          secteur_public: client.secteur_public,
+          categorie_fiscale: client.categorie_fiscale,
+        })
+      : "particulier";
+
+    const snapshotEmetteur = buildSnapshotEmetteur({
+      ...profile,
+      regime_tva: regime,
+    });
+    const facturationAddr = client
+      ? fromDbAdresse(client as unknown as Record<string, unknown>, {
+          ligne1: "adresse_facturation_ligne1",
+          ligne2: "adresse_facturation_ligne2",
+          cp: "adresse_facturation_cp",
+          ville: "adresse_facturation_ville",
+          pays: "adresse_facturation_pays",
+        })
+      : null;
+    const livraisonAddr = client
+      ? fromDbAdresse(client as unknown as Record<string, unknown>, {
+          ligne1: "adresse_livraison_ligne1",
+          ligne2: "adresse_livraison_ligne2",
+          cp: "adresse_livraison_cp",
+          ville: "adresse_livraison_ville",
+          pays: "adresse_livraison_pays",
+        })
+      : null;
+    const snapshotClient = client
+      ? buildSnapshotClient({
+          nom: client.nom,
+          prenom: client.prenom,
+          type_client: typeClient,
+          siren: client.siren,
+          siret: client.siret,
+          tva_intracom: client.tva_intracom,
+          email: client.email,
+          tel: client.tel,
+          adresse_facturation: facturationAddr,
+          adresse_livraison: livraisonAddr?.ligne1 ? livraisonAddr : null,
+        })
+      : null;
+
+    const branche =
+      typeClient === "public" ? "secteur_public" : typeClient === "entreprise" ? "b2b_fr_tva" : "b2c";
+
     const numero = await nextFactureNumero(supabase, user.id);
     const now = new Date();
     const echeance = new Date(now);
     echeance.setDate(echeance.getDate() + 30);
     const clientNom = await clientDisplayName(supabase, devis.client_id as string | null);
-    const branche = "particulier";
+    const today = now.toISOString().slice(0, 10);
 
     const { data: facture, error } = await supabase
       .from("factures")
@@ -626,16 +705,26 @@ export async function handleFacturesExtended(
         client_id: devis.client_id,
         numero,
         statut: "emise",
+        statut_cycle_vie: "emise",
         total_ht: devis.total_ht,
         total_tva: devis.total_tva,
         total_ttc: devis.total_ttc,
-        date_emission: now.toISOString().slice(0, 10),
+        date_emission: today,
         date_echeance: echeance.toISOString().slice(0, 10),
         adresse_livraison_chantier: String(b.adresse_livraison_chantier ?? devis.adresse_chantier ?? "").trim() || null,
-        operations_type: String(b.operations_type ?? "services"),
+        operations_type: nature,
+        nature_operation: nature,
+        option_tva_debits: optionTvaDebitsFromRegime(regime),
+        devise: "EUR",
+        snapshot_emetteur: snapshotEmetteur,
+        snapshot_client: snapshotClient,
         facture_type: String(b.facture_type ?? "standard"),
+        facture_origine_numero: b.facture_origine_numero ? String(b.facture_origine_numero).trim() : null,
+        facture_origine_date: b.facture_origine_date ? String(b.facture_origine_date).slice(0, 10) : null,
         conformite_branche: branche,
         conformite_warnings: [],
+        date_prestation_debut: chantier?.date_debut ?? null,
+        date_prestation_fin: chantier?.date_fin ?? null,
         locked_at: now.toISOString(),
       })
       .select("*")
@@ -655,6 +744,7 @@ export async function handleFacturesExtended(
           tva: l.tva ?? 10,
           total_ht: l.total_ht ?? 0,
           ordre: i,
+          type_ligne: ligneTypes[i],
         })),
       );
     }
@@ -783,6 +873,10 @@ async function fetchFactureLignes(supabase: SupabaseClient, factureId: string) {
     prix_ht: Number(l.prix_ht ?? 0),
     tva: Number(l.tva ?? 10),
     total_ht: Number(l.total_ht ?? 0),
+    type_ligne: l.type_ligne != null ? String(l.type_ligne) : undefined,
+    quantite_decimal: decimalFromDb(l.quantite, "1"),
+    prix_ht_decimal: decimalFromDb(l.prix_ht, "0"),
+    tva_decimal: decimalFromDb(l.tva, "10"),
   }));
 }
 
@@ -805,7 +899,8 @@ function mapFactureDetail(
   paiements: Array<Record<string, unknown>>,
   clientNom?: string,
 ) {
-  const montantPaye = paiements.reduce((s, p) => s + Number(p.montant ?? 0), 0);
+  const montantPayeCents = paiements.reduce((s, p) => s + toCents(p.montant ?? 0), 0);
+  const montantPaye = Number(centsToXml(montantPayeCents));
   return {
     id: String(row.id),
     numero: row.numero as string | undefined,
@@ -823,6 +918,18 @@ function mapFactureDetail(
     conformite_branche: row.conformite_branche as string | undefined,
     conformite_warnings: row.conformite_warnings,
     operations_type: row.operations_type as string | undefined,
+    nature_operation: row.nature_operation as string | undefined,
+    option_tva_debits: row.option_tva_debits as boolean | undefined,
+    devise: row.devise as string | undefined,
+    statut_cycle_vie: row.statut_cycle_vie as string | undefined,
+    snapshot_emetteur: (row.snapshot_emetteur as Record<string, unknown>) ?? null,
+    snapshot_client: (row.snapshot_client as Record<string, unknown>) ?? null,
+    facturx_pdf_path: (row.facturx_pdf_path as string) ?? null,
+    facturx_xml: (row.facturx_xml as string) ?? null,
+    facture_origine_numero: (row.facture_origine_numero as string) ?? null,
+    facture_origine_date: (row.facture_origine_date as string) ?? null,
+    date_prestation_debut: (row.date_prestation_debut as string) ?? null,
+    date_prestation_fin: (row.date_prestation_fin as string) ?? null,
     facture_type: row.facture_type as string | undefined,
     adresse_livraison_chantier: row.adresse_livraison_chantier as string | undefined,
     chorus_service_code: row.chorus_service_code as string | undefined,
@@ -832,10 +939,12 @@ function mapFactureDetail(
     paiements: paiements.map((p) => ({
       id: String(p.id),
       montant: Number(p.montant ?? 0),
+      montant_decimal: decimalFromDb(p.montant, "0"),
       date: p.date as string | undefined,
       mode: p.mode as string | undefined,
     })),
     montant_paye: montantPaye,
+    montant_paye_decimal: centsToXml(montantPayeCents),
   };
 }
 

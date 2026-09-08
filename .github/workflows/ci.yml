@@ -21,12 +21,22 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - name: Install
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Lint
-        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: Validateurs Factur-X (Mustang + veraPDF)
+        run: bash scripts/ensure-facturx-validators.sh
+      - name: Factur-X (Mustang, veraPDF, fuzz 500)
+        run: npm run validate:facturx
+      - name: Types Database
+        run: npm run types:gen
       - name: Build
         run: npm run build
         env:

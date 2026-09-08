@@ -123,6 +123,7 @@ export function FactureConformiteClient({
       </div>
       <p className="text-xs text-slate-600 dark:text-slate-400">
         Cet export est destiné à la conformité (Chorus/PDP) ou au support technique. Il n’envoie rien “tout seul”.
+        La génération Factur-X (PDF/A-3 + XML CII) se fait depuis le bouton en haut de page, sans dépôt PDP.
       </p>
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
     </div>

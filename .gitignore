@@ -22,6 +22,7 @@ debug-session-0f238e-peek.json
 .next/
 .turbo/
 out/
+tools/validators/
 
 # Legacy Vite build artifacts (si présents)
 /public/index.html

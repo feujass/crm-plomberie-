@@ -129,12 +129,17 @@ export function CompteEntrepriseFormClient({
             capital_social: String(fd.get("capital_social") || ""),
             rcs_ville: String(fd.get("rcs_ville") || ""),
             numero_tva_intracom: String(fd.get("numero_tva_intracom") || ""),
-            tva_sur_encaissements: fd.get("tva_sur_encaissements") === "on",
-            tva_sur_debits_opt_in: fd.get("tva_sur_debits_opt_in") === "on",
+            regime_tva: String(fd.get("regime_tva") || "encaissements"),
+            confirmer_adresse_structure: fd.get("confirmer_adresse_structure") === "on",
             decennale_mention: String(fd.get("decennale_mention") || ""),
             iban: String(fd.get("iban") || ""),
             bic: String(fd.get("bic") || ""),
             adresse: String(fd.get("adresse") || ""),
+            adresse_ligne1: String(fd.get("adresse_ligne1") || ""),
+            adresse_ligne2: String(fd.get("adresse_ligne2") || ""),
+            adresse_cp: String(fd.get("adresse_cp") || ""),
+            adresse_ville: String(fd.get("adresse_ville") || ""),
+            adresse_pays: String(fd.get("adresse_pays") || "FR"),
             email_facturation: String(fd.get("email_facturation") || ""),
             mention_legale: String(fd.get("mention_legale") || ""),
             conditions_paiement: String(fd.get("conditions_paiement") || ""),
@@ -210,13 +215,17 @@ export function CompteEntrepriseFormClient({
             name="numero_tva_intracom"
             defaultValue={profile.numero_tva_intracom ?? ""}
           />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="tva_sur_encaissements" defaultChecked={profile.tva_sur_encaissements !== false} />
-            TVA sur les encaissements (cochez si vous y êtes assujetti)
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="tva_sur_debits_opt_in" defaultChecked={profile.tva_sur_debits_opt_in === true} />
-            Option pour la TVA sur les débits (si applicable)
+          <label className="block text-sm font-medium">
+            Régime de TVA
+            <select
+              name="regime_tva"
+              defaultValue={profile.regime_tva ?? "encaissements"}
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            >
+              <option value="encaissements">TVA sur les encaissements</option>
+              <option value="debits">TVA sur les débits</option>
+              <option value="franchise_293b">Franchise en base (art. 293 B du CGI)</option>
+            </select>
           </label>
           <Textarea
             label="Assurance décennale / RC pro (BTP)"
@@ -227,7 +236,25 @@ export function CompteEntrepriseFormClient({
           />
           <Input label="IBAN" name="iban" defaultValue={profile.iban ?? ""} autoComplete="off" />
           <Input label="BIC" name="bic" defaultValue={profile.bic ?? ""} />
-          <Input label="Adresse" name="adresse" defaultValue={profile.adresse ?? ""} />
+          <Input label="Adresse (texte libre, devis)" name="adresse" defaultValue={profile.adresse ?? ""} />
+          <p className="text-[11px] text-gray-500">
+            Pour la facturation électronique, confirme l’adresse structurée ci-dessous (une fois). Elle n’est jamais
+            déduite automatiquement du texte libre.
+          </p>
+          <Input label="Ligne 1" name="adresse_ligne1" defaultValue={profile.adresse_ligne1 ?? ""} />
+          <Input label="Ligne 2" name="adresse_ligne2" defaultValue={profile.adresse_ligne2 ?? ""} />
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Input label="Code postal" name="adresse_cp" defaultValue={profile.adresse_cp ?? ""} />
+            <Input label="Ville" name="adresse_ville" defaultValue={profile.adresse_ville ?? ""} />
+            <Input label="Pays (ISO)" name="adresse_pays" defaultValue={profile.adresse_pays ?? "FR"} />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="confirmer_adresse_structure" defaultChecked={Boolean(profile.adresse_structure_confirmee_at)} />
+            Je confirme cette adresse pour l’émission électronique
+          </label>
+          {profile.adresse_structure_confirmee_at ? (
+            <p className="text-[11px] text-emerald-700">Adresse structurée confirmée.</p>
+          ) : null}
           <Input label="Email facturation" name="email_facturation" type="email" defaultValue={profile.email_facturation ?? ""} />
           <Textarea label="Mentions légales" name="mention_legale" defaultValue={profile.mention_legale ?? ""} rows={3} />
           <Textarea label="Conditions de paiement" name="conditions_paiement" defaultValue={profile.conditions_paiement ?? ""} rows={2} />

@@ -1,6 +1,7 @@
 import { FactureConformiteClient } from "@/components/facturation/FactureConformiteClient";
 import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiementFormClient";
 import { FacturePublicLinkBlock } from "@/components/facturation/FacturePublicLinkBlock";
+import { FacturXActionsClient } from "@/components/facturation/FacturXActionsClient";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { CircleBackLink } from "@/components/ui/CircleBackLink";
@@ -71,6 +72,19 @@ export default async function FactureDetailPage({ params }: Props) {
       <p className="text-sm text-slate-600">
         Émission {formatDateFr(facture.date_emission)} — Échéance {formatDateFr(facture.date_echeance)}
       </p>
+      {facture.nature_operation ? (
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Nature de l’opération :{" "}
+          <span className="font-semibold">
+            {facture.nature_operation === "mixte"
+              ? "Mixte (biens et services)"
+              : facture.nature_operation === "biens"
+                ? "Biens"
+                : "Services"}
+          </span>
+          <span className="ml-1 text-xs text-slate-500">(calculée, non modifiable)</span>
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <a
           href={`/api/factures/${encodeURIComponent(id)}/pdf`}
@@ -80,6 +94,10 @@ export default async function FactureDetailPage({ params }: Props) {
         >
           Télécharger PDF facture
         </a>
+        <FacturXActionsClient
+          factureId={id}
+          existingPath={facture.facturx_pdf_path || facture.facturx_xml}
+        />
       </div>
       {mismatch ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">

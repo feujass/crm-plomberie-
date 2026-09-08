@@ -1,9 +1,123 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+/**
+ * Schéma public Flowo — à régénérer via `npm run types:gen`
+ * (supabase gen types typescript).
+ */
+export type Database = {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          regime_tva: "encaissements" | "debits" | "franchise_293b";
+          tva_sur_encaissements: boolean | null;
+          tva_sur_debits_opt_in: boolean | null;
+          adresse_ligne1: string | null;
+          adresse_ligne2: string | null;
+          adresse_cp: string | null;
+          adresse_ville: string | null;
+          adresse_pays: string;
+          adresse_structure_proposition: Json | null;
+          adresse_structure_confirmee_at: string | null;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+      clients: {
+        Row: {
+          id: string;
+          user_id: string;
+          type_client: "particulier" | "entreprise" | "public";
+          siren: string | null;
+          siret: string | null;
+          categorie_fiscale: string | null;
+          secteur_public: boolean | null;
+          adresse_facturation_ligne1: string | null;
+          adresse_facturation_cp: string | null;
+          adresse_facturation_ville: string | null;
+          adresse_structure_confirmee_at: string | null;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+      factures: {
+        Row: {
+          id: string;
+          user_id: string;
+          numero: string | null;
+          statut: string;
+          statut_cycle_vie: "brouillon" | "emise" | "deposee" | "rejetee" | "encaissee";
+          nature_operation: "biens" | "services" | "mixte" | null;
+          option_tva_debits: boolean;
+          devise: string;
+          snapshot_emetteur: Json | null;
+          snapshot_client: Json | null;
+          facturx_xml: string | null;
+          facturx_pdf_path: string | null;
+          facture_origine_numero: string | null;
+          facture_origine_date: string | null;
+          date_prestation_debut: string | null;
+          date_prestation_fin: string | null;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+      facture_lignes: {
+        Row: {
+          id: string;
+          facture_id: string;
+          designation: string;
+          type_ligne: "bien" | "service";
+          tva: number;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+      facture_compteurs: {
+        Row: { user_id: string; annee: number; dernier_numero: number };
+        Insert: { user_id: string; annee: number; dernier_numero?: number };
+        Update: { dernier_numero?: number };
+      };
+      devis_lignes: {
+        Row: {
+          id: string;
+          devis_id: string;
+          section: string | null;
+          designation: string;
+          quantite: number;
+          unite: string;
+          prix_ht: number;
+          tva: number;
+          total_ht: number;
+          ordre: number;
+          ligne_type: "prestation" | "fourniture" | "pose" | null;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+    };
+    Views: Record<string, never>;
+    Functions: {
+      allocate_facture_numero: {
+        Args: { p_user_id: string };
+        Returns: string;
+      };
+    };
+    Enums: Record<string, never>;
+  };
+};
+
 export type DevisStatut = "brouillon" | "envoye" | "accepte" | "refuse" | "expire" | "archive";
 export type FactureStatut = "brouillon" | "emise" | "partielle" | "payee" | "retard";
 export type ClientType = "particulier" | "professionnel";
 export type OuvrageType = "main_oeuvre" | "fourniture" | "ouvrage";
 export type ChantierStatut = "en_cours" | "planifie" | "termine" | "pause";
 export type StructureDevis = "piece" | "type_travaux" | "libre";
+
+/** Alias métier — dérivé du dump. */
+export type DevisLigneRow = Database["public"]["Tables"]["devis_lignes"]["Row"];
+export type FactureRow = Database["public"]["Tables"]["factures"]["Row"];
 
 export interface Profile {
   id: string;
@@ -84,20 +198,6 @@ export interface DevisRow {
   archived_at: string | null;
 }
 
-export interface DevisLigneRow {
-  id: string;
-  devis_id: string;
-  section: string | null;
-  designation: string;
-  quantite: number;
-  unite: string;
-  prix_ht: number;
-  tva: number;
-  total_ht: number;
-  ordre: number;
-  ligne_type: "prestation" | "fourniture" | "pose";
-}
-
 export interface ChantierRow {
   id: string;
   user_id: string;
@@ -110,20 +210,4 @@ export interface ChantierRow {
   date_fin: string | null;
   avancement: number;
   notes: string | null;
-}
-
-export interface FactureRow {
-  id: string;
-  user_id: string;
-  devis_id: string | null;
-  client_id: string | null;
-  numero: string;
-  statut: FactureStatut;
-  date_emission: string;
-  date_echeance: string | null;
-  total_ht: number;
-  total_tva: number;
-  total_ttc: number;
-  share_token: string;
-  pdf_url: string | null;
 }
