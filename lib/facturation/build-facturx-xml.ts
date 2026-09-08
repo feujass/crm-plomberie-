@@ -38,6 +38,10 @@ export type FacturXSource = {
   lignes: FacturXLigne[];
   factureOrigineNumero?: string | null;
   factureOrigineDate?: string | null;
+  /** BT-34 — si absent, 0225 + SIREN. */
+  sellerElectronicAddress?: { schemeId: string; value: string } | null;
+  /** BT-49 — si absent, 0225 + SIREN. */
+  buyerElectronicAddress?: { schemeId: string; value: string } | null;
 };
 
 const UNIT_CODES: Record<string, string> = {
@@ -132,11 +136,20 @@ ${line2}<ram:CityName>${xmlEscape(addr.ville.trim())}</ram:CityName>
 </ram:PostalTradeAddress>`;
 }
 
-function electronicAddressXml(email: string | null | undefined): string {
-  const v = email?.trim();
-  if (!v) return "";
+function electronicAddressXml(
+  siren: string | null,
+  override?: { schemeId: string; value: string } | null,
+): string {
+  const scheme = override?.schemeId?.trim();
+  const value = override?.value?.trim();
+  if (scheme && value) {
+    return `<ram:URIUniversalCommunication>
+<ram:URIID schemeID="${xmlEscape(scheme)}">${xmlEscape(value)}</ram:URIID>
+</ram:URIUniversalCommunication>`;
+  }
+  if (!siren) return "";
   return `<ram:URIUniversalCommunication>
-<ram:URIID schemeID="EM">${xmlEscape(v)}</ram:URIID>
+<ram:URIID schemeID="0225">${xmlEscape(siren)}</ram:URIID>
 </ram:URIUniversalCommunication>`;
 }
 
@@ -181,18 +194,30 @@ function legalOrgXml(siret: string | null, siren: string | null): string {
 </ram:SpecifiedLegalOrganization>`;
 }
 
-function taxRegXml(opts: { vatId: string | null; siren: string | null; franchise: boolean }): string {
+function taxRegXml(opts: {
+  vatId: string | null;
+  siren: string | null;
+  franchise: boolean;
+  party: "seller" | "buyer";
+}): string {
   if (!opts.franchise && opts.vatId) {
     return `<ram:SpecifiedTaxRegistration>
 <ram:ID schemeID="VA">${xmlEscape(opts.vatId)}</ram:ID>
 </ram:SpecifiedTaxRegistration>`;
   }
-  if (opts.siren) {
+  // FC (n° fiscal) : autorisé côté vendeur en franchise ; interdit sur l’acheteur (FX-SCH-A-000031).
+  if (opts.party === "seller" && opts.siren) {
     return `<ram:SpecifiedTaxRegistration>
 <ram:ID schemeID="FC">${xmlEscape(opts.siren)}</ram:ID>
 </ram:SpecifiedTaxRegistration>`;
   }
   return "";
+}
+
+function businessProcessCode(nature: NatureOperation): string {
+  if (nature === "biens") return "B1";
+  if (nature === "mixte") return "M1";
+  return "S1";
 }
 
 function dueDateTypeCode(regime: RegimeTva, optionDebits: boolean): string | null {
@@ -234,7 +259,8 @@ export function buildFacturXXml(facture: FacturXSource): string {
     facture.emetteur.numero_tva_intracom?.trim() ||
     (sellerSiren && !franchise ? frenchVatFromSiren(sellerSiren) : null);
   const buyerSiren = sirenOf(facture.client.siret, facture.client.siren);
-  const buyerVat = facture.client.tva_intracom?.trim() || null;
+  const buyerVat =
+    facture.client.tva_intracom?.trim() || (buyerSiren ? frenchVatFromSiren(buyerSiren) : null);
 
   const lineXml: string[] = [];
   for (let i = 0; i < totals.lignes.length; i++) {
@@ -356,14 +382,14 @@ ${
 </ram:BillingSpecifiedPeriod>`
       : "";
 
-  const deliveryEventXml =
-    facture.datePrestationFin && (facture.natureOperation === "biens" || facture.natureOperation === "mixte")
-      ? `<ram:ActualDeliverySupplyChainEvent>
+  // XSD CII : Agreement → Delivery → Settlement. Jamais d’élément vide (PEPPOL-EN16931-R008) :
+  // date de fin de prestation, sinon date d’émission. ShipTo seulement si l’adresse diffère.
+  const deliveryDate = facture.datePrestationFin?.trim() || facture.dateEmission;
+  const deliveryEventXml = `<ram:ActualDeliverySupplyChainEvent>
 <ram:OccurrenceDateTime>
-<udt:DateTimeString format="102">${ciiDate(facture.datePrestationFin)}</udt:DateTimeString>
+<udt:DateTimeString format="102">${ciiDate(deliveryDate)}</udt:DateTimeString>
 </ram:OccurrenceDateTime>
-</ram:ActualDeliverySupplyChainEvent>`
-      : "";
+</ram:ActualDeliverySupplyChainEvent>`;
 
   const shipTo =
     facture.client.adresse_livraison &&
@@ -373,6 +399,10 @@ ${
 ${postalAddressXml(facture.client.adresse_livraison)}
 </ram:ShipToTradeParty>`
       : "";
+
+  const deliveryXml = `<ram:ApplicableHeaderTradeDelivery>
+${shipTo}${deliveryEventXml}
+</ram:ApplicableHeaderTradeDelivery>`;
 
   const paymentTermsXml = facture.dateEcheance
     ? `<ram:SpecifiedTradePaymentTerms>
@@ -402,6 +432,9 @@ ${
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
 <rsm:ExchangedDocumentContext>
+<ram:BusinessProcessSpecifiedDocumentContextParameter>
+<ram:ID>${businessProcessCode(facture.natureOperation)}</ram:ID>
+</ram:BusinessProcessSpecifiedDocumentContextParameter>
 <ram:GuidelineSpecifiedDocumentContextParameter>
 <ram:ID>${FACTURX_GUIDELINE_ID}</ram:ID>
 </ram:GuidelineSpecifiedDocumentContextParameter>
@@ -421,21 +454,19 @@ ${lineXml.join("")}
 ${legalOrgXml(facture.emetteur.siret, facture.emetteur.siren)}
 ${contactXml(sellerName, facture.emetteur.tel, facture.emetteur.email_facturation)}
 ${postalAddressXml(facture.emetteur.adresse)}
-${electronicAddressXml(facture.emetteur.email_facturation)}
-${taxRegXml({ vatId: sellerVat, siren: sellerSiren, franchise })}
+${electronicAddressXml(sellerSiren, facture.sellerElectronicAddress)}
+${taxRegXml({ vatId: sellerVat, siren: sellerSiren, franchise, party: "seller" })}
 </ram:SellerTradeParty>
 <ram:BuyerTradeParty>
 <ram:Name>${xmlEscape(buyerName)}</ram:Name>
 ${legalOrgXml(facture.client.siret, facture.client.siren)}
 ${contactXml(buyerName, facture.client.tel, facture.client.email)}
 ${postalAddressXml(facture.client.adresse_facturation)}
-${electronicAddressXml(facture.client.email)}
-${taxRegXml({ vatId: buyerVat, siren: buyerSiren, franchise: false })}
+${electronicAddressXml(buyerSiren, facture.buyerElectronicAddress)}
+${taxRegXml({ vatId: buyerVat, siren: buyerSiren, franchise: false, party: "buyer" })}
 </ram:BuyerTradeParty>
 </ram:ApplicableHeaderTradeAgreement>
-<ram:ApplicableHeaderTradeDelivery>
-${shipTo}${deliveryEventXml}
-</ram:ApplicableHeaderTradeDelivery>
+${deliveryXml}
 <ram:ApplicableHeaderTradeSettlement>
 <ram:PaymentReference>${xmlEscape(facture.numero.trim())}</ram:PaymentReference>
 <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>

@@ -7,6 +7,7 @@ import {
   fixtureFranchise293B,
   fixtureMixteMultiTva,
   fixtureMonoTva,
+  fixtureProSansTvaIntracom,
   FIXTURE_CLIENT_ENTREPRISE,
   FIXTURE_EMETTEUR,
 } from "@/lib/facturation/facturx-fixtures";
@@ -37,7 +38,30 @@ describe("buildFacturXXml — multi-taux mixte", () => {
     expect(xml).toContain('schemeID="0002">732829320<');
     expect(xml).not.toContain("73282932000074");
     expect(xml).toContain("<ram:SubjectCode>PMT</ram:SubjectCode>");
-    expect(xml).toContain('schemeID="EM">contact@plomberie-dupont.test<');
+    expect(xml).toContain('schemeID="0225">732829320<');
+    expect(xml).toContain('schemeID="0225">443061841<');
+    expect(xml).toContain('schemeID="SMTP">contact@plomberie-dupont.test<');
+  });
+});
+
+describe("buildFacturXXml — acheteur pro sans TVA intra", () => {
+  it("dérive schemeID=VA et n’émet jamais FC côté acheteur", () => {
+    const xml = buildFacturXXml(fixtureProSansTvaIntracom());
+    const buyer = xml.slice(xml.indexOf("<ram:BuyerTradeParty>"), xml.indexOf("</ram:BuyerTradeParty>"));
+    expect(buyer).toContain('schemeID="VA">FR64443061841<');
+    expect(buyer).not.toContain('schemeID="FC"');
+    expect(xml).toContain("<ram:BusinessProcessSpecifiedDocumentContextParameter>");
+    expect(xml).toContain("<ram:ID>B1</ram:ID>");
+    expect(xml).toContain("<ram:ActualDeliverySupplyChainEvent>");
+  });
+
+  it("utilise l’identifiant Peppol Super PDP quand il est fourni", () => {
+    const src = fixtureProSansTvaIntracom();
+    src.buyerElectronicAddress = { schemeId: "0225", value: "315143296_97118" };
+    const xml = buildFacturXXml(src);
+    const buyer = xml.slice(xml.indexOf("<ram:BuyerTradeParty>"), xml.indexOf("</ram:BuyerTradeParty>"));
+    expect(buyer).toContain('schemeID="0225">315143296_97118<');
+    expect(buyer).not.toContain('schemeID="0225">443061841<');
   });
 });
 
@@ -49,6 +73,35 @@ describe("buildFacturXXml — franchise 293 B", () => {
     expect(xml).toContain("<ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>");
     expect(xml).toContain("<ram:TaxTotalAmount currencyID=\"EUR\">0.00</ram:TaxTotalAmount>");
     expect(xml).not.toContain('schemeID="VA">FR44732829320');
+  });
+});
+
+describe("buildFacturXXml — Delivery CII", () => {
+  it("émet toujours ApplicableHeaderTradeDelivery avec une date, sans ShipTo si livraison absente", () => {
+    const src = fixtureMonoTva();
+    src.client = { ...src.client, adresse_livraison: null };
+    const xml = buildFacturXXml(src);
+    expect(xml).toContain("<ram:ApplicableHeaderTradeDelivery>");
+    expect(xml).toContain("<ram:ActualDeliverySupplyChainEvent>");
+    expect(xml).toContain("20260310");
+    expect(xml).not.toContain("<ram:ShipToTradeParty>");
+    expect(xml).not.toMatch(/<ram:ApplicableHeaderTradeDelivery>\s*<\/ram:ApplicableHeaderTradeDelivery>/);
+  });
+
+  it("n’émet pas ShipTo si l’adresse de livraison est identique à la facturation", () => {
+    const src = fixtureMonoTva();
+    src.client = { ...src.client, adresse_livraison: { ...src.client.adresse_facturation } };
+    const xml = buildFacturXXml(src);
+    expect(xml).toContain("<ram:ApplicableHeaderTradeDelivery>");
+    expect(xml).toContain("<ram:ActualDeliverySupplyChainEvent>");
+    expect(xml).not.toContain("<ram:ShipToTradeParty>");
+  });
+
+  it("conserve ShipTo quand l’adresse de livraison diffère", () => {
+    const xml = buildFacturXXml(fixtureMonoTva());
+    expect(xml).toContain("<ram:ShipToTradeParty>");
+    expect(xml).toContain("8 impasse des Lilas");
+    expect(xml).toContain("<ram:ActualDeliverySupplyChainEvent>");
   });
 });
 
