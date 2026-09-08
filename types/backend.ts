@@ -20,6 +20,8 @@ export type BackendProfile = {
   tva_sur_debits_opt_in?: boolean;
   /** Source de vérité TVA (les deux booléens ci-dessus sont générés en base). */
   regime_tva?: "encaissements" | "debits" | "franchise_293b";
+  /** Périodicité de déclaration e-reporting PA (mensuel / trimestriel / simplifié). */
+  tva_periodicite_declaration?: "monthly" | "quarterly" | "simplified" | null;
   adresse_ligne1?: string;
   adresse_ligne2?: string;
   adresse_cp?: string;

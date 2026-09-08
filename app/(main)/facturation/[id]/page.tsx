@@ -68,6 +68,11 @@ export default async function FactureDetailPage({ params }: Props) {
       <CircleBackLink href="/facturation" label="Retour aux factures" />
       <h1 className="text-2xl font-bold">
         {facture.numero} <Badge statut={facture.statut ?? "—"} />
+        {facture.statut_cycle_vie && facture.statut_cycle_vie !== "brouillon" ? (
+          <span className="ml-2">
+            <Badge statut={facture.statut_cycle_vie} />
+          </span>
+        ) : null}
       </h1>
       <p className="text-sm text-slate-600">
         Émission {formatDateFr(facture.date_emission)} — Échéance {formatDateFr(facture.date_echeance)}

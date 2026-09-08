@@ -8,7 +8,7 @@ import { isAffiliateAdmin } from "@/lib/affiliate/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseDataMode } from "@/lib/supabase/env";
 import type { BackendMeResponse } from "@/types/backend";
-import { Bell, Building2, Clock, Handshake, HelpCircle, Palette, Shield, SlidersHorizontal, Users } from "lucide-react";
+import { Bell, Building2, Clock, FileCheck, Handshake, HelpCircle, Palette, Shield, SlidersHorizontal, Users } from "lucide-react";
 
 export default async function CompteHubPage() {
   const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
@@ -80,6 +80,12 @@ export default async function CompteHubPage() {
           title="Entreprise"
           subtitle="Nom, logo, métier et spécialités."
           Icon={Building2}
+        />
+        <CompteHubRow
+          href="/compte/e-facturation"
+          title="Facturation électronique"
+          subtitle="Raccordement à la plateforme agréée (e-invoicing et e-reporting)."
+          Icon={FileCheck}
         />
         <CompteHubRow
           href="/compte/notifications"
