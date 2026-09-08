@@ -9,6 +9,15 @@ Adaptateur réel Super PDP : `EINVOICING_PROVIDER=superpdp`. Défaut `mock` (auc
 - Jamais de `client_id` par entité fiscale.
 - Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction, puis `dispatchCycleSignalNotifications` pour fr:207 / fr:211.
 - Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron). Planifié dans `vercel.json` (`*/15 * * * *`).
+- Après un dépôt : poll ciblé **immédiat**, puis **5 s** et **30 s** (`after()` + `POST /api/factures/[id]/cycle-refresh` côté UI). Le premier `invoice_events` ne contient souvent que `api:uploaded`.
+
+## Réception (incoming) — stratégie de rapprochement
+
+`external_id` Flowo n’est **pas** recopié sur la copie acheteur (id Super PDP distinct, `external_id` absent). Ne pas rapprocher par id PA.
+
+Quand on ingérera les factures reçues : clé métier **numéro de facture + SIREN émetteur + montant TTC** (champs `en_invoice.number`, `seller.legal_registration_identifier.value` scheme `0002`, `en_invoice.totals.total_with_vat`). Tolérance TTC : centime près. En cas de collision, journaliser et ne pas rattacher automatiquement.
+
+`processing_rule` n’est **pas** envoyé au `POST /invoices` : Super PDP le calcule et rejette toute divergence. `type_client` reste interne (e-reporting, UI).
 
 ## Mapping régime TVA Flowo → Super PDP
 

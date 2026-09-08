@@ -9,6 +9,7 @@ import {
   MAX_REDEPOSITS,
   redepositGate,
 } from "@/lib/facturation/pa/cycle-display";
+import { scheduleFactureCycleUiRefresh } from "@/lib/facturation/pa/post-deposit-ui-refresh";
 import type { CycleJournalRow } from "@/lib/facturation/pa/redeposit";
 import { cx } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -53,6 +54,9 @@ export function FactureCycleBannerClient({ factureId, statutCycleVie, devisId, e
         return;
       }
       router.refresh();
+      if (kind === "redeposit") {
+        scheduleFactureCycleUiRefresh(factureId, () => router.refresh());
+      }
     } finally {
       setPending(null);
     }

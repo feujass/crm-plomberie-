@@ -159,7 +159,7 @@ describe("KYB /oauth2_sessions/me", () => {
 });
 
 describe("émission et événements", () => {
-  it("envoie processing_rule et external_id en query, XML en body", async () => {
+  it("envoie external_id en query sans processing_rule, XML en body", async () => {
     let seen = "";
     const provider = new SuperPdpProvider({
       config: CONFIG,
@@ -174,12 +174,11 @@ describe("émission et événements", () => {
     const result = await provider.submitInvoice({ userId: "u1" }, TOKENS, {
       factureId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       xml: "<rsm:CrossIndustryInvoice/>",
-      processingRule: "B2B",
       externalId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     });
     expect(result.providerInvoiceId).toBe("42");
     expect(result.processingRule).toBe("B2B");
-    expect(seen).toContain("processing_rule=B2B");
+    expect(seen).not.toContain("processing_rule");
     expect(seen).toContain("external_id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     expect(seen).toContain("/v1.beta/invoices");
   });

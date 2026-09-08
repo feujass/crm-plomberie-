@@ -109,7 +109,7 @@ export class MockProvider implements EInvoicingProvider {
     }
     return {
       providerInvoiceId: `mock-inv-${input.factureId}`,
-      processingRule: input.processingRule,
+      processingRule: input.processingRule ?? "B2B",
     };
   }
 

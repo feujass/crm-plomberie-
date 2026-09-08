@@ -163,7 +163,6 @@ export class SuperPdpProvider implements EInvoicingProvider {
       path: "/v1.beta/invoices",
       accessToken: tokens.accessToken,
       query: {
-        processing_rule: input.processingRule,
         external_id: input.externalId.slice(0, 36),
       },
       headers: {
@@ -172,7 +171,7 @@ export class SuperPdpProvider implements EInvoicingProvider {
       },
       body,
     });
-    return parseSubmitInvoiceResult(res.json, input.processingRule);
+    return parseSubmitInvoiceResult(res.json, input.processingRule ?? "B2B");
   }
 
   async listLifecycleEvents(

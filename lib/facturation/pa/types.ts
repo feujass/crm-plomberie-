@@ -55,7 +55,8 @@ export interface SubmitInvoiceInput {
   factureId: string;
   xml: string;
   pdf?: Uint8Array;
-  processingRule: ProcessingRule;
+  /** Conservé pour le mock / repli. Super PDP calcule la règle : ne pas l’envoyer. */
+  processingRule?: ProcessingRule;
   externalId: string;
 }
 

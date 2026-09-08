@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { scheduleFactureCycleUiRefresh } from "@/lib/facturation/pa/post-deposit-ui-refresh";
 
 export function FacturXActionsClient({
   factureId,
@@ -48,6 +49,7 @@ export function FacturXActionsClient({
                     return;
                   }
                   router.refresh();
+                  scheduleFactureCycleUiRefresh(factureId, () => router.refresh());
                 } finally {
                   setPending(false);
                 }
