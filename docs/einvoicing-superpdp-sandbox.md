@@ -303,3 +303,42 @@ Premier essai : après la persistance, `syncConnectedVatRegime` appelait le RPC 
 1. SIREN profil Luhn (`732829320`) + session `000000001` → **HTTP 400** *« L’entreprise (000000001) liée à cette session ne correspond pas au vendeur de la facture (732829320). »* Le vendeur Factur-X doit porter le numéro de l’entreprise consentante. Les numéros sandbox ne passent pas Luhn : Flowo les accepte seulement si `SUPERPDP_COMPANY_NUMBER_SCHEME=sandbox`.
 2. Vendeur `000000001`, acheteur `000000002`, devis 1 ligne fourniture → facture `FACT-2026-0001` → Factur-X → `POST /deposit` **200**, `providerInvoiceId=484732`, `processing_rule=B2B` (calculé par Super PDP).
 3. Poll 5 s / 30 s + `cycle-refresh` : journal `api:uploaded` puis `api:invalid` → `statut_cycle_vie=irrecevable` (« Rejetée ») sur `/facturation/{id}`. Le HTTP de dépôt a réussi ; le rejet est sémantique, après file d’attente. Motif PA non affiché tant que `api:invalid` n’était pas dans les codes de motif (corrigé). Webhooks toujours en attente du support — rien branché.
+
+### Motif exact `api:invalid` (facture `484732` / Flowo `FACT-2026-0001`)
+
+`status_text` Super PDP : **Invalide**. Champ `data.reason` (1747 caractères), recopié tel quel :
+
+```
+Value of '@schemeID' is not allowed. at /*:CrossIndustryInvoice[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:SupplyChainTradeTransaction[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:ApplicableHeaderTradeAgreement[namespace-uri()='urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'][1]/*:BuyerTradeParty[namespace-uri()='urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'][1]/*:SpecifiedTaxRegistration[namespace-uri()='urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'][1]/*:ID[namespace-uri()='urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'][1]
+[PEPPOL-EN16931-R008]-Document MUST not contain empty elements. (still status warning) at /*:CrossIndustryInvoice[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:SupplyChainTradeTransaction[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:ApplicableHeaderTradeDelivery[namespace-uri()='urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100'][1]
+BR-FR-08/BT-23 : La valeur du mode de facturation (ram:ID) est absente ou n’est pas autorisée. Valeurs acceptées : B1, S1, M1, B2, S2, M2, S3, B4, S4, M4, S5, S6, B7, S7, B8, S8, M8, B9, S9, M9.
+        Valeur actuelle : "".
+        Veuillez utiliser une valeur conforme à la liste des modes de facturation autorisés. at /*:CrossIndustryInvoice[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]/*:ExchangedDocumentContext[namespace-uri()='urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100'][1]
+```
+
+Ce n’est **pas** le numéro d’entreprise vendeur (`000000001` a déjà passé le contrôle session). L’erreur bloquante est `schemeID="FC"` sur l’**acheteur** (SIREN sans `tva_intracom`). Mustang 2.23.0 dit la même chose (`FX-SCH-A-000031`) ; Super PDP cite `FX-SCH-A-000570`. Les deux autres lignes sont des warnings (élément `ApplicableHeaderTradeDelivery` vide, BT-23 absent).
+
+Correctif générateur : TVA acheteur dérivée du SIREN (`schemeID="VA"`), `FC` réservé au vendeur en franchise 293 B, BT-23 `B1`/`S1`/`M1`, pas d’élément Delivery vide. `POST /v1.beta/validation_reports` sur le XML corrigé : `is_valid: true`. Fixture `fixtureProSansTvaIntracom` ajoutée à `validate:facturx`.
+
+Après ce correctif, une nouvelle émission (facture Super PDP `484894`) a passé la Schematron (`api:validated`) puis a été rejetée : **`em:acheteur@example.test is an invalid address`**. L’adresse électronique CII ne doit pas être un e-mail (`schemeID="EM"`) : en France c’est `0225`.
+
+`0225:000000002` (SIREN nu) est résolu dans l’annuaire mais le pre-check Peppol refuse Factur-X : *receiver address \<0225:000000002\> does not accept this document*. L’identifiant Peppol sandbox réel est `0225:315143296_{company_id}` (Burger Queen = `315143296_97118`). Lookup `GET /v1.beta/directory_entries` à la génération Factur-X.
+
+### Émission acceptée de bout en bout (2026-09-08)
+
+Nouveau compte artisan, OAuth `verified`, entreprise Super PDP `97554` (Tricatel `000000001`). Facture Flowo `252828cf-5020-4eaf-b1e3-8d4880a0ebc6` / `FACT-2026-0001` → dépôt **200**, `providerInvoiceId=484970`, `processing_rule=B2B`.
+
+Journal : `api:uploaded` → **`fr:200`** (Déposée) → **`fr:201`** (Transmise). Page `/facturation/{id}` : **Déposée**. `statut_cycle_vie=deposee`.
+
+### Delivery CII + services sans ShipTo (2026-09-08)
+
+Le XSD exige `ApplicableHeaderTradeDelivery` même sans adresse de livraison distincte. Le générateur omettait l’élément sur les factures de **services** (144/216 Mustang). Correctif : toujours émettre Delivery avec `ActualDeliverySupplyChainEvent` (fin de prestation ou date d’émission), ShipTo seulement si l’adresse diffère. Matrice **216/216** Mustang ; les 16 `BR-FR-12` / BT-49 ne réapparaissent pas une fois le XSD vert.
+
+Dépôt sandbox du cas manquant — **services**, **pas de ShipTo** :
+
+- Flowo `ed5ce47f-9687-4fa3-aa77-353ff98d3b40` / `FACT-2026-0002` (dépannage, client pro sans adresse de livraison)
+- XML : `ApplicableHeaderTradeDelivery` + `ActualDeliverySupplyChainEvent`, pas de `ShipToTradeParty`, pas d’élément vide
+- `POST /deposit` **200** en ~3,6 s (validation_reports amont puis `POST /invoices`, pas de 422)
+- Super PDP `providerInvoiceId=485387`
+- Journal UI : `api:uploaded` → **`fr:200`** → **`fr:201`**. `statut_cycle_vie=deposee`
+
