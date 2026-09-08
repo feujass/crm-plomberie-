@@ -139,6 +139,7 @@ export type BackendFacture = {
   id: string;
   numero?: string;
   statut?: string;
+  statut_cycle_vie?: string;
   total_ttc?: number;
   date_emission?: string;
   created_at?: string;

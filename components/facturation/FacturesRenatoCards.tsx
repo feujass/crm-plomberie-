@@ -10,6 +10,7 @@ import {
 import { RENATO_HERO_FACTURE_TERMINE } from "@/lib/renato-hero";
 import { cx, focusRing } from "@/lib/utils";
 import type { BackendFacture } from "@/types/backend";
+import { CYCLE_STATUS_LIST_HINT } from "@/lib/facturation/pa/cycle-display";
 import { FileText, MapPin, Receipt, User } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -70,6 +71,11 @@ export function FacturesRenatoCards({ factures, clientAddresses, listSegment }: 
           : f.numero ?? "Facture";
         const ttc = Number(f.total_ttc ?? 0);
 
+        const cycle = f.statut_cycle_vie ?? "";
+        const cycleHint = CYCLE_STATUS_LIST_HINT[cycle as keyof typeof CYCLE_STATUS_LIST_HINT];
+        const cycleDot =
+          cycle === "irrecevable" ? "bg-red-700" : cycle === "rejetee" ? "bg-red-500" : "";
+
         return (
           <li key={f.id} className={FLOWO_LIST_CARD_CLASS}>
             <Link href={`/facturation/${f.id}`} className={cx("block transition hover:opacity-[0.98]", focusRing)}>
@@ -93,9 +99,17 @@ export function FacturesRenatoCards({ factures, clientAddresses, listSegment }: 
                     </div>
                   </>
                 )}
-                <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:bg-slate-950/90 dark:text-slate-100">
-                  <span className={cx("size-2 shrink-0 rounded-full", dot)} aria-hidden />
-                  {labelFacture(statut)}
+                <div className="absolute right-3 top-3 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-1">
+                  <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:bg-slate-950/90 dark:text-slate-100">
+                    <span className={cx("size-2 shrink-0 rounded-full", dot)} aria-hidden />
+                    {labelFacture(statut)}
+                  </div>
+                  {cycleHint ? (
+                    <div className="flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-red-800 shadow-sm dark:bg-slate-950/90 dark:text-red-200">
+                      <span className={cx("size-2 shrink-0 rounded-full", cycleDot)} aria-hidden />
+                      {cycleHint}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="space-y-2 px-4 pb-3 pt-3">

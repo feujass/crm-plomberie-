@@ -1,4 +1,6 @@
 import { FactureConformiteClient } from "@/components/facturation/FactureConformiteClient";
+import { FactureCycleBannerClient } from "@/components/facturation/FactureCycleBannerClient";
+import { FactureCycleJournal } from "@/components/facturation/FactureCycleJournal";
 import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiementFormClient";
 import { FacturePublicLinkBlock } from "@/components/facturation/FacturePublicLinkBlock";
 import { FacturXActionsClient } from "@/components/facturation/FacturXActionsClient";
@@ -6,6 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { backendFetch } from "@/lib/backend/server";
+import { cycleStatusUiLabel } from "@/lib/facturation/pa/cycle-display";
+import { loadFactureCycleJournal } from "@/lib/facturation/pa/load-cycle-journal";
 import { requireFeature } from "@/lib/plans/require-feature";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import { notFound } from "next/navigation";
@@ -24,12 +28,12 @@ export default async function FactureDetailPage({ params }: Props) {
   }
   if (!facture) notFound();
 
-  let transmissions: BackendTransmission[] = [];
-  try {
-    transmissions = (await backendFetch(`/api/factures/${id}/transmissions`)) as BackendTransmission[];
-  } catch {
-    transmissions = [];
-  }
+  const [transmissions, cycleEvents] = await Promise.all([
+    backendFetch(`/api/factures/${id}/transmissions`)
+      .then((rows) => rows as BackendTransmission[])
+      .catch(() => [] as BackendTransmission[]),
+    loadFactureCycleJournal(id),
+  ]);
 
   const pays = facture.paiements ?? [];
   const sumPay = pays.reduce((s, p) => s + Number(p.montant || 0), 0);
@@ -70,7 +74,7 @@ export default async function FactureDetailPage({ params }: Props) {
         {facture.numero} <Badge statut={facture.statut ?? "—"} />
         {facture.statut_cycle_vie && facture.statut_cycle_vie !== "brouillon" ? (
           <span className="ml-2">
-            <Badge statut={facture.statut_cycle_vie} />
+            <Badge statut={facture.statut_cycle_vie} label={cycleStatusUiLabel(facture.statut_cycle_vie)} />
           </span>
         ) : null}
       </h1>
@@ -109,6 +113,12 @@ export default async function FactureDetailPage({ params }: Props) {
           Attention : le total stocké de la facture ({formatCurrencyEUR(storedTtc)}) ne correspond pas au total recalculé à partir des lignes ({formatCurrencyEUR(computedTtc)}).
         </div>
       ) : null}
+      <FactureCycleBannerClient
+        factureId={id}
+        statutCycleVie={facture.statut_cycle_vie}
+        devisId={facture.devis_id ?? null}
+        events={cycleEvents}
+      />
       {publicUrl ? <FacturePublicLinkBlock publicUrl={publicUrl} /> : null}
 
       <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -128,6 +138,8 @@ export default async function FactureDetailPage({ params }: Props) {
           />
         </div>
       </details>
+
+      <FactureCycleJournal events={cycleEvents} />
 
       <Card>
         <div className="mb-3 flex items-end justify-between border-b border-slate-200 pb-2 dark:border-slate-800">

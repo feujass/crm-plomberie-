@@ -20,9 +20,10 @@ const colors: Record<string, string> = {
   default: "bg-slate-100 text-slate-800",
 };
 
-export function Badge({ statut }: { statut: string }) {
+export function Badge({ statut, label }: { statut: string; label?: string }) {
   const c = colors[statut] ?? colors.default;
+  const text = label ?? statut.replaceAll("_", " ");
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${c}`}>{statut.replace("_", " ")}</span>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${c}`}>{text}</span>
   );
 }

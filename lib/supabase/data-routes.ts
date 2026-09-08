@@ -657,6 +657,7 @@ async function handleFactures(
       id: String(f.id),
       numero: f.numero as string | undefined,
       statut: f.statut as string | undefined,
+      statut_cycle_vie: f.statut_cycle_vie as string | undefined,
       total_ttc: f.total_ttc != null ? Number(f.total_ttc) : undefined,
       date_emission: f.date_emission as string | undefined,
       created_at: f.created_at as string | undefined,
