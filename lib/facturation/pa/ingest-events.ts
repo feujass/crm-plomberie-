@@ -1,4 +1,5 @@
 import { applyCycleEffect, effectFromStatusCode, isStatutCycleVie } from "@/lib/facturation/pa/cycle-machine";
+import { isInformationalCycleSignal } from "@/lib/facturation/pa/cycle-signals";
 import type { LifecycleEvent, ProviderId, StatutCycleVie } from "@/lib/facturation/pa/types";
 
 export interface CycleFactureRecord {
@@ -6,6 +7,7 @@ export interface CycleFactureRecord {
   userId: string;
   statutCycleVie: StatutCycleVie;
   providerInvoiceId: string | null;
+  numero?: string | null;
 }
 
 export interface StoredCycleEvent {
@@ -25,6 +27,14 @@ export interface CycleStore {
   updateStatut(factureId: string, next: StatutCycleVie): Promise<void>;
 }
 
+export interface CycleInformationalSignal {
+  factureId: string;
+  userId: string;
+  statusCode: string;
+  statusText: string;
+  numero: string | null;
+}
+
 export interface IngestResult {
   received: number;
   duplicates: number;
@@ -32,6 +42,8 @@ export interface IngestResult {
   skippedUnknownInvoice: number;
   lastProviderEventId: string | null;
   transitions: { factureId: string; from: StatutCycleVie; to: StatutCycleVie; statusCode: string }[];
+  /** fr:207 / fr:211 : statut inchangé, à notifier et à afficher au journal. */
+  signals: CycleInformationalSignal[];
 }
 
 /**
@@ -51,6 +63,7 @@ export async function ingestLifecycleEvents(
     skippedUnknownInvoice: 0,
     lastProviderEventId: null,
     transitions: [],
+    signals: [],
   };
 
   for (const event of events) {
@@ -91,6 +104,14 @@ export async function ingestLifecycleEvents(
       await store.updateStatut(facture.id, to);
       facture.statutCycleVie = to;
       result.transitions.push({ factureId: facture.id, from, to, statusCode: event.statusCode });
+    } else if (isInformationalCycleSignal(event.statusCode)) {
+      result.signals.push({
+        factureId: facture.id,
+        userId: facture.userId,
+        statusCode: event.statusCode,
+        statusText: event.statusText,
+        numero: facture.numero ?? null,
+      });
     }
 
     result.applied += 1;

@@ -68,6 +68,15 @@ export async function notifyArtisanDevisDecision(
   return runArtisanNotification(() => loadArtisanNotifyContextForOwner(ownerUserId), event, opts);
 }
 
+/** Notification pour un artisan identifié (cron PA, webhooks). */
+export async function notifyArtisanForOwner(
+  ownerUserId: string,
+  event: NotificationEventId,
+  opts: ZeusMessageOpts = {},
+) {
+  return runArtisanNotification(() => loadArtisanNotifyContextForOwner(ownerUserId), event, opts);
+}
+
 /** Changement de statut depuis l’éditeur (session artisan). */
 export async function notifyArtisanDevisDecisionFromSession(
   event: Extract<NotificationEventId, "devis_accepte" | "devis_refuse">,

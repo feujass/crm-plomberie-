@@ -7,7 +7,7 @@ Adaptateur réel Super PDP : plus tard. Aujourd’hui `getEInvoicingProvider()` 
 - Une **application Flowo** (client_id/secret globaux, pas encore branchés).
 - **OAuth2 authorization code par artisan** : jetons dans `einvoicing_oauth_tokens`, chiffrés AES-256-GCM. Chaque blob porte un `key_id` (`EINVOICING_TOKEN_ENCRYPTION_KEY_ID`, défaut `v1`).
 - Jamais de `client_id` par entité fiscale.
-- Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction.
+- Ingestion unique : `ingestLifecycleEvents`. Le polling (`pollAndIngestLifecycleEvents`) est le seul appelant actuel. Un webhook futur parse puis appelle la même fonction, puis `dispatchCycleSignalNotifications` pour fr:207 / fr:211.
 - Cron `GET /api/cron/einvoicing-poll` : uniquement `Authorization: Bearer $CRON_SECRET` (header Vercel Cron).
 
 ## Mapping régime TVA Flowo → Super PDP
@@ -29,6 +29,7 @@ Adaptateur réel Super PDP : plus tard. Aujourd’hui `getEInvoicingProvider()` 
 - `rejetee` (fr:210) : refus destinataire, **corrigeable** (`rejetee → deposee`).
 - `irrecevable` (fr:213, fr:501) : rejet définitif, **terminal**.
 - `encaissee` (fr:212) : terminal.
+- `fr:207` (Contestée) et `fr:211` (Paiement émis) : **pas de transition**. Conservés dans `facture_cycle_events` (journal) et notifiés via le système artisan (`facture_contestee`, `facture_paiement_emis`, e-mail par défaut). Réglages : Compte → Notifications.
 
 Source de vérité : `FR_LIFECYCLE_MAPPING` dans `lib/facturation/pa/cycle-machine.ts`.
 

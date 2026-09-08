@@ -63,6 +63,14 @@ export function zeusWhatsAppBody(event: NotificationEventId, opts: ZeusMessageOp
         : "La relance client n'a pas pu partir (e-mail manquant ou erreur).";
       return zeusLine(`Facture *${numero}* · *${client}*${step}\n${sent}`);
     }
+    case "facture_contestee":
+      return zeusLine(
+        `Le destinataire a contesté la facture *${numero}* (${client}).\nLe statut e-facturation ne change pas — ouvre le journal de la facture pour le détail.`,
+      );
+    case "facture_paiement_emis":
+      return zeusLine(
+        `Le destinataire a émis le paiement de la facture *${numero}* (${client}).\nL’encaissement Flowo ne sera clôturé que lorsque le paiement sera reçu.`,
+      );
     case "resume_hebdo":
       return zeusLine("Ton résumé de la semaine est prêt dans Flowo.");
     default:

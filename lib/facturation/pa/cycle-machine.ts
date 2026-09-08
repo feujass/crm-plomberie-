@@ -113,7 +113,7 @@ export const FR_LIFECYCLE_MAPPING: readonly FrLifecycleMapping[] = [
     label: "Contestée",
     effect: "none",
     target: null,
-    notes: "Litige destinataire. Conservé en événement ; le statut Flowo ne change pas (pas un refus ni un paiement).",
+    notes: "Litige destinataire. Conservé au journal ; notification facture_contestee. Pas de transition de statut.",
   },
   {
     code: "fr:208",
@@ -141,7 +141,7 @@ export const FR_LIFECYCLE_MAPPING: readonly FrLifecycleMapping[] = [
     label: "Paiement émis",
     effect: "none",
     target: null,
-    notes: "Le destinataire a initié le paiement. Flowo clôture uniquement sur fr:212 (paiement reçu).",
+    notes: "Le destinataire a initié le paiement. Journal + notification facture_paiement_emis. Flowo clôture uniquement sur fr:212.",
   },
   {
     code: "fr:212",

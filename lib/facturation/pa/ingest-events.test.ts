@@ -60,6 +60,52 @@ describe("ingestLifecycleEvents — idempotence", () => {
     expect(store.factures.get("fa-4")?.statutCycleVie).toBe("rejetee");
     expect(result.transitions.at(-1)?.statusCode).toBe("fr:210");
   });
+
+  it("signale fr:207 et fr:211 sans changer le statut (journal + notif)", async () => {
+    const store = new MemoryCycleStore();
+    store.seed({
+      id: "fa-5",
+      userId: "user-1",
+      statutCycleVie: "deposee",
+      providerInvoiceId: "mock-inv-fa-5",
+      numero: "FA-2026-12",
+    });
+    const result = await ingestLifecycleEvents(store, "mock", [
+      {
+        providerEventId: "evt-207",
+        providerInvoiceId: "mock-inv-fa-5",
+        statusCode: "fr:207",
+        statusText: "Contestée",
+        occurredAt: "2026-09-08T09:00:00.000Z",
+      },
+      {
+        providerEventId: "evt-211",
+        providerInvoiceId: "mock-inv-fa-5",
+        statusCode: "fr:211",
+        statusText: "Paiement émis",
+        occurredAt: "2026-09-08T10:00:00.000Z",
+      },
+    ]);
+    expect(store.factures.get("fa-5")?.statutCycleVie).toBe("deposee");
+    expect(result.transitions).toEqual([]);
+    expect(result.signals).toEqual([
+      {
+        factureId: "fa-5",
+        userId: "user-1",
+        statusCode: "fr:207",
+        statusText: "Contestée",
+        numero: "FA-2026-12",
+      },
+      {
+        factureId: "fa-5",
+        userId: "user-1",
+        statusCode: "fr:211",
+        statusText: "Paiement émis",
+        numero: "FA-2026-12",
+      },
+    ]);
+    expect(store.events.size).toBe(2);
+  });
 });
 
 describe("pollAndIngestLifecycleEvents", () => {

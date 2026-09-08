@@ -64,6 +64,16 @@ export const NOTIFICATION_EVENTS = [
     description: "Échéance dépassée ou relance de paiement envoyée au client.",
   },
   {
+    id: "facture_contestee",
+    label: "Facture contestée",
+    description: "Quand le destinataire conteste une facture déposée (e-facturation, fr:207). Le statut ne change pas.",
+  },
+  {
+    id: "facture_paiement_emis",
+    label: "Paiement émis par le destinataire",
+    description: "Quand le destinataire a initié le paiement (e-facturation, fr:211). L’encaissement n’est confirmé qu’à réception.",
+  },
+  {
     id: "resume_hebdo",
     label: "Résumé hebdomadaire",
     description: "Synthèse CA, devis en attente et tâches de la semaine.",
@@ -90,6 +100,8 @@ const DEFAULT_MATRIX: NotificationMatrix = {
   devis_refuse: { push: false, email: true, sms: false, whatsapp: false },
   facture_cree: { push: false, email: true, sms: false, whatsapp: false },
   facture_relance: { push: false, email: true, sms: false, whatsapp: false },
+  facture_contestee: { push: false, email: true, sms: false, whatsapp: false },
+  facture_paiement_emis: { push: false, email: true, sms: false, whatsapp: false },
   resume_hebdo: { push: false, email: true, sms: false, whatsapp: false },
 };
 

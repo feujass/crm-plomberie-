@@ -8,7 +8,7 @@ export class SupabaseCycleStore implements CycleStore {
   async findByProviderInvoiceId(providerInvoiceId: string): Promise<CycleFactureRecord | null> {
     const { data, error } = await this.supabase
       .from("factures")
-      .select("id, user_id, statut_cycle_vie, einvoicing_provider_invoice_id")
+      .select("id, user_id, statut_cycle_vie, einvoicing_provider_invoice_id, numero")
       .eq("einvoicing_provider_invoice_id", providerInvoiceId)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -18,6 +18,7 @@ export class SupabaseCycleStore implements CycleStore {
       userId: String(data.user_id),
       statutCycleVie: data.statut_cycle_vie as StatutCycleVie,
       providerInvoiceId: data.einvoicing_provider_invoice_id ? String(data.einvoicing_provider_invoice_id) : null,
+      numero: data.numero ? String(data.numero) : null,
     };
   }
 

@@ -4,7 +4,8 @@ import type { FiscalEntityRef, OAuthTokenSet } from "@/lib/facturation/pa/types"
 
 /**
  * Réception par polling. Le seul changement pour passer aux webhooks
- * est de remplacer cet appel par un parse de payload → ingestLifecycleEvents.
+ * est de remplacer cet appel par un parse de payload → ingestLifecycleEvents
+ * puis dispatchCycleSignalNotifications (fr:207 / fr:211).
  */
 export async function pollAndIngestLifecycleEvents(
   provider: EInvoicingProvider,

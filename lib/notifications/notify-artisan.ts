@@ -33,6 +33,10 @@ function emailSubject(event: NotificationEventId, numero?: string): string | nul
       return `${APP_NAME} — Facture ${n} créée`;
     case "facture_relance":
       return `${APP_NAME} — Facture ${n} en relance`;
+    case "facture_contestee":
+      return `${APP_NAME} — Facture ${n} contestée`;
+    case "facture_paiement_emis":
+      return `${APP_NAME} — Paiement émis pour la facture ${n}`;
     default:
       return null;
   }

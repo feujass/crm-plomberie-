@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { assertCronSecret } from "@/lib/cron-auth";
+import { dispatchCycleSignalNotifications } from "@/lib/facturation/pa/dispatch-cycle-signals";
 import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { pollAndIngestLifecycleEvents } from "@/lib/facturation/pa/poll-events";
 import { SupabaseCycleStore } from "@/lib/facturation/pa/supabase-cycle-store";
@@ -14,7 +15,7 @@ export const runtime = "nodejs";
  * Polling invoice_events. Auth : header `Authorization: Bearer $CRON_SECRET`
  * (envoyé automatiquement par Vercel Cron si CRON_SECRET est défini sur le projet).
  * Pour basculer en webhooks : parser le payload puis appeler ingestLifecycleEvents
- * (même fonction que pollAndIngestLifecycleEvents).
+ * (même fonction que pollAndIngestLifecycleEvents) puis dispatchCycleSignalNotifications.
  */
 export async function GET(request: NextRequest) {
   if (!assertCronSecret(request)) {
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
         await saveTokens(supabase, userId, provider.id, fresh);
       }
       ingested += result.applied;
+      await dispatchCycleSignalNotifications(result.signals);
       if (result.lastProviderEventId) {
         await setLastInvoiceEventId(supabase, userId, result.lastProviderEventId);
       }
