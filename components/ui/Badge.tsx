@@ -12,6 +12,7 @@ const colors: Record<string, string> = {
   emise: "bg-sky-100 text-sky-900",
   deposee: "bg-indigo-100 text-indigo-900",
   rejetee: "bg-red-100 text-red-900",
+  irrecevable: "bg-red-200 text-red-950",
   encaissee: "bg-emerald-100 text-emerald-900",
   partielle: "bg-violet-100 text-violet-900",
   payee: "bg-emerald-100 text-emerald-900",

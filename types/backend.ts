@@ -171,7 +171,7 @@ export type BackendFactureDetail = BackendFacture & {
   nature_operation?: "biens" | "services" | "mixte" | string;
   option_tva_debits?: boolean;
   devise?: string;
-  statut_cycle_vie?: "brouillon" | "emise" | "deposee" | "rejetee" | "encaissee" | string;
+  statut_cycle_vie?: "brouillon" | "emise" | "deposee" | "rejetee" | "irrecevable" | "encaissee" | string;
   snapshot_emetteur?: Record<string, unknown> | null;
   snapshot_client?: Record<string, unknown> | null;
   facturx_pdf_path?: string | null;

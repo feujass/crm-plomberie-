@@ -17,7 +17,7 @@ export type ConnectionStatus =
 
 export type CompanyVerificationStatus = "pending" | "verified" | "needs_review" | "failed";
 
-export type StatutCycleVie = "brouillon" | "emise" | "deposee" | "rejetee" | "encaissee";
+export type StatutCycleVie = "brouillon" | "emise" | "deposee" | "rejetee" | "irrecevable" | "encaissee";
 
 export type ProviderId = "mock" | "superpdp";
 

@@ -27,7 +27,7 @@ describe("ingestLifecycleEvents — idempotence", () => {
     expect(first.transitions.map((t) => t.to)).toEqual(["deposee", "encaissee"]);
   });
 
-  it("passe en rejetee sur fr:213", async () => {
+  it("passe en irrecevable sur fr:213 (rejet définitif)", async () => {
     const store = new MemoryCycleStore();
     store.seed({
       id: "fa-2",
@@ -36,8 +36,29 @@ describe("ingestLifecycleEvents — idempotence", () => {
       providerInvoiceId: "mock-inv-fa-2",
     });
     const result = await ingestLifecycleEvents(store, "mock", mockRejectedEvents("mock-inv-fa-2"));
-    expect(store.factures.get("fa-2")?.statutCycleVie).toBe("rejetee");
+    expect(store.factures.get("fa-2")?.statutCycleVie).toBe("irrecevable");
     expect(result.transitions.at(-1)?.statusCode).toBe("fr:213");
+  });
+
+  it("passe en rejetee sur fr:210 (refus corrigeable)", async () => {
+    const store = new MemoryCycleStore();
+    store.seed({
+      id: "fa-4",
+      userId: "user-1",
+      statutCycleVie: "deposee",
+      providerInvoiceId: "mock-inv-fa-4",
+    });
+    const result = await ingestLifecycleEvents(store, "mock", [
+      {
+        providerEventId: "evt-210",
+        providerInvoiceId: "mock-inv-fa-4",
+        statusCode: "fr:210",
+        statusText: "Refusée",
+        occurredAt: "2026-09-08T08:00:00.000Z",
+      },
+    ]);
+    expect(store.factures.get("fa-4")?.statutCycleVie).toBe("rejetee");
+    expect(result.transitions.at(-1)?.statusCode).toBe("fr:210");
   });
 });
 

@@ -27,7 +27,7 @@ Variables **obligatoires** :
 
 | Couche | Variables |
 |--------|-----------|
-| Next | `BACKEND_URL`, `NEXT_PUBLIC_SITE_URL`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `RESEND_FROM`, `CRON_SECRET` |
+| Next | `BACKEND_URL`, `NEXT_PUBLIC_SITE_URL`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `RESEND_FROM`, `CRON_SECRET`, `EINVOICING_TOKEN_ENCRYPTION_KEY` (et `EINVOICING_TOKEN_ENCRYPTION_KEY_ID` / `EINVOICING_TOKEN_ENCRYPTION_KEYS` pour une rotation) |
 | Backend | `MONGO_URL`, `DB_NAME`, `JWT_SECRET` (≥ 32 car.), `CRON_SECRET` (identique à Next), `CORS_ALLOW_ORIGINS` en prod |
 
 Tests manuels recommandés :
@@ -66,7 +66,8 @@ Copier [`.env.example`](../.env.example) → `.env.local` (jamais commité).
 | Supabase (auth / flows) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` ; côté serveur admin : `SUPABASE_SERVICE_ROLE_KEY` |
 | E-mails | `RESEND_API_KEY`, `RESEND_FROM` |
 | Paiement | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, etc. + URL webhook = déploiement actuel |
-| Crons (Vercel, etc.) | `CRON_SECRET` identique à l’en-tête `Authorization: Bearer …` appelant `/api/cron/*` **et** côté `backend/.env` pour les endpoints `/api/cron/devis-a-relancer` |
+| Crons (Vercel, etc.) | `CRON_SECRET` identique à l’en-tête `Authorization: Bearer …` envoyé automatiquement par Vercel Cron. Protège `/api/cron/*` **et** côté `backend/.env` pour `/api/cron/devis-a-relancer` |
+| Jetons e-facturation (Vercel) | `EINVOICING_TOKEN_ENCRYPTION_KEY` (32 octets base64), `EINVOICING_TOKEN_ENCRYPTION_KEY_ID` (ex. `v1`), `EINVOICING_TOKEN_ENCRYPTION_KEYS` (JSON des anciennes clés). Voir [`docs/einvoicing-pa-phase1.md`](einvoicing-pa-phase1.md). À ajouter dans Vercel → Project → Settings → Environment Variables (Production, Preview, Development) — pas seulement `.env.local`. |
 
 ## 3. Backend FastAPI (Mongo)
 

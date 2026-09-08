@@ -11,8 +11,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 
 /**
- * Polling invoice_events. Pour basculer en webhooks : parser le payload
- * puis appeler ingestLifecycleEvents (même fonction que pollAndIngestLifecycleEvents).
+ * Polling invoice_events. Auth : header `Authorization: Bearer $CRON_SECRET`
+ * (envoyé automatiquement par Vercel Cron si CRON_SECRET est défini sur le projet).
+ * Pour basculer en webhooks : parser le payload puis appeler ingestLifecycleEvents
+ * (même fonction que pollAndIngestLifecycleEvents).
  */
 export async function GET(request: NextRequest) {
   if (!assertCronSecret(request)) {

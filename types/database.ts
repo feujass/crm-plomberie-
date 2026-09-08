@@ -1237,6 +1237,75 @@ export type Database = {
           },
         ]
       }
+      einvoicing_connections: {
+        Row: {
+          company_verification_status: string | null
+          connected_at: string | null
+          last_error: string | null
+          last_invoice_event_id: string | null
+          provider: string
+          provider_company_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_verification_status?: string | null
+          connected_at?: string | null
+          last_error?: string | null
+          last_invoice_event_id?: string | null
+          provider?: string
+          provider_company_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_verification_status?: string | null
+          connected_at?: string | null
+          last_error?: string | null
+          last_invoice_event_id?: string | null
+          provider?: string
+          provider_company_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      einvoicing_oauth_tokens: {
+        Row: {
+          auth_tag: string
+          ciphertext: string
+          expires_at: string
+          iv: string
+          key_id: string
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth_tag: string
+          ciphertext: string
+          expires_at: string
+          iv: string
+          key_id?: string
+          provider?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth_tag?: string
+          ciphertext?: string
+          expires_at?: string
+          iv?: string
+          key_id?: string
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       facture_compteurs: {
         Row: {
           annee: number
@@ -1254,6 +1323,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      facture_cycle_events: {
+        Row: {
+          created_at: string
+          facture_id: string
+          id: string
+          payload: Json
+          provider: string
+          provider_event_id: string
+          provider_invoice_id: string
+          status_code: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          facture_id: string
+          id?: string
+          payload?: Json
+          provider: string
+          provider_event_id: string
+          provider_invoice_id: string
+          status_code: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          facture_id?: string
+          id?: string
+          payload?: Json
+          provider?: string
+          provider_event_id?: string
+          provider_invoice_id?: string
+          status_code?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facture_cycle_events_facture_id_fkey"
+            columns: ["facture_id"]
+            isOneToOne: false
+            referencedRelation: "factures"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facture_lignes: {
         Row: {
@@ -1320,6 +1433,7 @@ export type Database = {
           derniere_relance_at: string | null
           devis_id: string | null
           devise: string
+          einvoicing_provider_invoice_id: string | null
           facture_origine_date: string | null
           facture_origine_id: string | null
           facture_origine_numero: string | null
@@ -1362,6 +1476,7 @@ export type Database = {
           derniere_relance_at?: string | null
           devis_id?: string | null
           devise?: string
+          einvoicing_provider_invoice_id?: string | null
           facture_origine_date?: string | null
           facture_origine_id?: string | null
           facture_origine_numero?: string | null
@@ -1404,6 +1519,7 @@ export type Database = {
           derniere_relance_at?: string | null
           devis_id?: string | null
           devise?: string
+          einvoicing_provider_invoice_id?: string | null
           facture_origine_date?: string | null
           facture_origine_id?: string | null
           facture_origine_numero?: string | null
@@ -1868,6 +1984,7 @@ export type Database = {
           tel: string | null
           trial_ends_at: string | null
           tva_defaut: number
+          tva_periodicite_declaration: string | null
           tva_sur_debits_opt_in: boolean | null
           tva_sur_encaissements: boolean | null
           updated_at: string
@@ -1934,6 +2051,7 @@ export type Database = {
           tel?: string | null
           trial_ends_at?: string | null
           tva_defaut?: number
+          tva_periodicite_declaration?: string | null
           tva_sur_debits_opt_in?: boolean | null
           tva_sur_encaissements?: boolean | null
           updated_at?: string
@@ -2000,6 +2118,7 @@ export type Database = {
           tel?: string | null
           trial_ends_at?: string | null
           tva_defaut?: number
+          tva_periodicite_declaration?: string | null
           tva_sur_debits_opt_in?: boolean | null
           tva_sur_encaissements?: boolean | null
           updated_at?: string
@@ -2410,6 +2529,7 @@ export type Database = {
         | "deposee"
         | "rejetee"
         | "encaissee"
+        | "irrecevable"
       type_client: "particulier" | "entreprise" | "public"
       type_ligne: "bien" | "service"
     }
@@ -2548,6 +2668,7 @@ export const Constants = {
         "deposee",
         "rejetee",
         "encaissee",
+        "irrecevable",
       ],
       type_client: ["particulier", "entreprise", "public"],
       type_ligne: ["bien", "service"],

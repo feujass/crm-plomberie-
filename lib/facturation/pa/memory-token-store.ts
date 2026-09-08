@@ -1,5 +1,5 @@
 import type { ConnectionSnapshot, ConnectionStatus, OAuthTokenSet, ProviderId } from "@/lib/facturation/pa/types";
-import { decryptTokenSet, encryptTokenSet } from "@/lib/facturation/pa/tokens";
+import { decryptAndMaybeRotate, encryptTokenSet } from "@/lib/facturation/pa/tokens";
 
 export interface StoredConnection {
   userId: string;
@@ -45,7 +45,9 @@ export function memoryLoadConnection(userId: string, provider: ProviderId): Stor
 export function memoryLoadTokens(userId: string, provider: ProviderId): OAuthTokenSet | null {
   const row = memory.get(key(userId, provider));
   if (!row) return null;
-  return decryptTokenSet(row.blob);
+  const { tokens, blob, rotated } = decryptAndMaybeRotate(row.blob);
+  if (rotated) row.blob = blob;
+  return tokens;
 }
 
 export function memoryClearConnections(): void {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decryptTokenSet, encryptTokenSet } from "@/lib/facturation/pa/tokens";
+import { decryptAndMaybeRotate, encryptTokenSet } from "@/lib/facturation/pa/tokens";
 import type { ConnectionSnapshot, OAuthTokenSet, ProviderId } from "@/lib/facturation/pa/types";
 import { memoryDisconnected, type StoredConnection } from "@/lib/facturation/pa/memory-token-store";
 
@@ -36,6 +36,7 @@ export async function saveConnectionAndTokens(
       ciphertext: blob.ciphertext,
       iv: blob.iv,
       auth_tag: blob.authTag,
+      key_id: blob.keyId,
       expires_at: tokens.expiresAt,
       updated_at: now,
     },
@@ -72,17 +73,22 @@ export async function loadConnection(supabase: Db, userId: string, provider: Pro
 export async function loadTokens(supabase: Db, userId: string, provider: ProviderId): Promise<OAuthTokenSet | null> {
   const { data, error } = await supabase
     .from("einvoicing_oauth_tokens")
-    .select("ciphertext, iv, auth_tag")
+    .select("ciphertext, iv, auth_tag, key_id")
     .eq("user_id", userId)
     .eq("provider", provider)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return decryptTokenSet({
+  const { tokens, rotated } = decryptAndMaybeRotate({
     ciphertext: String(data.ciphertext),
     iv: String(data.iv),
     authTag: String(data.auth_tag),
+    keyId: data.key_id ? String(data.key_id) : "v1",
   });
+  if (rotated) {
+    await saveTokens(supabase, userId, provider, tokens);
+  }
+  return tokens;
 }
 
 export async function saveTokens(supabase: Db, userId: string, provider: ProviderId, tokens: OAuthTokenSet): Promise<void> {
@@ -94,6 +100,7 @@ export async function saveTokens(supabase: Db, userId: string, provider: Provide
       ciphertext: blob.ciphertext,
       iv: blob.iv,
       auth_tag: blob.authTag,
+      key_id: blob.keyId,
       expires_at: tokens.expiresAt,
       updated_at: new Date().toISOString(),
     },
