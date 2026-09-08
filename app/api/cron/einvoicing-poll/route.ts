@@ -5,8 +5,8 @@ import { dispatchCycleSignalNotifications } from "@/lib/facturation/pa/dispatch-
 import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { pollAndIngestLifecycleEvents } from "@/lib/facturation/pa/poll-events";
 import { SupabaseCycleStore } from "@/lib/facturation/pa/supabase-cycle-store";
-import { loadTokens, saveTokens, setLastInvoiceEventId } from "@/lib/facturation/pa/supabase-token-store";
-import { withFreshTokens } from "@/lib/facturation/pa/with-fresh-tokens";
+import { loadTokens, setLastInvoiceEventId } from "@/lib/facturation/pa/supabase-token-store";
+import { supabaseStoredTokenGate, withFreshStoredTokens } from "@/lib/facturation/pa/with-fresh-stored-tokens";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -47,14 +47,15 @@ export async function GET(request: NextRequest) {
       const tokens = await loadTokens(supabase, userId, provider.id);
       if (!tokens) continue;
       const entity = { userId };
-      const { result, tokens: fresh } = await withFreshTokens(provider, entity, tokens, (t) =>
-        pollAndIngestLifecycleEvents(provider, store, entity, t, {
-          afterEventId: row.last_invoice_event_id ? String(row.last_invoice_event_id) : undefined,
-        }),
+      const { result } = await withFreshStoredTokens(
+        provider,
+        userId,
+        supabaseStoredTokenGate(supabase, userId, provider.id),
+        (t) =>
+          pollAndIngestLifecycleEvents(provider, store, entity, t, {
+            afterEventId: row.last_invoice_event_id ? String(row.last_invoice_event_id) : undefined,
+          }),
       );
-      if (fresh.expiresAt !== tokens.expiresAt || fresh.accessToken !== tokens.accessToken || fresh.refreshToken !== tokens.refreshToken) {
-        await saveTokens(supabase, userId, provider.id, fresh);
-      }
       ingested += result.applied;
       await dispatchCycleSignalNotifications(result.signals);
       if (result.lastProviderEventId) {

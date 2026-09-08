@@ -118,3 +118,7 @@ export function decryptAndMaybeRotate(blob: EncryptedTokenBlob): {
 export function isAccessTokenExpired(tokens: OAuthTokenSet, now = new Date(), skewMs = 60_000): boolean {
   return new Date(tokens.expiresAt).getTime() <= now.getTime() + skewMs;
 }
+
+export function oauthTokenSetsDiffer(a: OAuthTokenSet, b: OAuthTokenSet): boolean {
+  return a.accessToken !== b.accessToken || a.refreshToken !== b.refreshToken || a.expiresAt !== b.expiresAt;
+}

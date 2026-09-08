@@ -1,18 +1,11 @@
 import { EinvoicingError } from "@/lib/facturation/pa/errors";
 import type { EInvoicingProvider } from "@/lib/facturation/pa/provider";
-import { loadTokens, saveConnectionSnapshot, saveTokens } from "@/lib/facturation/pa/supabase-token-store";
+import { loadTokens, saveConnectionSnapshot } from "@/lib/facturation/pa/supabase-token-store";
 import { mapRegimeTvaToSuperPdp } from "@/lib/facturation/pa/tva-mapping";
 import type { TvaPeriodiciteDeclaration } from "@/lib/facturation/pa/tva-mapping";
-import { withFreshTokens } from "@/lib/facturation/pa/with-fresh-tokens";
+import { supabaseStoredTokenGate, withFreshStoredTokens } from "@/lib/facturation/pa/with-fresh-stored-tokens";
 import { parseRegimeTva } from "@/lib/facturation/regime-tva";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-function tokensChanged(
-  a: { accessToken: string; refreshToken: string | null; expiresAt: string },
-  b: { accessToken: string; refreshToken: string | null; expiresAt: string },
-): boolean {
-  return a.accessToken !== b.accessToken || a.refreshToken !== b.refreshToken || a.expiresAt !== b.expiresAt;
-}
 
 export async function syncConnectedVatRegime(
   supabase: SupabaseClient,
@@ -35,15 +28,17 @@ export async function syncConnectedVatRegime(
 
   const entity = { userId };
   try {
-    const { result: snapshot, tokens: fresh } = await withFreshTokens(provider, entity, tokens, async (t) => {
-      const status = await provider.getConnectionStatus(entity, t);
-      if (status.status !== "verified") return status;
-      await provider.syncCompanyVatRegime(entity, t, mapping);
-      return provider.getConnectionStatus(entity, t);
-    });
-    if (tokensChanged(tokens, fresh)) {
-      await saveTokens(supabase, userId, provider.id, fresh);
-    }
+    const { result: snapshot } = await withFreshStoredTokens(
+      provider,
+      userId,
+      supabaseStoredTokenGate(supabase, userId, provider.id),
+      async (t) => {
+        const status = await provider.getConnectionStatus(entity, t);
+        if (status.status !== "verified") return status;
+        await provider.syncCompanyVatRegime(entity, t, mapping);
+        return provider.getConnectionStatus(entity, t);
+      },
+    );
     await saveConnectionSnapshot(supabase, userId, provider.id, snapshot);
   } catch (err) {
     if (err instanceof EinvoicingError) return;

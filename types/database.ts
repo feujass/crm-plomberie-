@@ -1281,6 +1281,7 @@ export type Database = {
           iv: string
           key_id: string
           provider: string
+          refresh_lock_until: string | null
           updated_at: string
           user_id: string
         }
@@ -1291,6 +1292,7 @@ export type Database = {
           iv: string
           key_id?: string
           provider?: string
+          refresh_lock_until?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1301,6 +1303,7 @@ export type Database = {
           iv?: string
           key_id?: string
           provider?: string
+          refresh_lock_until?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2518,6 +2521,8 @@ export type Database = {
           views: number
         }[]
       }
+      einvoicing_lock_oauth_tokens: { Args: { p_user_id: string }; Returns: boolean }
+      einvoicing_unlock_oauth_tokens: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
       ligne_type: "prestation" | "fourniture" | "pose"

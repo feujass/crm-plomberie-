@@ -5,17 +5,10 @@ import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { pollAndIngestLifecycleEvents } from "@/lib/facturation/pa/poll-events";
 import { schedulePostDepositIngest } from "@/lib/facturation/pa/post-deposit-ingest";
 import { SupabaseCycleStore } from "@/lib/facturation/pa/supabase-cycle-store";
-import { loadTokens, saveTokens, setLastInvoiceEventId } from "@/lib/facturation/pa/supabase-token-store";
-import { withFreshTokens } from "@/lib/facturation/pa/with-fresh-tokens";
+import { loadTokens, setLastInvoiceEventId } from "@/lib/facturation/pa/supabase-token-store";
+import { supabaseStoredTokenGate, withFreshStoredTokens } from "@/lib/facturation/pa/with-fresh-stored-tokens";
 import type { SubmitInvoiceResult } from "@/lib/facturation/pa/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-function tokensChanged(
-  a: { accessToken: string; refreshToken: string | null; expiresAt: string },
-  b: { accessToken: string; refreshToken: string | null; expiresAt: string },
-): boolean {
-  return a.accessToken !== b.accessToken || a.refreshToken !== b.refreshToken || a.expiresAt !== b.expiresAt;
-}
 
 export async function ingestFacturePaEvents(
   supabase: SupabaseClient,
@@ -39,12 +32,12 @@ export async function ingestFacturePaEvents(
   if (!providerInvoiceId) return;
 
   const entity = { userId };
-  const { result, tokens: fresh } = await withFreshTokens(provider, entity, tokens, (t) =>
-    pollAndIngestLifecycleEvents(provider, new SupabaseCycleStore(supabase), entity, t, { providerInvoiceId }),
+  const { result } = await withFreshStoredTokens(
+    provider,
+    userId,
+    supabaseStoredTokenGate(supabase, userId, provider.id),
+    (t) => pollAndIngestLifecycleEvents(provider, new SupabaseCycleStore(supabase), entity, t, { providerInvoiceId }),
   );
-  if (tokensChanged(tokens, fresh)) {
-    await saveTokens(supabase, userId, provider.id, fresh);
-  }
   await dispatchCycleSignalNotifications(result.signals);
   if (result.lastProviderEventId) {
     await setLastInvoiceEventId(supabase, userId, result.lastProviderEventId);
@@ -81,23 +74,19 @@ export async function submitFactureToPa(
   }
 
   const provider = getEInvoicingProvider();
-  const tokens = await loadTokens(supabase, userId, provider.id);
-  if (!tokens) {
-    throw new EinvoicingError("not_connected", "Entreprise non raccordée à la plateforme de facturation.", 409);
-  }
-
   const entity = { userId };
-  const { result, tokens: fresh } = await withFreshTokens(provider, entity, tokens, (t) =>
-    provider.submitInvoice(entity, t, {
-      factureId,
-      xml,
-      pdf,
-      externalId: factureId,
-    }),
+  const { result } = await withFreshStoredTokens(
+    provider,
+    userId,
+    supabaseStoredTokenGate(supabase, userId, provider.id),
+    (t) =>
+      provider.submitInvoice(entity, t, {
+        factureId,
+        xml,
+        pdf,
+        externalId: factureId,
+      }),
   );
-  if (tokensChanged(tokens, fresh)) {
-    await saveTokens(supabase, userId, provider.id, fresh);
-  }
 
   const { error: updateError } = await supabase
     .from("factures")

@@ -6,9 +6,8 @@ import {
   loadConnection,
   loadTokens,
   saveConnectionSnapshot,
-  saveTokens,
 } from "@/lib/facturation/pa/supabase-token-store";
-import { withFreshTokens } from "@/lib/facturation/pa/with-fresh-tokens";
+import { supabaseStoredTokenGate, withFreshStoredTokens } from "@/lib/facturation/pa/with-fresh-stored-tokens";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -26,16 +25,12 @@ export async function GET() {
     const tokens = await loadTokens(supabase, user.id, provider.id);
     if (tokens && stored.snapshot.status !== "disconnected") {
       const entity = { userId: user.id };
-      const { result: snapshot, tokens: fresh } = await withFreshTokens(provider, entity, tokens, (t) =>
-        provider.getConnectionStatus(entity, t),
+      const { result: snapshot } = await withFreshStoredTokens(
+        provider,
+        user.id,
+        supabaseStoredTokenGate(supabase, user.id, provider.id),
+        (t) => provider.getConnectionStatus(entity, t),
       );
-      if (
-        fresh.accessToken !== tokens.accessToken ||
-        fresh.refreshToken !== tokens.refreshToken ||
-        fresh.expiresAt !== tokens.expiresAt
-      ) {
-        await saveTokens(supabase, user.id, provider.id, fresh);
-      }
       await saveConnectionSnapshot(supabase, user.id, provider.id, snapshot);
       return NextResponse.json({
         provider: provider.id,
