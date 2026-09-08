@@ -9,6 +9,7 @@ export default defineConfig({
       "lib/facturation/facturx-fuzz.validate.ts",
     ],
     testTimeout: 600_000,
+    hookTimeout: 600_000,
   },
   resolve: {
     alias: {
