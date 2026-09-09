@@ -6,7 +6,7 @@ export const CONNECTION_STATUS_COPY: Record<
 > = {
   disconnected: {
     title: "Pas encore raccordé",
-    body: "Connectez votre entreprise à la plateforme agréée pour déposer vos factures électroniques et l’e-reporting.",
+    body: "Vous pouvez générer des factures Factur-X (EN 16931 et CIUS-FR). Le dépôt auprès d’une plateforme agréée n’est pas encore actif.",
     tone: "neutral",
   },
   pending_verification: {
@@ -21,7 +21,7 @@ export const CONNECTION_STATUS_COPY: Record<
   },
   verified: {
     title: "Raccordé",
-    body: "Votre entreprise est connectée. Les factures B2B et l’e-reporting B2C peuvent être déposés.",
+    body: "Votre entreprise est enregistrée auprès de la plateforme. Le dépôt auprès d’une plateforme agréée n’est pas encore actif.",
     tone: "ok",
   },
   failed: {
@@ -31,7 +31,7 @@ export const CONNECTION_STATUS_COPY: Record<
   },
   token_expired: {
     title: "Connexion expirée",
-    body: "Votre autorisation a expiré. Reconnectez-vous pour continuer à déposer des factures — vos factures déjà émises ne sont pas perdues.",
+    body: "Votre autorisation a expiré. Le dépôt auprès d’une plateforme agréée n’est pas encore actif — vos factures déjà émises ne sont pas perdues.",
     tone: "warn",
   },
 };

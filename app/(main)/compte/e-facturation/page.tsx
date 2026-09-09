@@ -53,7 +53,7 @@ export default async function CompteEFacturationPage({
   return (
     <CompteSubLayout
       title="Facturation électronique"
-      description="Raccordement à la plateforme agréée (une application Flowo, votre compte entreprise)."
+      description="Factur-X (EN 16931 / CIUS-FR). Le dépôt auprès d’une plateforme agréée n’est pas encore actif."
     >
       <CompteEFacturationClient
         initialSnapshot={snapshot}

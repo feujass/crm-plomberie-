@@ -84,7 +84,7 @@ export default async function CompteHubPage() {
         <CompteHubRow
           href="/compte/e-facturation"
           title="Facturation électronique"
-          subtitle="Raccordement à la plateforme agréée (e-invoicing et e-reporting)."
+          subtitle="Factur-X (EN 16931 / CIUS-FR). Le dépôt auprès d’une plateforme agréée n’est pas encore actif."
           Icon={FileCheck}
         />
         <CompteHubRow

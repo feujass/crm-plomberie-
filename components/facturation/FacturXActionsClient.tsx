@@ -68,7 +68,7 @@ export function FacturXActionsClient({
             </Button>
           ) : null}
         </div>
-        <p className="text-xs text-slate-500">Document légal verrouillé — plus de régénération.</p>
+        <p className="text-xs text-slate-500">Document Factur-X verrouillé — plus de régénération.</p>
         {err ? <p className="text-sm text-red-600 whitespace-pre-line">{err}</p> : null}
       </div>
     );

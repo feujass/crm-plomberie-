@@ -67,7 +67,9 @@ export function FactureConformiteClient({
           </ul>
         </div>
       ) : (
-        <p className="text-emerald-700 dark:text-emerald-300">Aucun avertissement bloquant listé pour cette facture.</p>
+        <p className="text-emerald-700 dark:text-emerald-300">
+          Aucun avertissement interne listé sur cette facture. Cela ne vaut pas conformité à la réforme.
+        </p>
       )}
       <div>
         <p className="font-medium text-slate-800 dark:text-slate-200">Transmissions (PDP / Chorus)</p>
