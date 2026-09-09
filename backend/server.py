@@ -14,13 +14,8 @@ from typing import List, Optional
 import uuid
 
 from conformite import (
-    chorus_export_payload,
     classify_client_branche,
     default_b2b_mentions_footer,
-    ereporting_transaction_snapshot,
-    pdp_einvoice_snapshot,
-    simulation_status_for_env,
-    transmission_kinds_for_branche,
     validate_facture_emission,
 )
 
@@ -196,14 +191,6 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Token invalide")
 
 
-def _pdp_simulate() -> bool:
-    return os.environ.get("PDP_SIMULATE", "true").lower() in ("1", "true", "yes")
-
-
-def _pdp_configured() -> bool:
-    return bool(os.environ.get("PDP_API_URL", "").strip() and os.environ.get("PDP_API_KEY", "").strip())
-
-
 async def audit_log(
     user_id: str,
     action: str,
@@ -221,45 +208,6 @@ async def audit_log(
             "created_at": datetime.now(timezone.utc),
         }
     )
-
-
-async def create_transmissions_for_facture(user_id: str, facture_id: str, facture_doc: dict, branche: str):
-    """Crée les enregistrements de transmission (PDP / Chorus) — simulation ou pending selon env."""
-    kinds = transmission_kinds_for_branche(branche)
-    status, msg = simulation_status_for_env(_pdp_simulate(), _pdp_configured())
-    now = datetime.now(timezone.utc)
-    prof = await db.profiles.find_one({"user_id": user_id})
-    cli = None
-    cid = facture_doc.get("client_id")
-    if cid:
-        try:
-            cli = await db.clients.find_one({"_id": ObjectId(str(cid)), "user_id": user_id})
-        except Exception:
-            cli = None
-    prof_s = serialize_doc(dict(prof)) if prof else None
-    cli_s = serialize_doc(dict(cli)) if cli else None
-    fd = {**facture_doc, "id": facture_id}
-    for kind in kinds:
-        if kind == "pdp_einvoicing":
-            snap = pdp_einvoice_snapshot(fd, prof_s, cli_s)
-        elif kind == "pdp_ereporting":
-            snap = ereporting_transaction_snapshot(fd, cli_s)
-        elif kind == "chorus_pro":
-            snap = chorus_export_payload(fd, prof_s, cli_s)
-        else:
-            snap = {"kind": kind}
-        doc = {
-            "user_id": user_id,
-            "facture_id": facture_id,
-            "kind": kind,
-            "status": status,
-            "detail": msg,
-            "payload_snapshot": snap,
-            "provider_ref": f"stub-{uuid.uuid4()}" if status == "simulated_ok" else None,
-            "created_at": now,
-            "updated_at": now,
-        }
-        await db.transmissions.insert_one(doc)
 
 
 # ─── Pydantic Models ─────────────────────────────────────────────
@@ -1122,7 +1070,6 @@ async def create_facture_from_devis(
     fid = str(result.inserted_id)
     stored = await db.factures.find_one({"_id": result.inserted_id})
     out = serialize_doc(stored)
-    await create_transmissions_for_facture(user["id"], fid, out, branche)
     await audit_log(
         user["id"],
         "facture.created",
@@ -1444,50 +1391,6 @@ async def list_facture_transmissions(facture_id: str, user=Depends(get_current_u
     return [serialize_doc(t) for t in rows]
 
 
-@api.get("/factures/{facture_id}/chorus-export")
-async def export_facture_chorus(facture_id: str, user=Depends(get_current_user)):
-    f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
-    if not f:
-        raise HTTPException(status_code=404, detail="Facture non trouvée")
-    prof = await db.profiles.find_one({"user_id": user["id"]})
-    cli = None
-    if f.get("client_id"):
-        try:
-            cli = await db.clients.find_one({"_id": ObjectId(str(f["client_id"])), "user_id": user["id"]})
-        except Exception:
-            cli = None
-    payload = chorus_export_payload(
-        serialize_doc(dict(f)),
-        serialize_doc(dict(prof)) if prof else None,
-        serialize_doc(dict(cli)) if cli else None,
-    )
-    return payload
-
-
-@api.post("/factures/{facture_id}/transmissions/retry")
-async def retry_facture_transmissions(facture_id: str, user=Depends(get_current_user)):
-    f = await db.factures.find_one({"_id": ObjectId(facture_id), "user_id": user["id"]})
-    if not f:
-        raise HTTPException(status_code=404, detail="Facture non trouvée")
-    branche = f.get("conformite_branche")
-    cli = None
-    if f.get("client_id"):
-        try:
-            cli = await db.clients.find_one({"_id": ObjectId(str(f["client_id"])), "user_id": user["id"]})
-        except Exception:
-            cli = None
-    if not branche:
-        branche = classify_client_branche(serialize_doc(dict(cli)) if cli else None)
-    await db.transmissions.delete_many({"user_id": user["id"], "facture_id": facture_id})
-    ins = serialize_doc(dict(f))
-    await create_transmissions_for_facture(user["id"], facture_id, ins, branche)
-    await audit_log(user["id"], "facture.transmissions_retry", "facture", facture_id, {"branche": branche})
-    rows = await db.transmissions.find({"user_id": user["id"], "facture_id": facture_id}).sort("created_at", -1).to_list(
-        100
-    )
-    return [serialize_doc(t) for t in rows]
-
-
 @api.get("/conformite/transmissions")
 async def list_all_transmissions(user=Depends(get_current_user), limit: int = 80):
     lim = max(1, min(limit, 200))
@@ -1500,50 +1403,6 @@ async def list_audit_events(user=Depends(get_current_user), limit: int = 100):
     lim = max(1, min(limit, 300))
     rows = await db.audit_events.find({"user_id": user["id"]}).sort("created_at", -1).to_list(lim)
     return [serialize_doc(t) for t in rows]
-
-
-@api.get("/conformite/archive")
-async def conformite_archive_export(user=Depends(get_current_user), date_from: str = "", date_to: str = ""):
-    """Export JSON agrégé (archivage / preuve) — filtre optionnel sur date_emission des factures (YYYY-MM-DD)."""
-    factures = await db.factures.find({"user_id": user["id"]}).sort("created_at", -1).to_list(2000)
-
-    def _emission_day(doc) -> str:
-        de = doc.get("date_emission")
-        if de is None:
-            return ""
-        if isinstance(de, datetime):
-            return de.date().isoformat()
-        s = str(de)
-        return s[:10] if len(s) >= 10 else s
-
-    if date_from or date_to:
-
-        def _keep_emission(doc) -> bool:
-            d = _emission_day(doc)
-            if date_from and d and d < date_from:
-                return False
-            if date_to and d and d > date_to:
-                return False
-            return True
-
-        factures = [x for x in factures if _keep_emission(x)]
-    fids = [str(x["_id"]) for x in factures]
-    trans = (
-        await db.transmissions.find({"user_id": user["id"], "facture_id": {"$in": fids}}).to_list(10000)
-        if fids
-        else []
-    )
-    audits = await db.audit_events.find({"user_id": user["id"]}).sort("created_at", -1).to_list(5000)
-    devis = await db.devis.find({"user_id": user["id"]}).sort("created_at", -1).to_list(2000)
-    return {
-        "format": "flowo.conformite_archive.v1",
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "filtre": {"date_from": date_from or None, "date_to": date_to or None},
-        "factures": [serialize_doc(x) for x in factures],
-        "transmissions": [serialize_doc(x) for x in trans],
-        "audit_events": [serialize_doc(x) for x in audits],
-        "devis": [serialize_doc(x) for x in devis],
-    }
 
 
 @api.put("/devis/{devis_id}/esign-stub")

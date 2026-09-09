@@ -115,9 +115,9 @@ export function NouveauClientFormClient() {
       </label>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="secteur_public" />
-        Client secteur public (marchés publics / Chorus Pro)
+        Client secteur public (marchés publics)
       </label>
-      <Input label="Code service Chorus (optionnel)" name="chorus_service_code" />
+      <Input label="Code service (optionnel)" name="chorus_service_code" />
       <Textarea label="Notes" name="notes" rows={3} />
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       <div className="flex gap-2">
@@ -247,10 +247,10 @@ export function EditClientFormClient({ clientId, initial }: { clientId: string; 
       </label>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="secteur_public" defaultChecked={Boolean(initial.secteur_public)} />
-        Secteur public (Chorus Pro)
+        Client secteur public (marchés publics)
       </label>
       <Input
-        label="Code service Chorus"
+        label="Code service (optionnel)"
         name="chorus_service_code"
         defaultValue={initial.chorus_service_code ?? ""}
       />

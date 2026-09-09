@@ -18,7 +18,6 @@ import {
 import { fetchDevisLignesHelper } from "@/lib/supabase/routes-shared";
 import { fromDbAdresse } from "@/lib/facturation/adresse";
 import { centsToXml, decimalFromDb, toCents } from "@/lib/facturation/cents";
-import { transmissionKindsForBranche, type ConformiteBranche } from "@/lib/conformite/matrix";
 import { optionTvaDebitsFromRegime, parseRegimeTva } from "@/lib/facturation/regime-tva";
 import {
   buildSnapshotClient,
@@ -82,28 +81,6 @@ async function auditLog(
     entity_id: entityId,
     payload,
   });
-}
-
-async function createDefaultTransmissions(
-  supabase: SupabaseClient,
-  userId: string,
-  factureId: string,
-  branche: string,
-) {
-  const kinds = transmissionKindsForBranche(
-    (branche === "secteur_public" || branche === "b2b_fr_tva" || branche === "b2c" || branche === "b2b_intl" || branche === "b2b_fr_non_assujetti"
-      ? branche
-      : "b2c") as ConformiteBranche,
-  );
-  for (const kind of kinds) {
-    await supabase.from("compliance_transmissions").insert({
-      user_id: userId,
-      facture_id: factureId,
-      kind,
-      status: "pending",
-      detail: "En attente de transmission",
-    });
-  }
 }
 
 export async function handlePublicRoute(path: string, opts: BackendFetchOptions = {}): Promise<unknown> {
@@ -549,36 +526,6 @@ export async function handleConformite(
       payload: e.payload,
     }));
   }
-  if (sub === "archive") {
-    const { data: factures } = await supabase
-      .from("factures")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(2000);
-    const { data: transmissions } = await supabase
-      .from("compliance_transmissions")
-      .select("*")
-      .eq("user_id", user.id)
-      .limit(5000);
-    const { data: audits } = await supabase
-      .from("compliance_audit_events")
-      .select("*")
-      .eq("user_id", user.id)
-      .limit(5000);
-    const { data: devisRows } = await supabase
-      .from("devis")
-      .select("*")
-      .eq("user_id", user.id)
-      .limit(2000);
-    return {
-      exported_at: new Date().toISOString(),
-      factures: factures ?? [],
-      transmissions: transmissions ?? [],
-      audit_events: audits ?? [],
-      devis: devisRows ?? [],
-    };
-  }
   throw new Error(`Route conformité inconnue`);
 }
 
@@ -748,7 +695,6 @@ export async function handleFacturesExtended(
     }
 
     await supabase.from("devis").update({ statut: "accepte" }).eq("id", devisId);
-    await createDefaultTransmissions(supabase, user.id, fid, branche);
     await auditLog(supabase, user.id, "facture.created", "facture", fid, { numero: facture.numero, branche });
 
     return mapFactureDetail(facture as Record<string, unknown>, lignes, [], clientNom);

@@ -29,7 +29,7 @@ export function labelBranche(branche: string): string {
   const m: Record<string, string> = {
     b2b_fr_tva: "B2B France (TVA) — facture électronique PDP",
     b2c: "B2C — e-reporting",
-    secteur_public: "Secteur public — Chorus Pro (+ PDP selon cas)",
+    secteur_public: "Secteur public — marchés publics",
     b2b_intl: "International — e-reporting",
     b2b_fr_non_assujetti: "Pro non assujetti — e-reporting",
   };
@@ -40,7 +40,7 @@ export function labelTransmissionKind(kind: string): string {
   const m: Record<string, string> = {
     pdp_einvoicing: "PDP — e-invoicing (B2B)",
     pdp_ereporting: "PDP — e-reporting",
-    chorus_pro: "Chorus Pro",
+    chorus_pro: "Marchés publics",
   };
   return m[kind] ?? kind;
 }
