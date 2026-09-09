@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Télécharge Mustang-CLI (validateur Factur-X indépendant) et veraPDF (PDF/A-3).
+# Télécharge Mustang-CLI, veraPDF (PDF/A-3) et France_RFE (Schematron Super PDP).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="$ROOT/tools/validators"
+FRANCE_RFE_REF="${FRANCE_RFE_REF:-v1.4.0.04}"
 mkdir -p "$DIR"
 cd "$DIR"
 
@@ -58,6 +59,22 @@ EOF
   rm -f verapdf-installer.zip
 fi
 
+FRANCE_RFE_XSLT="$DIR/france-rfe/FNFE_RFE_INVOICE/Factur-X/EN16931/2xslt/BR-FR-Flux2-Schematron-CII.xslt"
+need_france_rfe=0
+if [[ ! -f "$FRANCE_RFE_XSLT" ]]; then
+  need_france_rfe=1
+elif [[ -d "$DIR/france-rfe/.git" ]]; then
+  current="$(git -C "$DIR/france-rfe" describe --tags --always 2>/dev/null || true)"
+  if [[ "$current" != "$FRANCE_RFE_REF" ]]; then
+    need_france_rfe=1
+  fi
+fi
+if [[ "$need_france_rfe" -eq 1 ]]; then
+  echo "Téléchargement France_RFE ${FRANCE_RFE_REF}…"
+  rm -rf "$DIR/france-rfe"
+  git clone --depth 1 --branch "$FRANCE_RFE_REF" https://github.com/fnfempe/France_RFE.git "$DIR/france-rfe"
+fi
+
 echo "Mustang : $DIR/Mustang-CLI.jar"
 if command -v verapdf >/dev/null 2>&1; then
   echo "veraPDF : $(command -v verapdf)"
@@ -67,3 +84,4 @@ else
   echo "veraPDF : non installé"
   exit 1
 fi
+echo "France_RFE : $DIR/france-rfe (${FRANCE_RFE_REF})"

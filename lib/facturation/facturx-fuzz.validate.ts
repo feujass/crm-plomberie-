@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { assertBrCoTotals } from "@/lib/facturation/br-co";
 import { buildFacturXXml } from "@/lib/facturation/build-facturx-xml";
 import { mustangJarPath, mustangValidate, mustangValidateDirectory } from "@/lib/facturation/external-validators";
+import { franceRfeReady, franceRfeSummaryLine, franceRfeValidateMany } from "@/lib/facturation/france-rfe";
 import {
   allFuzzClientProfiles,
   facturXSourceFromClientProfile,
@@ -141,5 +142,91 @@ describe("profils clients — cartesian Mustang", () => {
         .join("\n"),
     ).toEqual([]);
     expect(files).toHaveLength(216);
+  }, 600_000);
+});
+
+describe("profils clients — cartesian France_RFE", () => {
+  it("v1.4.0.04 : 72/216 BR-FR-12 si ident=aucun (générateur non corrigé)", async () => {
+    if (!existsSync(mustangJarPath()) || !franceRfeReady()) {
+      throw new Error("France_RFE / Saxon absents. Exécute : bash scripts/ensure-facturx-validators.sh");
+    }
+
+    const profiles = allFuzzClientProfiles();
+    expect(profiles).toHaveLength(216);
+
+    const dir = path.join(process.cwd(), "tools/validators/fuzz-client-profiles-france-rfe");
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+
+    const files: { key: string; file: string }[] = [];
+    const broken: { key: string; ids: string[]; detail: string }[] = [];
+    const byRule: Record<string, number> = {};
+
+    for (const profile of profiles) {
+      const key = fuzzClientProfileKey(profile);
+      const slug = key.replaceAll("|", "__");
+      const xml = buildFacturXXml(facturXSourceFromClientProfile(profile));
+      const br = assertBrCoTotals(xml);
+      if (br.length > 0) {
+        broken.push({
+          key,
+          ids: br.map((f) => f.rule),
+          detail: br.map((f) => `${f.rule}: ${f.message}`).join("; "),
+        });
+        continue;
+      }
+      const file = path.join(dir, `${slug}.xml`);
+      writeFileSync(file, xml, "utf8");
+      files.push({ key, file });
+    }
+
+    const results = await franceRfeValidateMany(files, 4);
+    for (const { key, result } of results) {
+      if (result.ok) continue;
+      const ids = [...new Set(result.failures.map((f) => f.id).filter(Boolean))];
+      for (const id of ids) byRule[id] = (byRule[id] ?? 0) + 1;
+      broken.push({ key, ids, detail: franceRfeSummaryLine(result) });
+    }
+
+    const reportPath = path.join(process.cwd(), "tools/validators/fuzz-client-profiles-france-rfe-report.json");
+    writeFileSync(
+      reportPath,
+      JSON.stringify(
+        {
+          pin: "v1.4.0.04",
+          total: profiles.length,
+          generated: files.length,
+          failed: broken.length,
+          byRule,
+          list: broken,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    if (broken.length > 0) {
+      const ruleLines = Object.entries(byRule)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id, n]) => `  ${id}: ${n}`)
+        .join("\n");
+      console.error(
+        `France_RFE: ${broken.length}/216 échecs (générateur non corrigé)\n` +
+          `Règles:\n${ruleLines}\n` +
+          `Exemples:\n` +
+          broken
+            .slice(0, 16)
+            .map((b) => `  ${b.key} → ${b.detail}`)
+            .join("\n") +
+          `\nRapport: ${reportPath}`,
+      );
+    }
+
+    expect(files, "XML générés pour France_RFE").toHaveLength(216);
+    // Générateur non corrigé : BT-49 absent si ident=aucun (4×2×3×3 = 72).
+    // Toute autre règle France_RFE doit rester verte.
+    expect(byRule, JSON.stringify(byRule)).toEqual({ "BR-FR-12_BT-49": 72 });
+    expect(broken).toHaveLength(72);
   }, 600_000);
 });

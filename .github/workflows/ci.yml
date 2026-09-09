@@ -31,9 +31,9 @@ jobs:
         run: npm run typecheck
       - name: Tests
         run: npm test
-      - name: Validateurs Factur-X (Mustang + veraPDF)
+      - name: Validateurs Factur-X (Mustang + veraPDF + France_RFE)
         run: bash scripts/ensure-facturx-validators.sh
-      - name: Factur-X (Mustang, veraPDF, fuzz 500)
+      - name: Factur-X (Mustang, veraPDF, France_RFE, fuzz)
         run: npm run validate:facturx
       - name: Types Database
         run: npm run types:gen

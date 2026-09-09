@@ -7,6 +7,7 @@ import { assertBrCoTotals } from "@/lib/facturation/br-co";
 import { buildFacturXXml } from "@/lib/facturation/build-facturx-xml";
 import { embedFacturXPdf } from "@/lib/facturation/embed-facturx";
 import { mustangValidate, veraPdfValidate, mustangJarPath, veraPdfBinPath } from "@/lib/facturation/external-validators";
+import { franceRfeReady, franceRfeSummaryLine, franceRfeValidate } from "@/lib/facturation/france-rfe";
 import { fixtureMixteMultiTva, fixtureAvoirNegatif, fixtureFranchise293B } from "@/lib/facturation/facturx-fixtures";
 import { renderFactureVisualPdf } from "@/lib/facturation/render-facture-visual";
 import { existsSync } from "node:fs";
@@ -63,5 +64,34 @@ describe("validate:facturx — moteur indépendant", () => {
       if (!r.ok) console.error(r.report);
       expect(r.ok, `Mustang ${extra.numero}: ${r.report.slice(0, 2000)}`).toBe(true);
     }
+  }, 180_000);
+
+  it("les fixtures passent France_RFE v1.4.0.04 (EN16931 + BR-FR-Flux2)", () => {
+    if (!existsSync(mustangJarPath()) || !franceRfeReady()) {
+      throw new Error("France_RFE / Saxon absents. Exécute : bash scripts/ensure-facturx-validators.sh");
+    }
+    const dir = path.join(process.cwd(), "tools/validators/sample");
+    mkdirSync(dir, { recursive: true });
+    const fixtures = [fixtureMixteMultiTva(), fixtureFranchise293B(), fixtureAvoirNegatif()];
+    const broken: { numero: string; detail: string }[] = [];
+    for (const source of fixtures) {
+      const xml = buildFacturXXml(source);
+      const xmlPath = path.join(dir, `${source.numero}.france-rfe.xml`);
+      writeFileSync(xmlPath, xml, "utf8");
+      const r = franceRfeValidate(xmlPath);
+      if (!r.ok) broken.push({ numero: source.numero, detail: franceRfeSummaryLine(r) });
+    }
+    writeFileSync(
+      path.join(dir, "france-rfe-fixtures-report.json"),
+      JSON.stringify({ total: fixtures.length, broken: broken.length, list: broken }, null, 2),
+      "utf8",
+    );
+    if (broken.length > 0) {
+      console.error(
+        `France_RFE fixtures : ${broken.length}/${fixtures.length} échecs\n` +
+          broken.map((b) => `${b.numero}: ${b.detail}`).join("\n"),
+      );
+    }
+    expect(broken, broken.map((b) => `${b.numero}: ${b.detail}`).join("\n")).toEqual([]);
   }, 180_000);
 });
