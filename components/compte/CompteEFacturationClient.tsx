@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { CONNECTION_STATUS_COPY } from "@/lib/facturation/pa/connection-copy";
 import type { MockScenario } from "@/lib/facturation/pa/mock-fixtures";
 import type { ConnectionSnapshot, ProviderId } from "@/lib/facturation/pa/types";
+import { formatDateFr } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -28,10 +29,14 @@ export function CompteEFacturationClient({
   initialSnapshot,
   providerId,
   oauthError,
+  entrepriseNom,
+  siren,
 }: {
   initialSnapshot: ConnectionSnapshot;
   providerId: ProviderId;
   oauthError?: string | null;
+  entrepriseNom?: string | null;
+  siren?: string | null;
 }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -40,6 +45,7 @@ export function CompteEFacturationClient({
   const [err, setErr] = useState<string | null>(oauthError ?? null);
   const copy = CONNECTION_STATUS_COPY[snapshot.status];
   const real = providerId === "superpdp";
+  const connected = snapshot.status === "verified";
 
   async function connectMock(next: MockScenario) {
     setPending(true);
@@ -74,24 +80,56 @@ export function CompteEFacturationClient({
       {real ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <p className="font-semibold text-[var(--foreground)]">Raccordement Super PDP</p>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Vous serez redirigé vers Super PDP pour autoriser Flowo. Le SIREN et l’e-mail du compte sont
-            préremplis quand ils sont connus.
-          </p>
-          <div className="mt-3">
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={() => {
-                setPending(true);
-                window.location.href = "/api/compte/e-facturation/connect";
-              }}
-            >
-              {snapshot.status === "disconnected" || snapshot.status === "token_expired" || snapshot.status === "failed"
-                ? "Connecter mon entreprise"
-                : "Reconnecter"}
-            </Button>
-          </div>
+          {connected ? (
+            <>
+              <p className="mt-2 text-sm text-[var(--foreground)]">
+                <span className="font-medium">{entrepriseNom?.trim() || "Votre entreprise"}</span>
+                {siren?.trim() ? (
+                  <span className="text-gray-600 dark:text-gray-400"> · SIREN {siren.trim()}</span>
+                ) : null}
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {snapshot.connectedAt
+                  ? `Raccordée le ${formatDateFr(snapshot.connectedAt)}`
+                  : "Entreprise raccordée à la plateforme."}
+              </p>
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="px-0 text-sm font-normal text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                  disabled={pending}
+                  onClick={() => {
+                    setPending(true);
+                    window.location.href = "/api/compte/e-facturation/connect";
+                  }}
+                >
+                  Reconnecter
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Vous serez redirigé vers Super PDP pour autoriser Flowo. Le SIREN et l’e-mail du compte sont
+                préremplis quand ils sont connus.
+              </p>
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => {
+                    setPending(true);
+                    window.location.href = "/api/compte/e-facturation/connect";
+                  }}
+                >
+                  {snapshot.status === "disconnected" || snapshot.status === "token_expired" || snapshot.status === "failed"
+                    ? "Connecter mon entreprise"
+                    : "Reconnecter"}
+                </Button>
+              </div>
+            </>
+          )}
           {err ? <p className="mt-2 text-sm text-red-600">{err}</p> : null}
         </div>
       ) : (

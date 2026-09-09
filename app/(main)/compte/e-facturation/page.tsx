@@ -57,6 +57,8 @@ export default async function CompteEFacturationPage({
         initialSnapshot={snapshot}
         providerId={provider.id}
         oauthError={params.error ?? null}
+        entrepriseNom={profile?.entreprise ?? null}
+        siren={profile?.siren ?? null}
       />
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-900">
