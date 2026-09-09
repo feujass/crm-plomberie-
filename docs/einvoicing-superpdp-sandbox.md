@@ -2,6 +2,8 @@
 
 Date des essais : 2026-09-08. Endpoint : `https://api.superpdp.tech` (OpenAPI 1.30.0.beta).
 
+**Phase 1 close (2026-09-09)** — état, gates, ouvert : `docs/einvoicing-pa-phase1.md` (section Reprise).
+
 Les `client_id` / `client_secret` / `access_token` ne sont **pas** recopiés. Script : `node scripts/superpdp-sandbox-e2e.mjs`.
 
 Identités sandbox constatées :

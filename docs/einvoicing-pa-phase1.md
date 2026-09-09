@@ -1,6 +1,52 @@
-# Facturation électronique — Phase 1 (couche PA, sans réseau)
+# Facturation électronique — Phase 1
+
+**Statut : close (2026-09-09).** Branche `feat/facturx-phase1`. Pas de déploiement production.
 
 Adaptateur réel Super PDP : `EINVOICING_PROVIDER=superpdp`. Défaut `mock` (aucun appel réseau).
+
+## Reprise — où on en est
+
+Phase 1 = générer un Factur-X EN16931, le valider (CIUS-FR + plateforme), le déposer en sandbox, suivre le cycle de vie par polling. C’est en place. Ce qui manque est volontairement hors phase (webhooks, données TVA, archivage).
+
+### Validé
+
+| Sujet | Preuve |
+|---|---|
+| Dépôt sandbox bout en bout | 2026-09-08, facture `FACT-2026-0001`, dépôt `484970`, `fr:200` → `fr:201`. Journal : `docs/einvoicing-superpdp-sandbox.md`. |
+| Services sans livraison distincte | `ApplicableHeaderTradeDelivery` + date toujours émis ; `ShipTo` seulement si adresse distincte. |
+| Gate produit | `eligibilityFacturX` : particuliers hors e-invoicing ; pro/public sans SIREN/SIRET bloqués (`siren_client`). |
+| Matrice 216 | 108 générés et valides (Mustang + France_RFE v1.4.0.04) ; 108 exclus par le même gate que le produit (54 particuliers + 54 sans ident) ; 0 échec réel. |
+| XML **final** (après routage) | `attachSuperPdpRoutingAddresses` substitue BT-34/BT-49 par `0225:315143296_{company_id}`. CI `npm run validate:facturx` et génération locale (`franceRfeReady()`) passent France_RFE **après** cette substitution. |
+| Validation plateforme | `POST /v1.beta/validation_reports` avant tout `POST /invoices`. `is_valid: false` → 422, aucun dépôt. |
+| TVA acheteur | `schemeID="VA"` (jamais `FC` côté acheteur). BT-23 `B1` / `S1` / `M1`. |
+| OAuth artisan | `authorization_code`, jetons chiffrés, refresh rotatif sous verrou. |
+| Cycle de vie | Mapping AFNOR dans `cycle-machine.ts`. Polling cron `*/15` + ingest post-dépôt 5 s / 30 s. |
+| UX compte | `/compte/e-facturation` : entreprise raccordée, régime TVA, alerte périodicité. |
+
+Mustang 2.23.0 n’applique presque pas le CIUS-FR sur nos factures (warnings ignorés, fatals = multi-vendeur hors profil). Le filet réel est **France_RFE 1.4.0.04** (tout fatal) + `validation_reports` Super PDP.
+
+Sur Vercel, `tools/validators/` est gitignoré : `franceRfeReady()` est faux en prod. Le gate production reste Super PDP. La CI clone France_RFE via `scripts/ensure-facturx-validators.sh`.
+
+### Chaîne de validation (à ne pas recasser)
+
+1. `eligibilityFacturX` (adresses, SIREN client, dates, régime).
+2. `attachSuperPdpRoutingAddresses` — overlay Peppol annuaire (`0225:315143296_{id}`), fallback SIREN si lookup KO.
+3. `buildFacturXXml` sur **cette** source.
+4. France_RFE sur le XML produit (CI toujours ; génération locale si les XSLT sont là).
+5. Stockage PDF/A-3 + XML.
+6. Au dépôt : `validation_reports` Super PDP, puis `POST /invoices`.
+
+Ne pas valider le XML SIREN puis substituer ensuite : c’est l’angle mort du 8-9 sept. 2026.
+
+### Ouvert — reprise phase suivante
+
+1. **Webhooks Super PDP** — encore en développement côté plateforme. On garde le polling (`GET /api/cron/einvoicing-poll`, `*/15 * * * *`) et l’ingest post-dépôt. Quand les webhooks seront livrés : même `ingestLifecycleEvents`, pas un second pipeline.
+2. **Périodicité de déclaration TVA** — colonne `profiles.tva_periodicite_declaration` existe (`monthly` \| `quarterly` \| `simplified`), UI Compte → Entreprise aussi. Les lignes artisans sont encore **vides** : hors franchise, le mapping Super PDP `vat_regime` reste `incomplete`. Tant que ce n’est pas saisi (et PATCH `companies` OK), le raccordement TVA n’est pas complet.
+3. **Archivage légal 10 ans** — non traité. Le PDF Factur-X est en Storage (bucket e-invoicing, pas d’écrasement), ce n’est pas un coffre-fort ni une politique de conservation 10 ans (intégrité, horodatage, export, suppression contrôlée).
+4. **E-reporting B2C** — `ereporting_not_implemented` (501) dans le provider Super PDP.
+5. **Factures reçues / rapprochement** — stratégie documentée ci-dessous, pas implémentée.
+
+---
 
 ## Architecture
 
