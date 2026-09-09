@@ -23,7 +23,7 @@ const SLIDES = [
   { id: "vocal", label: "Devis vocal", hint: "Dictez le chantier, Zeus rédige les lignes" },
   { id: "edition", label: "Édition & envoi", hint: "Relisez, ajustez, envoyez en un clic" },
   { id: "client", label: "Vue client devis", hint: "Le devis professionnel reçu par e-mail" },
-  { id: "facture", label: "Facture client", hint: "Facture conforme, lien de paiement et relances" },
+  { id: "facture", label: "Facture client", hint: "Facture au format électronique officiel (Factur-X), lien de paiement et relances" },
   { id: "catalogue", label: "Tarifs personnalisés", hint: "Votre bibliothèque de prix pour Zeus" },
 ] as const;
 

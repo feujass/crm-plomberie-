@@ -30,8 +30,8 @@ const HIGHLIGHTS = [
     text: "Ton CA signé, tes devis en attente, ton taux d'acceptation : tout en un coup d'œil depuis le tableau de bord.",
   },
   {
-    title: "🧾 Facture en 1 clic, conforme 2026",
-    text: "Le devis est accepté ? Transforme-le en facture en 1 clic. Format conforme à la facturation électronique obligatoire en France (entrée en vigueur 2026).",
+    title: "🧾 Facture en 1 clic, format officiel (Factur-X)",
+    text: "Le devis est accepté ? Transforme-le en facture au format électronique officiel (Factur-X). Le raccordement à une plateforme agréée est en cours de déploiement.",
   },
 ] as const;
 

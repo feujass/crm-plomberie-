@@ -27,7 +27,7 @@ export const MARKETING_PLANS = [
     features: [
       "Zeus IA : 80 devis vocaux/mois",
       "Catalogue illimité (prix personnalisés)",
-      "Préparation facturation électronique",
+      "Factures au format électronique officiel (Factur-X)",
       "Suivi des paiements clients",
     ],
   },
