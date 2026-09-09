@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
+import { createFactureFromDevisRequest, devisCanBeInvoiced } from "@/lib/devis/facture-from-devis";
 import {
   FLOWO_CARD_HERO_GRADIENT_CLASS,
   FLOWO_CARD_HERO_SURFACE_CLASS,
@@ -46,9 +47,17 @@ type Props = {
   devis: BackendDevis[];
   clientAddresses: Record<string, string>;
   listSegment: DevisListSegment;
+  canFacture: boolean;
+  factureByDevisId: Record<string, string>;
 };
 
-export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSegment }: Props) {
+export function DevisRenatoCards({
+  devis,
+  clientAddresses,
+  listSegment: _listSegment,
+  canFacture,
+  factureByDevisId,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -68,6 +77,17 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSeg
   async function removeDevis(id: string) {
     const res = await fetch(`/api/devis/${id}/delete`, { method: "DELETE" });
     if (res.ok) router.refresh();
+  }
+
+  async function createFacture(id: string) {
+    const result = await createFactureFromDevisRequest(id);
+    if (!result.ok) {
+      if (handleTrialExpiredPaywallResponse(result.status, result)) return;
+      window.alert(result.message);
+      return;
+    }
+    router.push(`/facturation/${encodeURIComponent(result.id)}`);
+    router.refresh();
   }
 
   if (!devis.length) {
@@ -92,6 +112,8 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSeg
         const statut = d.statut ?? "";
         const dot = STATUS_DOT[statut] ?? "bg-[color:var(--primary)]";
         const titreDate = d.created_at ? `Devis du ${formatDateFr(d.created_at)}` : d.numero ?? "Devis";
+        const existingFactureId = factureByDevisId[d.id];
+        const showCreateFacture = canFacture && !existingFactureId && devisCanBeInvoiced(statut);
 
         return (
           <li key={d.id} className={FLOWO_LIST_CARD_CLASS}>
@@ -160,6 +182,34 @@ export function DevisRenatoCards({ devis, clientAddresses, listSegment: _listSeg
                 <p className="text-xs font-medium text-slate-400">{montantLabel}</p>
               </div>
             </div>
+            {showCreateFacture ? (
+              <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={pending}
+                  className={cx(
+                    "w-full rounded-xl bg-[color:var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50",
+                    focusRing,
+                  )}
+                  onClick={() => startTransition(() => void createFacture(d.id))}
+                >
+                  Créer une facture
+                </button>
+              </div>
+            ) : null}
+            {canFacture && existingFactureId ? (
+              <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+                <Link
+                  href={`/facturation/${encodeURIComponent(existingFactureId)}`}
+                  className={cx(
+                    "block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
+                    focusRing,
+                  )}
+                >
+                  Voir la facture
+                </Link>
+              </div>
+            ) : null}
           </li>
         );
       })}

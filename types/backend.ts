@@ -117,6 +117,7 @@ export type BackendFacture = {
   created_at?: string;
   client_id?: string;
   client_nom?: string;
+  devis_id?: string;
 };
 
 export type BackendPaiement = {
@@ -127,7 +128,6 @@ export type BackendPaiement = {
 };
 
 export type BackendFactureDetail = BackendFacture & {
-  devis_id?: string;
   lignes?: BackendDevisLine[];
   total_ht?: number;
   total_tva?: number;
