@@ -14,6 +14,7 @@ import { formatCurrencyEUR } from "@/lib/format";
 import { cx, focusRing } from "@/lib/utils";
 import { defaultSectionForStructure, defaultTvaFromProfile } from "@/lib/devis-ouvrage-mode";
 import { checkLegalExportReady } from "@/lib/profile/legal-export";
+import { createFactureFromDevisRequest, devisCanBeInvoiced } from "@/lib/devis/facture-from-devis";
 import { canAccessFeature } from "@/lib/plans/features";
 import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import type { BackendClient, BackendDevisDetail, BackendDevisLine, BackendProfile } from "@/types/backend";
@@ -159,11 +160,13 @@ export function DevisEditor({
   devis,
   clients,
   profile = {},
+  existingFactureId = null,
 }: {
   devis: BackendDevisDetail;
   clients: BackendClient[];
   /** Profil entreprise (TVA par défaut, structure des lignes, séparation fourniture/pose) — aligné Assistant / Compte. */
   profile?: BackendProfile;
+  existingFactureId?: string | null;
 }) {
   const canFacture = canAccessFeature(profile, "facturation");
   const router = useRouter();
@@ -377,6 +380,23 @@ export function DevisEditor({
                   ? "Expiré"
                   : "Devis";
 
+  const showCreateFacture = canFacture && !existingFactureId && devisCanBeInvoiced(statut);
+  const showViewFacture = Boolean(canFacture && existingFactureId);
+
+  function createFacture() {
+    start(async () => {
+      setBannerErr(null);
+      const result = await createFactureFromDevisRequest(devis.id);
+      if (!result.ok) {
+        if (handleTrialExpiredPaywallResponse(result.status, result)) return;
+        setBannerErr(result.message);
+        return;
+      }
+      router.push(`/facturation/${encodeURIComponent(result.id)}`);
+      router.refresh();
+    });
+  }
+
   const linesToVerify = useMemo(
     () =>
       lignes.filter(
@@ -459,7 +479,14 @@ export function DevisEditor({
   }
 
   return (
-    <div className="space-y-4 pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))] md:pb-24">
+    <div
+      className={cx(
+        "space-y-4 md:pb-24",
+        showCreateFacture || showViewFacture
+          ? "pb-[calc(11rem+env(safe-area-inset-bottom,0px))]"
+          : "pb-[calc(7.5rem+env(safe-area-inset-bottom,0px))]",
+      )}
+    >
       {info === "no-ai" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
           IA non configurée : devis créé en brouillon (tu peux le remplir manuellement).
@@ -517,6 +544,16 @@ export function DevisEditor({
         <Button type="button" disabled={pending || sending} onClick={() => void openSendDrawer()}>
           Envoyer le devis
         </Button>
+        {showCreateFacture ? (
+          <Button type="button" disabled={pending} onClick={() => createFacture()}>
+            Créer une facture
+          </Button>
+        ) : null}
+        {showViewFacture && existingFactureId ? (
+          <Button type="button" asChild>
+            <Link href={`/facturation/${encodeURIComponent(existingFactureId)}`}>Voir la facture</Link>
+          </Button>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" className="px-2">
@@ -571,28 +608,6 @@ export function DevisEditor({
               >
                 Dupliquer
               </DropdownMenuItem>
-              {devis.statut === "accepte" && canFacture ? (
-                <DropdownMenuItem
-                  onClick={() => {
-                    start(async () => {
-                      setBannerErr(null);
-                      const res = await fetch(`/api/factures/from-devis/${devis.id}`, { method: "POST", credentials: "same-origin" });
-                      const data = await res.json().catch(() => ({} as { message?: string; id?: string }));
-                      if (!res.ok) {
-                        setBannerErr(typeof data.message === "string" ? data.message : `Erreur ${res.status}`);
-                        return;
-                      }
-                      if (data.id) {
-                        router.push(`/facturation/${encodeURIComponent(data.id)}`);
-                        router.refresh();
-                      }
-                    });
-                  }}
-                  className="cursor-pointer"
-                >
-                  Facturer
-                </DropdownMenuItem>
-              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
@@ -828,16 +843,28 @@ export function DevisEditor({
 
       {/* Au-dessus de la barre d’onglets mobile (PlannerAppShell) */}
       <div className="fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-50 border-t border-gray-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 md:hidden">
-        <div className="mx-auto flex max-w-3xl items-center gap-2">
-          <Button type="button" variant="secondary" disabled={pending} onClick={() => save()}>
-            Enregistrer
-          </Button>
-          <Button type="button" variant="secondary" disabled={pending} onClick={() => openPdf()}>
-            PDF
-          </Button>
-          <Button type="button" disabled={pending || sending} className="flex-1" onClick={() => void openSendDrawer()}>
-            Envoyer le devis
-          </Button>
+        <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          {showCreateFacture ? (
+            <Button type="button" disabled={pending} className="w-full" onClick={() => createFacture()}>
+              Créer une facture
+            </Button>
+          ) : null}
+          {showViewFacture && existingFactureId ? (
+            <Button type="button" asChild className="w-full">
+              <Link href={`/facturation/${encodeURIComponent(existingFactureId)}`}>Voir la facture</Link>
+            </Button>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" disabled={pending} onClick={() => save()}>
+              Enregistrer
+            </Button>
+            <Button type="button" variant="secondary" disabled={pending} onClick={() => openPdf()}>
+              PDF
+            </Button>
+            <Button type="button" disabled={pending || sending} className="flex-1" onClick={() => void openSendDrawer()}>
+              Envoyer le devis
+            </Button>
+          </div>
         </div>
       </div>
 

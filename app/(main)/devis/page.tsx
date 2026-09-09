@@ -1,8 +1,9 @@
 import { DevisRenatoCards } from "@/components/devis/DevisRenatoCards";
 import { backendFetch } from "@/lib/backend/server";
 import { FLOWO_SEARCH_INPUT_CLASS, flowoSegmentTabClass } from "@/lib/flowo-ui";
+import { canAccessFeature } from "@/lib/plans/features";
 import { cx, focusRing } from "@/lib/utils";
-import type { BackendClient, BackendDevis } from "@/types/backend";
+import type { BackendClient, BackendDevis, BackendFacture, BackendProfile } from "@/types/backend";
 import { Search } from "lucide-react";
 import Link from "next/link";
 
@@ -34,10 +35,20 @@ export default async function DevisListPage({ searchParams }: { searchParams: Pr
   qs.set("segment", segment);
   if (q) qs.set("search", q);
 
-  const [rows, clients] = await Promise.all([
+  const [rows, clients, profile, factures] = await Promise.all([
     backendFetch(`/api/devis?${qs.toString()}`).catch(() => []) as Promise<BackendDevis[]>,
     backendFetch("/api/clients").catch(() => []) as Promise<BackendClient[]>,
+    backendFetch("/api/profile").catch(() => ({})) as Promise<BackendProfile>,
+    backendFetch("/api/factures").catch(() => []) as Promise<BackendFacture[]>,
   ]);
+
+  const canFacture = canAccessFeature(profile, "facturation");
+  const factureByDevisId: Record<string, string> = {};
+  for (const f of factures ?? []) {
+    if (f.devis_id && f.id && !factureByDevisId[f.devis_id]) {
+      factureByDevisId[f.devis_id] = f.id;
+    }
+  }
 
   const sorted = [...(rows ?? [])].sort((a, b) => {
     const da = a.created_at ? Date.parse(a.created_at) : 0;
@@ -109,7 +120,13 @@ export default async function DevisListPage({ searchParams }: { searchParams: Pr
         })}
       </div>
 
-      <DevisRenatoCards devis={sorted} clientAddresses={clientAddresses} listSegment={segment} />
+      <DevisRenatoCards
+        devis={sorted}
+        clientAddresses={clientAddresses}
+        listSegment={segment}
+        canFacture={canFacture}
+        factureByDevisId={factureByDevisId}
+      />
     </div>
   );
 }

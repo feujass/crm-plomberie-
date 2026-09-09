@@ -105,7 +105,7 @@ export default async function FacturationPage({ searchParams }: { searchParams: 
       </div>
 
       <p className="text-sm text-slate-600 dark:text-slate-400">
-        Créez une facture depuis un devis accepté (bouton Facturer sur le devis).
+        Créez une facture depuis un devis accepté ou envoyé (bouton Créer une facture).
       </p>
 
       <form method="get" className="relative">

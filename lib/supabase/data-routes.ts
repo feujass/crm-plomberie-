@@ -663,6 +663,7 @@ async function handleFactures(
       created_at: f.created_at as string | undefined,
       client_id: f.client_id ? String(f.client_id) : undefined,
       client_nom: f.client_id ? names[String(f.client_id)] : undefined,
+      devis_id: f.devis_id ? String(f.devis_id) : undefined,
     }));
   }
 
