@@ -1,4 +1,4 @@
-import type { RegimeTva } from "@/lib/facturation/regime-tva";
+import { REGIME_TVA_LABELS, type RegimeTva } from "@/lib/facturation/regime-tva";
 
 /**
  * Mapping régime TVA Flowo → Super PDP (`vat_regime` + `has_vat_on_debits`).
@@ -58,4 +58,22 @@ export function mapRegimeTvaToSuperPdp(input: {
     status: "complete",
     missing: [],
   };
+}
+
+export const TVA_PERIODICITE_LABELS: Record<TvaPeriodiciteDeclaration, string> = {
+  monthly: "tous les mois (réel normal)",
+  quarterly: "tous les trimestres (réel normal)",
+  simplified: "selon le régime simplifié d’imposition",
+};
+
+/** Libellés métier pour l’écran artisan — jamais le mapping PA interne. */
+export function artisanTvaSummary(regimeTva: RegimeTva, mapping: SuperPdpVatMapping): string[] {
+  if (regimeTva === "franchise_293b") {
+    return ["Vous êtes en franchise en base (article 293 B du CGI)."];
+  }
+  const lines = [`Vous êtes en ${REGIME_TVA_LABELS[regimeTva]}.`];
+  if (mapping.vatRegime === "monthly" || mapping.vatRegime === "quarterly" || mapping.vatRegime === "simplified") {
+    lines.push(`Vous déclarez la TVA ${TVA_PERIODICITE_LABELS[mapping.vatRegime]}.`);
+  }
+  return lines;
 }

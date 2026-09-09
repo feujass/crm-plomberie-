@@ -2,7 +2,7 @@ import { CompteEFacturationClient } from "@/components/compte/CompteEFacturation
 import { CompteSubLayout } from "@/components/compte/CompteSubLayout";
 import { getEInvoicingProvider } from "@/lib/facturation/pa/get-provider";
 import { loadConnection } from "@/lib/facturation/pa/supabase-token-store";
-import { mapRegimeTvaToSuperPdp } from "@/lib/facturation/pa/tva-mapping";
+import { artisanTvaSummary, mapRegimeTvaToSuperPdp } from "@/lib/facturation/pa/tva-mapping";
 import type { ConnectionSnapshot } from "@/lib/facturation/pa/types";
 import { parseRegimeTva } from "@/lib/facturation/regime-tva";
 import { requireFeature } from "@/lib/plans/require-feature";
@@ -43,10 +43,12 @@ export default async function CompteEFacturationPage({
     }
   }
 
+  const regimeTva = parseRegimeTva(profile?.regime_tva);
   const mapping = mapRegimeTvaToSuperPdp({
-    regimeTva: parseRegimeTva(profile?.regime_tva),
+    regimeTva,
     periodicite: profile?.tva_periodicite_declaration,
   });
+  const tvaLines = artisanTvaSummary(regimeTva, mapping);
 
   return (
     <CompteSubLayout
@@ -62,28 +64,22 @@ export default async function CompteEFacturationPage({
       />
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <p className="font-semibold text-[var(--foreground)]">Régime TVA transmis à la PA</p>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Exigibilité Flowo : <span className="font-medium">{parseRegimeTva(profile?.regime_tva)}</span>
-          {" → "}
-          TVA sur les débits PA :{" "}
-          <span className="font-medium">{mapping.hasVatOnDebits ? "oui" : "non"}</span>
-          {mapping.vatRegime ? (
-            <>
-              {" · "}périodicité : <span className="font-medium">{mapping.vatRegime}</span>
-            </>
-          ) : null}
-        </p>
         {mapping.status === "incomplete" ? (
-          <p className="mt-2 text-amber-800 dark:text-amber-300">
-            Il manque la périodicité de déclaration (mensuel / trimestriel / régime simplifié). Renseignez-la
-            dans{" "}
-            <Link href="/compte/entreprise" className="underline">
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            Il manque votre périodicité de déclaration de TVA (mensuelle, trimestrielle ou régime simplifié).
+            Renseignez-la dans{" "}
+            <Link href="/compte/entreprise" className="font-medium underline">
               Compte → Entreprise
             </Link>
             .
           </p>
         ) : null}
+        <p className="font-semibold text-[var(--foreground)]">Régime TVA transmis à la PA</p>
+        {tvaLines.map((line) => (
+          <p key={line} className="mt-2 text-gray-600 dark:text-gray-400">
+            {line}
+          </p>
+        ))}
       </div>
     </CompteSubLayout>
   );
