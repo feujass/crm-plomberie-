@@ -40,6 +40,7 @@ describe("buildFacturXXml — multi-taux mixte", () => {
     expect(xml).toContain("<ram:SubjectCode>PMT</ram:SubjectCode>");
     expect(xml).toContain('schemeID="0225">732829320<');
     expect(xml).toContain('schemeID="0225">443061841<');
+    expect(xml).not.toContain(">0225:443061841<");
     expect(xml).toContain('schemeID="SMTP">contact@plomberie-dupont.test<');
   });
 });

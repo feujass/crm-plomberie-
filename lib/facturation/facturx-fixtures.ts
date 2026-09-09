@@ -146,6 +146,36 @@ export function fixtureFranchise293B(): FacturXSource {
   };
 }
 
+/**
+ * Client pro avec SIREN mais sans TVA intra — le trou qui a laissé passer
+ * `schemeID="FC"` côté acheteur (FX-SCH-A-000031 / Super PDP api:invalid).
+ */
+export function fixtureProSansTvaIntracom(): FacturXSource {
+  return {
+    ...BASE,
+    numero: "FA-2026-0004",
+    typeCode: "380",
+    regimeTva: "encaissements",
+    optionTvaDebits: false,
+    natureOperation: "biens",
+    client: {
+      ...FIXTURE_CLIENT_ENTREPRISE,
+      tva_intracom: null,
+    },
+    lignes: [
+      {
+        designation: "Fourniture mitigeur thermostatique",
+        quantite: 1,
+        unite: "u",
+        prix_ht: 180,
+        tva: 20,
+        total_ht: 180,
+        type_ligne: "bien",
+      },
+    ],
+  };
+}
+
 export function fixtureAvoirNegatif(): FacturXSource {
   return {
     ...BASE,

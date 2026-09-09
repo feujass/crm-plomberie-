@@ -1,8 +1,15 @@
 import type { AdresseStructuree } from "@/lib/facturation/adresse";
 import type { FacturXSource } from "@/lib/facturation/build-facturx-xml";
+import {
+  eligibilityFacturX,
+  type EmissionFacturXBlocker,
+} from "@/lib/facturation/emission-gate";
 import { FIXTURE_EMETTEUR, fixtureMonoTva } from "@/lib/facturation/facturx-fixtures";
 import type { SnapshotClient } from "@/lib/facturation/snapshots";
 import type { TypeLigneFacture } from "@/lib/facturation/type-ligne";
+
+/** Adresses de la matrice : on isole kind / ident, pas la confirmation d’adresse. */
+const MATRIX_CONFIRMED_AT = "2026-03-01T00:00:00Z";
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -164,6 +171,59 @@ export function facturXSourceFromClientProfile(profile: FuzzClientProfile): Fact
     ...base,
     client: snapshotClientFromProfile(profile),
   };
+}
+
+export type FuzzEinvoicingExcluded = {
+  status: "excluded";
+  key: string;
+  reason: string;
+  blockers: EmissionFacturXBlocker[];
+};
+
+export type FuzzEinvoicingInScope = {
+  status: "in_scope";
+  key: string;
+  source: FacturXSource;
+};
+
+export type FuzzEinvoicingClassification = FuzzEinvoicingExcluded | FuzzEinvoicingInScope;
+
+/** Même gate que `POST /api/factures/[id]/facturx`. */
+export function classifyFuzzEinvoicing(profile: FuzzClientProfile): FuzzEinvoicingClassification {
+  const source = facturXSourceFromClientProfile(profile);
+  const key = fuzzClientProfileKey(profile);
+  const gate = eligibilityFacturX({
+    emetteurAdresse: source.emetteur.adresse,
+    emetteurConfirmeeAt: MATRIX_CONFIRMED_AT,
+    clientType: source.client.type_client,
+    clientAdresse: source.client.adresse_facturation,
+    clientConfirmeeAt: MATRIX_CONFIRMED_AT,
+    natureOperation: source.natureOperation,
+    datePrestationDebut: source.datePrestationDebut,
+    datePrestationFin: source.datePrestationFin,
+    regimeTva: source.regimeTva,
+    snapshotEmetteur: source.emetteur,
+    snapshotClient: source.client,
+    numero: source.numero,
+  });
+  if (!gate.ok) {
+    return { status: "excluded", key, reason: gate.reason, blockers: gate.blockers };
+  }
+  return { status: "in_scope", key, source };
+}
+
+export function partitionFuzzEinvoicingMatrix(): {
+  excluded: FuzzEinvoicingExcluded[];
+  inScope: FuzzEinvoicingInScope[];
+} {
+  const excluded: FuzzEinvoicingExcluded[] = [];
+  const inScope: FuzzEinvoicingInScope[] = [];
+  for (const profile of allFuzzClientProfiles()) {
+    const classified = classifyFuzzEinvoicing(profile);
+    if (classified.status === "excluded") excluded.push(classified);
+    else inScope.push(classified);
+  }
+  return { excluded, inScope };
 }
 
 /** Quantité / prix / remise construits en entiers, exposés en chaînes décimales. */

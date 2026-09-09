@@ -68,4 +68,51 @@ describe("blockersEmissionFacturX", () => {
     });
     expect(gate).toEqual({ ok: true });
   });
+
+  it("bloque une facture B2B si le SIREN / SIRET client manque", () => {
+    const gate = eligibilityFacturX({
+      emetteurAdresse: { ligne1: "12 rue", ligne2: "", cp: "69003", ville: "Lyon", pays: "FR" },
+      emetteurConfirmeeAt: "2026-01-01T00:00:00Z",
+      clientType: "entreprise",
+      clientAdresse: { ligne1: "1 place", ligne2: "", cp: "75001", ville: "Paris", pays: "FR" },
+      clientConfirmeeAt: "2026-01-01T00:00:00Z",
+      natureOperation: "services",
+      datePrestationDebut: "2026-01-01",
+      datePrestationFin: "2026-01-02",
+      regimeTva: "encaissements",
+      snapshotEmetteur: {
+        entreprise_nom: "Atelier",
+        siren: "732829320",
+        siret: "73282932000074",
+        numero_tva_intracom: "FR44732829320",
+        forme_juridique: null,
+        regime_tva: "encaissements",
+        option_tva_debits: false,
+        adresse: { ligne1: "12 rue", ligne2: "", cp: "69003", ville: "Lyon", pays: "FR" },
+        email_facturation: null,
+        tel: null,
+        iban: null,
+        bic: null,
+        rcs_ville: null,
+        capital_social: null,
+      },
+      snapshotClient: {
+        nom: "SCI Test",
+        prenom: null,
+        type_client: "entreprise",
+        siren: null,
+        siret: null,
+        tva_intracom: null,
+        adresse_facturation: { ligne1: "1 place", ligne2: "", cp: "75001", ville: "Paris", pays: "FR" },
+        adresse_livraison: null,
+        email: null,
+        tel: null,
+      },
+      numero: "FA-1",
+    });
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) {
+      expect(gate.blockers).toEqual(["siren_client"]);
+    }
+  });
 });

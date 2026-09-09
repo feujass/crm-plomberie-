@@ -59,6 +59,33 @@ function isGenericStatusLabel(value: string, statusCode: string): boolean {
   return generics.includes(trimmed.toLowerCase());
 }
 
+function collectNestedRejectionMessages(value: unknown, acc: string[]): void {
+  if (value == null) return;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) acc.push(trimmed);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectNestedRejectionMessages(item, acc);
+    return;
+  }
+  if (typeof value !== "object") return;
+  const row = value as Record<string, unknown>;
+  if (Array.isArray(row.failures) && row.failures.length > 0) {
+    collectNestedRejectionMessages(row.failures, acc);
+    return;
+  }
+  for (const key of REASON_KEYS) {
+    const raw = row[key];
+    if (typeof raw === "string" && raw.trim()) acc.push(raw.trim());
+  }
+  if (row.failures) collectNestedRejectionMessages(row.failures, acc);
+  if (row.details) collectNestedRejectionMessages(row.details, acc);
+  if (row.subreports) collectNestedRejectionMessages(row.subreports, acc);
+  if (row.validationMessages) collectNestedRejectionMessages(row.validationMessages, acc);
+}
+
 export function rejectionReasonFromEvent(
   statusCode: string,
   payload: Record<string, unknown> | null | undefined,
@@ -72,9 +99,15 @@ export function rejectionReasonFromEvent(
       return raw.trim();
     }
   }
-  const nested = bag.statusText;
-  if (typeof nested === "string" && !isGenericStatusLabel(nested, statusCode)) {
-    return nested.trim();
+  const nested: string[] = [];
+  collectNestedRejectionMessages(bag.validationMessages, nested);
+  collectNestedRejectionMessages(bag.details, nested);
+  collectNestedRejectionMessages(bag.failures, nested);
+  const fromNested = nested.find((msg) => !isGenericStatusLabel(msg, statusCode));
+  if (fromNested) return fromNested;
+  const nestedStatus = bag.statusText;
+  if (typeof nestedStatus === "string" && !isGenericStatusLabel(nestedStatus, statusCode)) {
+    return nestedStatus.trim();
   }
   if (statusText && !isGenericStatusLabel(statusText, statusCode)) {
     return statusText.trim();

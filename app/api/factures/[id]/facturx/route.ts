@@ -3,6 +3,9 @@ import { buildFacturXXml } from "@/lib/facturation/build-facturx-xml";
 import { eligibilityFacturX } from "@/lib/facturation/emission-gate";
 import { embedFacturXPdf, FACTURES_EINVOICING_BUCKET, facturXAlreadyGenerated, facturXStoragePath } from "@/lib/facturation/embed-facturx";
 import { facturXSourceFromDetail } from "@/lib/facturation/from-detail";
+import { franceRfeReady, franceRfeSummaryLine, franceRfeValidateXml } from "@/lib/facturation/france-rfe";
+import { InvoiceValidationError } from "@/lib/facturation/pa/errors";
+import { attachSuperPdpRoutingAddresses } from "@/lib/facturation/pa/superpdp-routing";
 import { renderFactureVisualPdf } from "@/lib/facturation/render-facture-visual";
 import { parseSnapshotClient, parseSnapshotEmetteur } from "@/lib/facturation/snapshots";
 import { resolveProfileLogoUrl } from "@/lib/supabase/logo-storage";
@@ -139,8 +142,18 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
 
   try {
-    const source = facturXSourceFromDetail({ facture, emetteur: snapshotEmetteur, client: snapshotClient });
+    let source = facturXSourceFromDetail({ facture, emetteur: snapshotEmetteur, client: snapshotClient });
+    source = await attachSuperPdpRoutingAddresses(supabase, user.id, source);
     const xml = buildFacturXXml(source);
+    if (franceRfeReady()) {
+      const franceRfe = franceRfeValidateXml(xml);
+      if (!franceRfe.ok) {
+        const failures = franceRfe.failures
+          .map((f) => `${f.id}: ${f.text}`.trim())
+          .filter(Boolean);
+        throw new InvoiceValidationError(failures.length > 0 ? failures : [franceRfeSummaryLine(franceRfe)]);
+      }
+    }
     const logo = await resolveProfileLogoUrl((profile.logo_url ?? null) as string | null);
     const visual = await renderFactureVisualPdf(source, logo);
     const pdfBytes = await embedFacturXPdf(visual, xml, {
@@ -194,6 +207,9 @@ export async function POST(_req: Request, ctx: Ctx) {
       numero: source.numero,
     });
   } catch (err) {
+    if (err instanceof InvoiceValidationError) {
+      return NextResponse.json({ message: err.message, failures: err.failures }, { status: 422 });
+    }
     const { status, message } = httpError(err);
     const msg = err instanceof Error ? err.message : message;
     return NextResponse.json({ message: msg }, { status: status === 502 ? 500 : status });

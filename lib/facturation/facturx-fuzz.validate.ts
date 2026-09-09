@@ -4,15 +4,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { assertBrCoTotals } from "@/lib/facturation/br-co";
-import { buildFacturXXml } from "@/lib/facturation/build-facturx-xml";
+import { buildFacturXXml, type FacturXSource } from "@/lib/facturation/build-facturx-xml";
 import { mustangJarPath, mustangValidate, mustangValidateDirectory } from "@/lib/facturation/external-validators";
 import { franceRfeReady, franceRfeSummaryLine, franceRfeValidateMany } from "@/lib/facturation/france-rfe";
-import {
-  allFuzzClientProfiles,
-  facturXSourceFromClientProfile,
-  fuzzClientProfileKey,
-  randomFacturXSource,
-} from "@/lib/facturation/fuzz";
+import { allFuzzClientProfiles, partitionFuzzEinvoicingMatrix, randomFacturXSource } from "@/lib/facturation/fuzz";
+import { withSandboxDirectoryRouting } from "@/lib/facturation/pa/superpdp-routing";
+
+/** XML tel qu’il part après substitution Peppol (pas le fallback SIREN). */
+function shippedFacturXXml(source: FacturXSource): string {
+  return buildFacturXXml(withSandboxDirectoryRouting(source));
+}
 
 function mustangErrorSummary(report: string): string {
   const ids = report.match(/ErrorIDs:\s*\[([^\]]+)\]/);
@@ -54,42 +55,44 @@ describe("500 factures aléatoires — BR-CO-10 à BR-CO-17", () => {
 });
 
 describe("profils clients — cartesian Mustang", () => {
-  it("valide les 216 combinaisons (XSD + Schematron, y compris ident=aucun FR)", () => {
+  it("valide le XML final après overlay Peppol (gate produit, puis XSD + Schematron)", () => {
     if (!existsSync(mustangJarPath())) {
       throw new Error("Mustang-CLI.jar absent. Exécute : bash scripts/ensure-facturx-validators.sh");
     }
 
     const profiles = allFuzzClientProfiles();
     expect(profiles).toHaveLength(216);
+    const { excluded, inScope } = partitionFuzzEinvoicingMatrix();
 
     const dir = path.join(process.cwd(), "tools/validators/fuzz-client-profiles");
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
 
-    const broken: { key: string; stage: "generate" | "br-co" | "mustang"; detail: string }[] = [];
+    const failed: { key: string; stage: "generate" | "br-co" | "mustang"; detail: string }[] = [];
     const files: { key: string; file: string }[] = [];
-    const aucunFrKeys: string[] = [];
 
-    for (const profile of profiles) {
-      const key = fuzzClientProfileKey(profile);
-      if (profile.ident === "aucun" && profile.geo === "FR") aucunFrKeys.push(key);
+    for (const { key, source } of inScope) {
       const slug = key.replaceAll("|", "__");
       try {
-        const xml = buildFacturXXml(facturXSourceFromClientProfile(profile));
+        const xml = shippedFacturXXml(source);
         const br = assertBrCoTotals(xml);
         if (br.length > 0) {
-          broken.push({
+          failed.push({
             key,
             stage: "br-co",
             detail: br.map((f) => `${f.rule}: ${f.message}`).join("; "),
           });
           continue;
         }
+        if (!xml.includes("315143296_97118") || !xml.includes("315143296_97117")) {
+          failed.push({ key, stage: "generate", detail: "overlay Peppol absent (BT-34/BT-49)" });
+          continue;
+        }
         const file = path.join(dir, `${slug}.xml`);
         writeFileSync(file, xml, "utf8");
         files.push({ key, file });
       } catch (err) {
-        broken.push({
+        failed.push({
           key,
           stage: "generate",
           detail: err instanceof Error ? err.message : String(err),
@@ -98,16 +101,11 @@ describe("profils clients — cartesian Mustang", () => {
     }
 
     const batch = mustangValidateDirectory(dir);
-    const brFr12Keys: string[] = [];
     if (!batch.ok) {
       for (const { key, file } of files) {
         const r = mustangValidate(file);
         if (!r.ok) {
-          const detail = mustangErrorSummary(r.report);
-          if (/BR-FR-12|BT-49/.test(r.report) || /BR-FR-12|BT-49/.test(detail)) {
-            brFr12Keys.push(key);
-          }
-          broken.push({ key, stage: "mustang", detail });
+          failed.push({ key, stage: "mustang", detail: mustangErrorSummary(r.report) });
         }
       }
     }
@@ -118,10 +116,10 @@ describe("profils clients — cartesian Mustang", () => {
       JSON.stringify(
         {
           total: profiles.length,
+          excluded: excluded.length,
           generated: files.length,
-          broken: broken.length,
-          brFr12: brFr12Keys,
-          list: broken.slice(0, 32),
+          failed: failed.length,
+          list: failed.slice(0, 32),
         },
         null,
         2,
@@ -129,50 +127,51 @@ describe("profils clients — cartesian Mustang", () => {
       "utf8",
     );
 
-    expect(aucunFrKeys, "échantillon BR-FR-12 (ident=aucun + FR)").toHaveLength(24);
+    expect(excluded, "hors périmètre (gate)").toHaveLength(108);
+    expect(inScope, "à générer").toHaveLength(108);
     expect(
-      brFr12Keys,
-      `BR-FR-12/BT-49 encore présent sur ${brFr12Keys.length} profils : ${brFr12Keys.slice(0, 8).join(" ; ")}`,
-    ).toEqual([]);
-    expect(
-      broken,
-      broken
+      failed,
+      failed
         .slice(0, 8)
         .map((b) => `${b.key} [${b.stage}] ${b.detail}`)
         .join("\n"),
     ).toEqual([]);
-    expect(files).toHaveLength(216);
+    expect(files).toHaveLength(108);
   }, 600_000);
 });
 
 describe("profils clients — cartesian France_RFE", () => {
-  it("v1.4.0.04 : 72/216 BR-FR-12 si ident=aucun (générateur non corrigé)", async () => {
+  it("v1.4.0.04 : XML final après overlay Peppol (EN16931 + BR-FR-Flux2)", async () => {
     if (!existsSync(mustangJarPath()) || !franceRfeReady()) {
       throw new Error("France_RFE / Saxon absents. Exécute : bash scripts/ensure-facturx-validators.sh");
     }
 
     const profiles = allFuzzClientProfiles();
     expect(profiles).toHaveLength(216);
+    const { excluded, inScope } = partitionFuzzEinvoicingMatrix();
 
     const dir = path.join(process.cwd(), "tools/validators/fuzz-client-profiles-france-rfe");
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
 
     const files: { key: string; file: string }[] = [];
-    const broken: { key: string; ids: string[]; detail: string }[] = [];
+    const failed: { key: string; ids: string[]; detail: string }[] = [];
     const byRule: Record<string, number> = {};
 
-    for (const profile of profiles) {
-      const key = fuzzClientProfileKey(profile);
+    for (const { key, source } of inScope) {
       const slug = key.replaceAll("|", "__");
-      const xml = buildFacturXXml(facturXSourceFromClientProfile(profile));
+      const xml = shippedFacturXXml(source);
       const br = assertBrCoTotals(xml);
       if (br.length > 0) {
-        broken.push({
+        failed.push({
           key,
           ids: br.map((f) => f.rule),
           detail: br.map((f) => `${f.rule}: ${f.message}`).join("; "),
         });
+        continue;
+      }
+      if (!xml.includes("315143296_97118") || !xml.includes("315143296_97117")) {
+        failed.push({ key, ids: ["overlay"], detail: "overlay Peppol absent (BT-34/BT-49)" });
         continue;
       }
       const file = path.join(dir, `${slug}.xml`);
@@ -185,7 +184,7 @@ describe("profils clients — cartesian France_RFE", () => {
       if (result.ok) continue;
       const ids = [...new Set(result.failures.map((f) => f.id).filter(Boolean))];
       for (const id of ids) byRule[id] = (byRule[id] ?? 0) + 1;
-      broken.push({ key, ids, detail: franceRfeSummaryLine(result) });
+      failed.push({ key, ids, detail: franceRfeSummaryLine(result) });
     }
 
     const reportPath = path.join(process.cwd(), "tools/validators/fuzz-client-profiles-france-rfe-report.json");
@@ -194,11 +193,13 @@ describe("profils clients — cartesian France_RFE", () => {
       JSON.stringify(
         {
           pin: "v1.4.0.04",
+          overlay: "sandbox-peppol",
           total: profiles.length,
+          excluded: excluded.length,
           generated: files.length,
-          failed: broken.length,
+          failed: failed.length,
           byRule,
-          list: broken,
+          list: failed,
         },
         null,
         2,
@@ -206,16 +207,16 @@ describe("profils clients — cartesian France_RFE", () => {
       "utf8",
     );
 
-    if (broken.length > 0) {
+    if (failed.length > 0) {
       const ruleLines = Object.entries(byRule)
         .sort((a, b) => b[1] - a[1])
         .map(([id, n]) => `  ${id}: ${n}`)
         .join("\n");
       console.error(
-        `France_RFE: ${broken.length}/216 échecs (générateur non corrigé)\n` +
+        `France_RFE: ${failed.length} échecs réels / ${files.length} générés (${excluded.length} exclus)\n` +
           `Règles:\n${ruleLines}\n` +
           `Exemples:\n` +
-          broken
+          failed
             .slice(0, 16)
             .map((b) => `  ${b.key} → ${b.detail}`)
             .join("\n") +
@@ -223,10 +224,8 @@ describe("profils clients — cartesian France_RFE", () => {
       );
     }
 
-    expect(files, "XML générés pour France_RFE").toHaveLength(216);
-    // Générateur non corrigé : BT-49 absent si ident=aucun (4×2×3×3 = 72).
-    // Toute autre règle France_RFE doit rester verte.
-    expect(byRule, JSON.stringify(byRule)).toEqual({ "BR-FR-12_BT-49": 72 });
-    expect(broken).toHaveLength(72);
+    expect(excluded, "hors périmètre (gate)").toHaveLength(108);
+    expect(files, "XML générés").toHaveLength(108);
+    expect(failed, failed.map((b) => `${b.key}: ${b.detail}`).join("\n")).toEqual([]);
   }, 600_000);
 });

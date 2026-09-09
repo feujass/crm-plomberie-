@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -120,6 +120,17 @@ function assertFranceRfeTools(): void {
   }
   if (!franceRfeReady()) {
     throw new Error("France_RFE absent. Lance : bash scripts/ensure-facturx-validators.sh");
+  }
+}
+
+export function franceRfeValidateXml(xml: string): FranceRfeValidation {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "flowo-france-rfe-xml-"));
+  const xmlPath = path.join(tmp, "document.xml");
+  try {
+    writeFileSync(xmlPath, xml, "utf8");
+    return franceRfeValidate(xmlPath);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 }
 

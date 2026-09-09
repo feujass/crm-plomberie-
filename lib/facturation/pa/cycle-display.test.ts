@@ -23,6 +23,11 @@ describe("cycle-display", () => {
     expect(rejectionReasonFromEvent("api:invalid", { reason: "XML CII incomplet" })).toBe(
       "XML CII incomplet",
     );
+    expect(
+      rejectionReasonFromEvent("api:invalid", {
+        details: [{ failures: [{ message: "Value of '@schemeID' is not allowed." }] }],
+      }),
+    ).toBe("Value of '@schemeID' is not allowed.");
   });
 
   it("prend le dernier motif fr:210 / 213 / 501", () => {

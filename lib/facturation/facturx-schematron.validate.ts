@@ -7,8 +7,9 @@ import { assertBrCoTotals } from "@/lib/facturation/br-co";
 import { buildFacturXXml } from "@/lib/facturation/build-facturx-xml";
 import { embedFacturXPdf } from "@/lib/facturation/embed-facturx";
 import { mustangValidate, veraPdfValidate, mustangJarPath, veraPdfBinPath } from "@/lib/facturation/external-validators";
-import { franceRfeReady, franceRfeSummaryLine, franceRfeValidate } from "@/lib/facturation/france-rfe";
+import { franceRfeReady, franceRfeSummaryLine, franceRfeValidate, franceRfeValidateXml } from "@/lib/facturation/france-rfe";
 import { fixtureMixteMultiTva, fixtureAvoirNegatif, fixtureFranchise293B } from "@/lib/facturation/facturx-fixtures";
+import { withSandboxDirectoryRouting } from "@/lib/facturation/pa/superpdp-routing";
 import { renderFactureVisualPdf } from "@/lib/facturation/render-facture-visual";
 import { existsSync } from "node:fs";
 
@@ -94,4 +95,37 @@ describe("validate:facturx — moteur indépendant", () => {
     }
     expect(broken, broken.map((b) => `${b.numero}: ${b.detail}`).join("\n")).toEqual([]);
   }, 180_000);
+
+  it("France_RFE accepte BT-49 0225+SIREN et le XML final 0225+Peppol (après overlay)", () => {
+    if (!existsSync(mustangJarPath()) || !franceRfeReady()) {
+      throw new Error("France_RFE / Saxon absents. Exécute : bash scripts/ensure-facturx-validators.sh");
+    }
+    const dir = path.join(process.cwd(), "tools/validators/sample");
+    mkdirSync(dir, { recursive: true });
+
+    const sirenSrc = fixtureMixteMultiTva();
+    const sirenXml = buildFacturXXml(sirenSrc);
+    expect(sirenXml).toContain('schemeID="0225">443061841<');
+    expect(sirenXml).not.toContain(">0225:443061841<");
+
+    const peppolSrc = withSandboxDirectoryRouting(fixtureMixteMultiTva());
+    const peppolXml = buildFacturXXml(peppolSrc);
+    expect(peppolXml).toContain('schemeID="0225">315143296_97117<');
+    expect(peppolXml).not.toContain('schemeID="0225">443061841<');
+    const peppolFromString = franceRfeValidateXml(peppolXml);
+    expect(peppolFromString.ok, franceRfeSummaryLine(peppolFromString)).toBe(true);
+
+    const cases = [
+      { name: "siren", xml: sirenXml },
+      { name: "peppol", xml: peppolXml },
+    ];
+    const broken: string[] = [];
+    for (const c of cases) {
+      const xmlPath = path.join(dir, `bt49-${c.name}.xml`);
+      writeFileSync(xmlPath, c.xml, "utf8");
+      const r = franceRfeValidate(xmlPath);
+      if (!r.ok) broken.push(`${c.name}: ${franceRfeSummaryLine(r)}`);
+    }
+    expect(broken, broken.join(" | ")).toEqual([]);
+  }, 120_000);
 });
