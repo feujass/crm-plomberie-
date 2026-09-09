@@ -1944,10 +1944,6 @@ export type Database = {
           decennale_mention: string | null
           email_facturation: string | null
           entreprise_nom: string | null
-          feature_flag_chorus: boolean | null
-          feature_flag_ereporting: boolean | null
-          feature_flag_esign_advanced: boolean | null
-          feature_flag_pdp: boolean | null
           forme_juridique: string | null
           ia_devis_count: number
           ia_devis_month: string | null
@@ -2011,10 +2007,6 @@ export type Database = {
           decennale_mention?: string | null
           email_facturation?: string | null
           entreprise_nom?: string | null
-          feature_flag_chorus?: boolean | null
-          feature_flag_ereporting?: boolean | null
-          feature_flag_esign_advanced?: boolean | null
-          feature_flag_pdp?: boolean | null
           forme_juridique?: string | null
           ia_devis_count?: number
           ia_devis_month?: string | null
@@ -2078,10 +2070,6 @@ export type Database = {
           decennale_mention?: string | null
           email_facturation?: string | null
           entreprise_nom?: string | null
-          feature_flag_chorus?: boolean | null
-          feature_flag_ereporting?: boolean | null
-          feature_flag_esign_advanced?: boolean | null
-          feature_flag_pdp?: boolean | null
           forme_juridique?: string | null
           ia_devis_count?: number
           ia_devis_month?: string | null

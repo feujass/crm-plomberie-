@@ -50,10 +50,6 @@ export type BackendProfile = {
   pays?: string;
   use_personal_library?: boolean;
   assistant_name?: string;
-  feature_flag_pdp?: boolean;
-  feature_flag_ereporting?: boolean;
-  feature_flag_chorus?: boolean;
-  feature_flag_esign_advanced?: boolean;
   relance_devis_jours?: number;
   relance_facture_jours?: number;
   relance_devis_echeances?: string;

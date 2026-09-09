@@ -145,10 +145,6 @@ export function CompteEntrepriseFormClient({
             mention_legale: String(fd.get("mention_legale") || ""),
             conditions_paiement: String(fd.get("conditions_paiement") || ""),
             specialites: String(fd.get("specialites") || ""),
-            feature_flag_pdp: fd.get("feature_flag_pdp") === "on",
-            feature_flag_ereporting: fd.get("feature_flag_ereporting") === "on",
-            feature_flag_chorus: fd.get("feature_flag_chorus") === "on",
-            feature_flag_esign_advanced: fd.get("feature_flag_esign_advanced") === "on",
           });
           router.refresh();
         } catch (er) {
@@ -276,25 +272,6 @@ export function CompteEntrepriseFormClient({
           <Input label="Email facturation" name="email_facturation" type="email" defaultValue={profile.email_facturation ?? ""} />
           <Textarea label="Mentions légales" name="mention_legale" defaultValue={profile.mention_legale ?? ""} rows={3} />
           <Textarea label="Conditions de paiement" name="conditions_paiement" defaultValue={profile.conditions_paiement ?? ""} rows={2} />
-          <div className="rounded-xl border border-dashed border-gray-300 p-3 dark:border-gray-600">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Fonctionnalités conformité</p>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="feature_flag_pdp" defaultChecked={profile.feature_flag_pdp !== false} />
-              PDP / e-invoicing & e-reporting
-            </label>
-            <label className="mt-1 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="feature_flag_ereporting" defaultChecked={profile.feature_flag_ereporting !== false} />
-              E-reporting explicite
-            </label>
-            <label className="mt-1 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="feature_flag_chorus" defaultChecked={profile.feature_flag_chorus !== false} />
-              Chorus Pro (secteur public)
-            </label>
-            <label className="mt-1 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="feature_flag_esign_advanced" defaultChecked={profile.feature_flag_esign_advanced !== false} />
-              Signature électronique avancée (devis)
-            </label>
-          </div>
         </div>
       </div>
 

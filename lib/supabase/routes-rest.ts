@@ -812,49 +812,6 @@ export async function handleFacturesExtended(
     return (data ?? []).map(mapTransmission);
   }
 
-  if (method === "POST" && factureId && sub === "transmissions" && subAction === "retry") {
-    const { data: facture } = await supabase
-      .from("factures")
-      .select("*")
-      .eq("id", factureId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!facture) throw new Error("Facture non trouvée");
-    const branche = String(facture.conformite_branche ?? "particulier");
-    await supabase.from("compliance_transmissions").delete().eq("facture_id", factureId).eq("user_id", user.id);
-    await createDefaultTransmissions(supabase, user.id, factureId, branche);
-    await auditLog(supabase, user.id, "facture.transmissions_retry", "facture", factureId, { branche });
-    const { data } = await supabase
-      .from("compliance_transmissions")
-      .select("*")
-      .eq("facture_id", factureId)
-      .order("created_at", { ascending: false });
-    return (data ?? []).map(mapTransmission);
-  }
-
-  if (method === "GET" && factureId && sub === "chorus-export") {
-    const { data: facture } = await supabase
-      .from("factures")
-      .select("*")
-      .eq("id", factureId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!facture) throw new Error("Facture non trouvée");
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-    return {
-      facture_numero: facture.numero,
-      date_emission: facture.date_emission,
-      total_ttc: facture.total_ttc,
-      emetteur: {
-        entreprise: profile?.entreprise_nom,
-        siret: profile?.siret,
-        siren: profile?.siren,
-      },
-      chorus_service_code: facture.chorus_service_code,
-      format: "chorus_stub_v1",
-    };
-  }
-
   return null;
 }
 

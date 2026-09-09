@@ -329,10 +329,6 @@ class ProfileUpdate(BaseModel):
     pays: Optional[str] = None
     use_personal_library: Optional[bool] = None
     assistant_name: Optional[str] = None
-    feature_flag_pdp: Optional[bool] = None
-    feature_flag_ereporting: Optional[bool] = None
-    feature_flag_chorus: Optional[bool] = None
-    feature_flag_esign_advanced: Optional[bool] = None
     relance_devis_jours: Optional[int] = None
     relance_facture_jours: Optional[int] = None
     relance_devis_echeances: Optional[str] = None
@@ -556,10 +552,6 @@ async def register(input: RegisterInput):
         "relance_facture_echeances": "0,7,14",
         "tva_sur_encaissements": True,
         "tva_sur_debits_opt_in": False,
-        "feature_flag_pdp": True,
-        "feature_flag_ereporting": True,
-        "feature_flag_chorus": True,
-        "feature_flag_esign_advanced": True,
         "subscription_plan": "free",
         "subscription_status": None,
         "stripe_customer_id": None,
@@ -1827,10 +1819,6 @@ async def startup():
                     "onboarding_complete": True,
                     "tva_sur_encaissements": True,
                     "tva_sur_debits_opt_in": False,
-                    "feature_flag_pdp": True,
-                    "feature_flag_ereporting": True,
-                    "feature_flag_chorus": True,
-                    "feature_flag_esign_advanced": True,
                 })
                 logger.info(f"Admin seeded: {admin_email}")
             elif not verify_password(admin_password, existing["password_hash"]):

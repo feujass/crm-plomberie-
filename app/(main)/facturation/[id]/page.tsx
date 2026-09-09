@@ -1,4 +1,4 @@
-import { FactureConformiteClient } from "@/components/facturation/FactureConformiteClient";
+import { FactureControlesFlowo } from "@/components/facturation/FactureControlesFlowo";
 import { FactureCycleBannerClient } from "@/components/facturation/FactureCycleBannerClient";
 import { FactureCycleJournal } from "@/components/facturation/FactureCycleJournal";
 import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiementFormClient";
@@ -13,7 +13,7 @@ import { loadFactureCycleJournal } from "@/lib/facturation/pa/load-cycle-journal
 import { requireFeature } from "@/lib/plans/require-feature";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import { notFound } from "next/navigation";
-import type { BackendFactureDetail, BackendTransmission } from "@/types/backend";
+import type { BackendFactureDetail } from "@/types/backend";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -28,12 +28,7 @@ export default async function FactureDetailPage({ params }: Props) {
   }
   if (!facture) notFound();
 
-  const [transmissions, cycleEvents] = await Promise.all([
-    backendFetch(`/api/factures/${id}/transmissions`)
-      .then((rows) => rows as BackendTransmission[])
-      .catch(() => [] as BackendTransmission[]),
-    loadFactureCycleJournal(id),
-  ]);
+  const cycleEvents = await loadFactureCycleJournal(id);
 
   const pays = facture.paiements ?? [];
   const sumPay = pays.reduce((s, p) => s + Number(p.montant || 0), 0);
@@ -125,23 +120,7 @@ export default async function FactureDetailPage({ params }: Props) {
       />
       {publicUrl ? <FacturePublicLinkBlock publicUrl={publicUrl} /> : null}
 
-      <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 dark:text-slate-100">
-          Conformité (avancé)
-          <span className="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400">PDP / Chorus / transmissions</span>
-        </summary>
-        <div className="mt-3">
-          <FactureConformiteClient
-            factureId={id}
-            factureNumero={facture.numero}
-            totalTtc={Number(facture.total_ttc ?? 0)}
-            dateEmission={facture.date_emission}
-            branche={facture.conformite_branche}
-            warnings={facture.conformite_warnings}
-            initialTransmissions={Array.isArray(transmissions) ? transmissions : []}
-          />
-        </div>
-      </details>
+      <FactureControlesFlowo warnings={facture.conformite_warnings} />
 
       <FactureCycleJournal events={cycleEvents} />
 
