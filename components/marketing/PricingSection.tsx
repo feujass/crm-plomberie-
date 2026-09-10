@@ -62,9 +62,12 @@ export function PricingSection() {
                 {price}€ <span className="text-base font-semibold text-slate-500">HT /{yearly ? "an" : "mois"}</span>
               </p>
               {plan.id === "pro_plus" ? (
-                <span className="mt-3 inline-block rounded-full border border-yellow-300 bg-yellow-100 px-3 py-0.5 text-xs font-semibold text-yellow-800">
-                  ⚡ Conforme facturation électronique 2026
-                </span>
+                <>
+                  <span className="mt-3 inline-block rounded-full border border-yellow-300 bg-yellow-100 px-3 py-0.5 text-xs font-semibold text-yellow-800">
+                    Format électronique officiel (Factur-X)
+                  </span>
+                  <p className="mt-1 text-[11px] text-slate-500">EN 16931 / CIUS-FR</p>
+                </>
               ) : null}
               <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{plan.description}</p>
               <Link

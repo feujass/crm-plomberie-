@@ -49,7 +49,7 @@ const PLANS: Plan[] = [
       "Inclut tout le plan Pro",
       "Zeus IA : 50 devis vocaux/mois",
       "Catalogue illimité (prix personnalisés)",
-      "Préparation pour facturation électronique",
+      "Factures au format électronique officiel (Factur-X)",
       "Suivi des paiements clients",
     ],
   },

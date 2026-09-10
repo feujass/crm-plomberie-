@@ -1,4 +1,3 @@
-import { FactureConformiteClient } from "@/components/facturation/FactureConformiteClient";
 import { FacturePaiementFormClient } from "@/components/facturation/FacturePaiementFormClient";
 import { FacturePublicLinkBlock } from "@/components/facturation/FacturePublicLinkBlock";
 import { Badge } from "@/components/ui/Badge";
@@ -8,7 +7,7 @@ import { backendFetch } from "@/lib/backend/server";
 import { requireFeature } from "@/lib/plans/require-feature";
 import { formatCurrencyEUR, formatDateFr } from "@/lib/format";
 import { notFound } from "next/navigation";
-import type { BackendFactureDetail, BackendTransmission } from "@/types/backend";
+import type { BackendFactureDetail } from "@/types/backend";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -22,13 +21,6 @@ export default async function FactureDetailPage({ params }: Props) {
     facture = null;
   }
   if (!facture) notFound();
-
-  let transmissions: BackendTransmission[] = [];
-  try {
-    transmissions = (await backendFetch(`/api/factures/${id}/transmissions`)) as BackendTransmission[];
-  } catch {
-    transmissions = [];
-  }
 
   const pays = facture.paiements ?? [];
   const sumPay = pays.reduce((s, p) => s + Number(p.montant || 0), 0);
@@ -87,24 +79,6 @@ export default async function FactureDetailPage({ params }: Props) {
         </div>
       ) : null}
       {publicUrl ? <FacturePublicLinkBlock publicUrl={publicUrl} /> : null}
-
-      <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 dark:text-slate-100">
-          Conformité (avancé)
-          <span className="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400">PDP / Chorus / transmissions</span>
-        </summary>
-        <div className="mt-3">
-          <FactureConformiteClient
-            factureId={id}
-            factureNumero={facture.numero}
-            totalTtc={Number(facture.total_ttc ?? 0)}
-            dateEmission={facture.date_emission}
-            branche={facture.conformite_branche}
-            warnings={facture.conformite_warnings}
-            initialTransmissions={Array.isArray(transmissions) ? transmissions : []}
-          />
-        </div>
-      </details>
 
       <Card>
         <div className="mb-3 flex items-end justify-between border-b border-slate-200 pb-2 dark:border-slate-800">

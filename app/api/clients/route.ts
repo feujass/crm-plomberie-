@@ -16,6 +16,13 @@ export async function POST(req: Request) {
     tel: string;
     adresse: string;
     type: string;
+    siret: string;
+    siren: string;
+    tva_intracom: string;
+    categorie_fiscale: string;
+    secteur_public: boolean;
+    chorus_service_code: string;
+    notes: string;
   }>;
 
   const nom = String(input.nom ?? "").trim();
@@ -32,6 +39,13 @@ export async function POST(req: Request) {
         tel: String(input.tel ?? ""),
         adresse: String(input.adresse ?? ""),
         type: String(input.type ?? "particulier"),
+        siret: String(input.siret ?? "").trim(),
+        siren: String(input.siren ?? "").trim(),
+        tva_intracom: String(input.tva_intracom ?? "").trim(),
+        categorie_fiscale: String(input.categorie_fiscale ?? "").trim(),
+        secteur_public: Boolean(input.secteur_public),
+        chorus_service_code: String(input.chorus_service_code ?? "").trim(),
+        notes: String(input.notes ?? "").trim(),
       }),
     });
     return NextResponse.json(created);

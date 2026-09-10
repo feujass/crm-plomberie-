@@ -33,7 +33,7 @@ const faqItems = [
   {
     question: "La facturation électronique est-elle incluse ?",
     answer:
-      "La préparation à la facturation électronique obligatoire (France, 2026) est incluse dans les plans Pro+ et PME.",
+      "Les plans Pro+ et PME incluent des factures au format électronique officiel (Factur-X). Le raccordement à une plateforme agréée est en cours de déploiement : ce n’est pas encore un dépôt en production, et Flowo ne rend pas un artisan automatiquement conforme à la réforme.",
   },
 ] as const;
 

@@ -116,7 +116,7 @@ def validate_facture_emission(
             errors.append("Facture B2B : mentionnez les pénalités de retard (taux légal).")
     if branche == "secteur_public":
         if not str(facture.get("chorus_service_code") or "").strip():
-            errors.append("Secteur public : renseignez le code service / référence Chorus Pro sur la facture.")
+            errors.append("Secteur public : renseignez le code service sur la facture.")
     op = str(facture.get("operations_type") or "").strip()
     if op and op not in ("biens", "services", "mixte"):
         errors.append("Type d'opérations invalide (biens | services | mixte).")

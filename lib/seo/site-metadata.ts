@@ -9,12 +9,14 @@ export const siteMetadata: Metadata = {
     template: "%s | Flowo",
   },
   description:
-    "Dicte ton chantier à voix haute, Zeus rédige le devis, calcule les totaux et l'envoie à ton client en moins de 30 secondes. CRM, facturation conforme 2026. Essai gratuit sans carte bancaire.",
+    "Dicte ton chantier à voix haute, Zeus rédige le devis, calcule les totaux et l'envoie à ton client en moins de 30 secondes. CRM, factures Factur-X conformes EN 16931 et CIUS-FR. Essai gratuit sans carte bancaire.",
   keywords: [
     "logiciel devis plombier",
     "CRM artisan",
     "devis vocal",
-    "facturation électronique 2026",
+    "Factur-X",
+    "EN 16931",
+    "CIUS-FR",
     "logiciel plomberie",
     "devis BTP",
   ],

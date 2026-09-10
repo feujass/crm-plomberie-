@@ -19,7 +19,7 @@ export function MarketingJsonLd() {
     operatingSystem: "Web",
     inLanguage: "fr",
     description:
-      "CRM et devis vocal pour plombiers et artisans BTP. Dictée vocale, génération de devis par IA, facturation conforme 2026.",
+      "CRM et devis vocal pour plombiers et artisans BTP. Dictée vocale, génération de devis par IA, factures Factur-X conformes EN 16931 et CIUS-FR.",
     url: SITE_URL,
     offers,
   };

@@ -163,6 +163,11 @@ async function handleClients(
         adresse: String(b.adresse ?? "").trim() || null,
         type: String(b.type ?? "particulier"),
         siret: String(b.siret ?? "").trim() || null,
+        siren: String(b.siren ?? "").trim() || null,
+        tva_intracom: String(b.tva_intracom ?? "").trim() || null,
+        categorie_fiscale: String(b.categorie_fiscale ?? "").trim() || null,
+        secteur_public: Boolean(b.secteur_public),
+        chorus_service_code: String(b.chorus_service_code ?? "").trim() || null,
         notes: String(b.notes ?? "").trim() || null,
       })
       .select("*")
@@ -208,8 +213,26 @@ async function handleClients(
 
   if ((method === "PUT" || method === "PATCH") && clientId) {
     const update: Record<string, unknown> = {};
-    for (const key of ["nom", "prenom", "email", "tel", "adresse", "type", "siret", "notes", "inactive"]) {
+    for (const key of [
+      "nom",
+      "prenom",
+      "email",
+      "tel",
+      "adresse",
+      "type",
+      "siret",
+      "siren",
+      "tva_intracom",
+      "categorie_fiscale",
+      "secteur_public",
+      "chorus_service_code",
+      "notes",
+      "inactive",
+    ]) {
       if (b[key] !== undefined) update[key] = b[key];
+    }
+    if (typeof update.chorus_service_code === "string") {
+      update.chorus_service_code = update.chorus_service_code.trim() || null;
     }
     const { data, error } = await supabase
       .from("clients")
