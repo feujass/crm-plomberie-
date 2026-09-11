@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#134e4a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect x="80" y="100" width="520" height="520" rx="24" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.2)"/>
+  <text x="120" y="180" fill="white" font-family="system-ui,sans-serif" font-size="28" font-weight="700">Nouveau devis vocal</text>
+  <g fill="rgba(255,255,255,0.85)">
+    <rect x="120" y="220" width="8" height="32" rx="4"/><rect x="136" y="210" width="8" height="52" rx="4"/>
+    <rect x="152" y="230" width="8" height="28" rx="4"/><rect x="168" y="205" width="8" height="58" rx="4"/>
+    <rect x="184" y="225" width="8" height="38" rx="4"/><rect x="200" y="215" width="8" height="48" rx="4"/>
+  </g>
+  <text x="120" y="320" fill="white" font-family="system-ui,sans-serif" font-size="22" opacity="0.95">« Remplacement chauffe-eau, pose et raccordements& »</text>
+  <circle cx="720" cy="360" r="140" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.35)" stroke-width="4"/>
+  <polygon points="700,300 700,420 790,360" fill="white"/>
+  <text x="680" y="540" fill="white" font-family="system-ui,sans-serif" font-size="42" font-weight="800">75 secondes pour tout comprendre</text>
+  <text x="680" y="590" fill="white" font-family="system-ui,sans-serif" font-size="26" opacity="0.9">Flowo · devis vocal pour plombiers</text>
+</svg>

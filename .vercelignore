@@ -1,0 +1,16 @@
+/backend
+/mobile
+/Flowo
+/_legacy
+/_incoming
+/video_edit
+/public/videos/flowo-vsl.mp4
+/agent-transcripts
+/.cursor
+*.ndjson
+.git
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/node_modules
+.next
