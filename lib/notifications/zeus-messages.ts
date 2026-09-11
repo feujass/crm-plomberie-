@@ -1,4 +1,3 @@
-import { ASSISTANT_DISPLAY_NAME } from "@/lib/assistant-branding";
 import type { NotificationEventId } from "@/lib/notifications/preferences";
 import { publicSiteUrl } from "@/lib/supabase/env";
 
@@ -23,21 +22,17 @@ function clientName(label?: string) {
   return n && n !== "—" ? n : "ton client";
 }
 
-function zeusLine(body: string): string {
-  return `🐾 *${ASSISTANT_DISPLAY_NAME}*\n${body}`;
-}
-
 export function zeusWhatsAppBody(event: NotificationEventId, opts: ZeusMessageOpts = {}): string {
   const numero = opts.numero?.trim() || "—";
   const client = clientName(opts.clientLabel);
 
   switch (event) {
     case "devis_cree":
-      return zeusLine(`Salut ! Ton devis *${numero}* pour *${client}* est prêt. Relis-le et envoie-le quand tu veux.`);
+      return `Salut ! Ton devis *${numero}* pour *${client}* est prêt. Relis-le et envoie-le quand tu veux.`;
     case "devis_accepte":
-      return zeusLine(`Bonne nouvelle ! 🎉\n*${client}* vient d'accepter ton devis *${numero}*. Tu peux passer à la facturation.`);
+      return `Bonne nouvelle ! 🎉\n*${client}* vient d'accepter ton devis *${numero}*. Tu peux passer à la facturation.`;
     case "devis_refuse":
-      return zeusLine(`Courage — *${client}* a refusé le devis *${numero}*.\nOn passe au suivant ?`);
+      return `Courage — *${client}* a refusé le devis *${numero}*.\nOn passe au suivant ?`;
     case "devis_relance": {
       const n = (opts.relanceIndex ?? 0) + 1;
       const total = opts.relanceTotal ?? 1;
@@ -45,14 +40,14 @@ export function zeusWhatsAppBody(event: NotificationEventId, opts: ZeusMessageOp
       const sent = opts.clientNotified
         ? "J'ai relancé ton client par e-mail."
         : "La relance client n'a pas pu partir (e-mail manquant ou erreur).";
-      return zeusLine(`Devis *${numero}* · *${client}*${step}\n${sent}`);
+      return `Devis *${numero}* · *${client}*${step}\n${sent}`;
     }
     case "facture_cree": {
       const montant =
         opts.montantTtc != null && Number.isFinite(opts.montantTtc)
           ? ` — ${opts.montantTtc.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`
           : "";
-      return zeusLine(`Ta facture *${numero}* pour *${client}* est créée${montant}.\nTu peux l'envoyer au client.`);
+      return `Ta facture *${numero}* pour *${client}* est créée${montant}.\nTu peux l'envoyer au client.`;
     }
     case "facture_relance": {
       const n = (opts.relanceIndex ?? 0) + 1;
@@ -61,23 +56,19 @@ export function zeusWhatsAppBody(event: NotificationEventId, opts: ZeusMessageOp
       const sent = opts.clientNotified
         ? "J'ai relancé ton client par e-mail."
         : "La relance client n'a pas pu partir (e-mail manquant ou erreur).";
-      return zeusLine(`Facture *${numero}* · *${client}*${step}\n${sent}`);
+      return `Facture *${numero}* · *${client}*${step}\n${sent}`;
     }
     case "facture_contestee":
-      return zeusLine(
-        `Le destinataire a contesté la facture *${numero}* (${client}).\nLe statut e-facturation ne change pas — ouvre le journal de la facture pour le détail.`,
-      );
+      return `Le destinataire a contesté la facture *${numero}* (${client}).\nLe statut e-facturation ne change pas — ouvre le journal de la facture pour le détail.`;
     case "facture_paiement_emis":
-      return zeusLine(
-        `Le destinataire a émis le paiement de la facture *${numero}* (${client}).\nL’encaissement Flowo ne sera clôturé que lorsque le paiement sera reçu.`,
-      );
+      return `Le destinataire a émis le paiement de la facture *${numero}* (${client}).\nL’encaissement Flowo ne sera clôturé que lorsque le paiement sera reçu.`;
     case "resume_hebdo":
-      return zeusLine("Ton résumé de la semaine est prêt dans Flowo.");
+      return "Ton résumé de la semaine est prêt dans Flowo.";
     default:
-      return zeusLine("Tu as une nouvelle alerte Flowo.");
+      return "Tu as une nouvelle alerte Flowo.";
   }
 }
 
 export function zeusTestWhatsAppBody(): string {
-  return zeusLine("Salut ! Tes notifications WhatsApp sont bien branchées. Je te préviendrai pour tes devis et factures.");
+  return "Salut ! Tes notifications WhatsApp sont bien branchées. Je te préviendrai pour tes devis et factures.";
 }

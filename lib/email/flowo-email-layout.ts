@@ -23,7 +23,7 @@ export function flowoEmailLayout(opts: FlowoEmailLayoutOpts): string {
   const preview = opts.preview ?? opts.title;
 
   const headerBlock = logoUrl
-    ? `<img src="${logoUrl}" alt="${brand}" width="56" height="56" style="display:block;margin:0 auto 12px;border-radius:14px;" />
+    ? `<img src="${logoUrl}" alt="${brand}" width="112" height="112" style="display:block;margin:0 auto 16px;width:112px;height:112px;border:0;" />
               <p style="margin:0;font-size:22px;font-weight:700;color:#1d4ed8;letter-spacing:-0.02em;">${brand}</p>`
     : `<p style="margin:0;font-size:22px;font-weight:700;color:#1d4ed8;letter-spacing:-0.02em;">${brand}</p>`;
 
