@@ -1,19 +1,21 @@
 import { computeDemoTotals, demoLineTotalHt, type DemoPreviewLine } from "@/lib/demo/quote-math";
 import { formatCurrencyEUR } from "@/lib/format";
 
-type Props = {
-  lines: DemoPreviewLine[];
-  lineCount: number;
-  totalTtc: number;
-};
-
-function asPreviewLine(raw: {
+type PreviewLineInput = {
   designation: string;
   quantite: number;
   unite: string;
   prix_ht?: number;
   tva?: number;
-}): DemoPreviewLine {
+};
+
+type Props = {
+  lines: PreviewLineInput[];
+  lineCount: number;
+  totalTtc: number;
+};
+
+function asPreviewLine(raw: PreviewLineInput): DemoPreviewLine {
   return {
     designation: raw.designation,
     quantite: raw.quantite,
