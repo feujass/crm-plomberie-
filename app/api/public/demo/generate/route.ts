@@ -107,12 +107,11 @@ export async function POST(req: Request) {
   const lineCount = quote.lignes.length;
   const totalTtc = computeDemoTotalTtc(quote.lignes);
 
-  let previewImageBase64: string;
+  let previewImageBase64 = "";
   try {
     previewImageBase64 = await renderBlurredPreviewPngBase64(quote.lignes);
   } catch (e) {
     console.error("[demo/generate] preview png", e);
-    return NextResponse.json({ message: "Aperçu indisponible.", code: "generation_failed" }, { status: 500 });
   }
 
   const admin = createAdminClient();
@@ -142,7 +141,6 @@ export async function POST(req: Request) {
     preview_lines: previewLines,
     line_count: lineCount,
     total_ttc: totalTtc,
-    preview_label: `${previewLines.length}/${lineCount} lignes visibles — prix masqués`,
     transcription_brute: brut,
   });
 

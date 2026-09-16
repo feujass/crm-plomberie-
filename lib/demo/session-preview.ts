@@ -1,4 +1,5 @@
 import { renderBlurredPreviewPngBase64 } from "@/lib/demo/preview-image";
+import { previewLinesFromQuote } from "@/lib/demo/quote-math";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
 import type { DevisIaResponse } from "@/lib/schemas/devis-ia";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -28,11 +29,16 @@ export async function fetchDemoQuoteForSession(demoSessionId: string): Promise<D
 
 export async function demoPreviewPayloadFromRow(row: DemoQuoteRow): Promise<DemoPreviewPayload> {
   const quote = row.quote_json;
-  const preview_image_base64 = await renderBlurredPreviewPngBase64(quote.lignes);
+  let preview_image_base64 = "";
+  try {
+    preview_image_base64 = await renderBlurredPreviewPngBase64(quote.lignes);
+  } catch (e) {
+    console.error("[demo/status] preview png", e);
+  }
   return {
     demo_quote_id: row.id,
     preview_image_base64,
-    preview_lines: row.preview_lines,
+    preview_lines: quote.lignes?.length ? previewLinesFromQuote(quote.lignes) : row.preview_lines,
     line_count: row.line_count,
     total_ttc: Number(row.total_ttc),
   };

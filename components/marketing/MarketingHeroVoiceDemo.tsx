@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Loader2, Mic, Square, Type } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DemoQuotePreview } from "@/components/marketing/DemoQuotePreview";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
 import { listenForSpeech, isBrowserSpeechRecognitionSupported } from "@/lib/voice/browserSpeechRecognition";
@@ -275,36 +276,23 @@ export function MarketingHeroVoiceDemo() {
       {phase === "preview" && preview ? (
         <div className="space-y-4">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Ton devis est prêt ({preview.line_count} lignes). Crée ton compte pour voir les prix et l&apos;envoyer à ton client.
+            Ton devis est prêt ({preview.line_count} ligne{preview.line_count > 1 ? "s" : ""}).
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Aperçu complet — {preview.preview_lines.length}/{preview.line_count} lignes visibles, prix masqués
-          </p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`data:image/png;base64,${preview.preview_image_base64}`}
-            alt="Aperçu devis flouté"
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-700"
+          <DemoQuotePreview
+            lines={preview.preview_lines}
+            lineCount={preview.line_count}
+            totalTtc={preview.total_ttc}
           />
-          <ul className="space-y-1 text-sm text-slate-700 dark:text-slate-200">
-            {preview.preview_lines.map((l) => (
-              <li key={l.designation}>
-                ✓ {l.designation} — {l.quantite} {l.unite}
-              </li>
-            ))}
-          </ul>
-          <p className="text-lg font-bold text-slate-900 dark:text-white">
-            Total TTC : {preview.total_ttc.toFixed(2)} €
-          </p>
           <Link
             href="/register?from=demo"
             onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
             className={cx(
               focusRing,
-              "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white sm:min-h-11",
+              "inline-flex min-h-12 w-full flex-col items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 py-2.5 text-white sm:min-h-11",
             )}
           >
-            Créer mon compte — voir le devis complet
+            <span className="text-sm font-semibold">Envoyer le devis au client</span>
+            <span className="text-xs font-medium text-white/85">Créer un compte</span>
           </Link>
         </div>
       ) : phase === "rate_limited" ? (

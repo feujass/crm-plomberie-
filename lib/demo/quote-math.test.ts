@@ -11,13 +11,14 @@ describe("demo quote math", () => {
     expect(ttc).toBe(254);
   });
 
-  it("extrait les 2 premières lignes", () => {
+  it("extrait toutes les lignes avec les prix", () => {
     const lines = previewLinesFromQuote([
       { designation: "A", quantite: 1, unite: "u", prix_ht: 10, tva: 10 },
       { designation: "B", quantite: 2, unite: "h", prix_ht: 20, tva: 10 },
       { designation: "C", quantite: 1, unite: "u", prix_ht: 30, tva: 10 },
     ]);
-    expect(lines).toHaveLength(2);
-    expect(lines[0]?.designation).toBe("A");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatchObject({ designation: "A", prix_ht: 10, tva: 10 });
+    expect(lines[2]?.designation).toBe("C");
   });
 });

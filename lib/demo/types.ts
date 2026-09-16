@@ -7,7 +7,13 @@ export type DemoQuoteRow = {
   devis_id: string | null;
   transcript: string;
   quote_json: DevisIaResponse;
-  preview_lines: Array<{ designation: string; quantite: number; unite: string }>;
+  preview_lines: Array<{
+    designation: string;
+    quantite: number;
+    unite: string;
+    prix_ht?: number;
+    tva?: number;
+  }>;
   line_count: number;
   total_ttc: number;
   created_at: string;
@@ -18,7 +24,13 @@ export type DemoQuoteRow = {
 export type DemoPreviewPayload = {
   demo_quote_id: string;
   preview_image_base64: string;
-  preview_lines: Array<{ designation: string; quantite: number; unite: string }>;
+  preview_lines: Array<{
+    designation: string;
+    quantite: number;
+    unite: string;
+    prix_ht?: number;
+    tva?: number;
+  }>;
   line_count: number;
   total_ttc: number;
 };

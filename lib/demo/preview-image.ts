@@ -10,27 +10,32 @@ function escapeXml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatEuro(n: number): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
+}
+
 function buildQuoteSvg(lignes: DevisIaResponse["lignes"], totalTtc: number): string {
   const rows = lignes
-    .map(
-      (l, i) =>
-        `<text x="24" y="${72 + i * 28}" font-family="system-ui,sans-serif" font-size="14" fill="#334155">${escapeXml(
-          `${i + 1}. ${l.designation} — ${l.quantite} ${l.unite}`,
-        )}</text>
-        <text x="480" y="${72 + i * 28}" font-family="system-ui,sans-serif" font-size="14" fill="#94a3b8">${escapeXml("••• €")}</text>`,
-    )
+    .map((l, i) => {
+      const unit = Number(l.prix_ht ?? l.prix_unitaire_ht) || 0;
+      const lineHt = Math.round(unit * (Number(l.quantite) || 0) * 100) / 100;
+      return `<text x="24" y="${72 + i * 28}" font-family="system-ui,sans-serif" font-size="14" fill="#334155">${escapeXml(
+        `${i + 1}. ${l.designation} — ${l.quantite} ${l.unite}`,
+      )}</text>
+        <text x="430" y="${72 + i * 28}" font-family="system-ui,sans-serif" font-size="14" fill="#0f172a" text-anchor="end">${escapeXml(formatEuro(lineHt))}</text>`;
+    })
     .join("");
   const height = Math.max(220, 96 + lignes.length * 28);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="${height}" viewBox="0 0 640 ${height}">
   <rect width="100%" height="100%" fill="#f8fafc"/>
-  <text x="24" y="36" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Aperçu devis Zeus (${lignes.length} lignes)</text>
+  <text x="24" y="36" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#0f172a">Devis (${lignes.length} lignes)</text>
   ${rows}
-  <text x="24" y="${Math.max(200, 80 + lignes.length * 28)}" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#64748b">Total TTC : ••• € (crée ton compte pour voir)</text>
+  <text x="24" y="${Math.max(200, 80 + lignes.length * 28)}" font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#0f172a">Total TTC : ${escapeXml(formatEuro(totalTtc))}</text>
 </svg>`;
 }
 
-/** PNG aperçu démo — intitulés lisibles, prix masqués. */
+/** PNG aperçu démo — lignes et prix visibles. */
 export async function renderBlurredPreviewPngBase64(lignes: DevisIaResponse["lignes"]): Promise<string> {
   const totalTtc = computeDemoTotalTtc(lignes);
   const svg = buildQuoteSvg(lignes, totalTtc);
