@@ -1,5 +1,6 @@
 import { CatalogueOuvrageCard } from "@/components/catalogue/CatalogueOuvrageCard";
 import { ImportFromDevisFormClient } from "@/components/catalogue/CatalogueActionForms";
+import { CircleBackLink } from "@/components/ui/CircleBackLink";
 import { backendFetch } from "@/lib/backend/server";
 import { FLOWO_EMPTY_LIST_CLASS, FLOWO_SEARCH_INPUT_CLASS, flowoSegmentTabClass } from "@/lib/flowo-ui";
 import { cx, focusRing } from "@/lib/utils";
@@ -42,6 +43,7 @@ export default async function CataloguePage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-5 pb-2">
+      <CircleBackLink href="/devis" label="Retour aux devis" />
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary)] dark:text-[color:var(--chart-1)]">

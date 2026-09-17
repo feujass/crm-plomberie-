@@ -6,14 +6,20 @@ import type { ReactNode } from "react";
 
 import { cx, focusRing } from "@/lib/utils";
 
+function pathMatches(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function NavPendingMark({
   href,
+  alsoMatch,
   children,
   className,
   activeClassName,
   idleClassName,
 }: {
   href: string;
+  alsoMatch?: string[];
   children: ReactNode;
   className?: string;
   activeClassName?: string;
@@ -21,7 +27,8 @@ function NavPendingMark({
 }) {
   const { pending } = useLinkStatus();
   const pathname = usePathname();
-  const matched = pathname === href || pathname.startsWith(`${href}/`);
+  const matched =
+    pathMatches(pathname, href) || (alsoMatch?.some((prefix) => pathMatches(pathname, prefix)) ?? false);
   const active = pending || matched;
   return (
     <span
@@ -36,6 +43,7 @@ function NavPendingMark({
 
 export function AppNavLink({
   href,
+  alsoMatch,
   ariaLabel,
   title,
   linkClassName,
@@ -45,6 +53,7 @@ export function AppNavLink({
   children,
 }: {
   href: string;
+  alsoMatch?: string[];
   ariaLabel?: string;
   title?: string;
   linkClassName?: string;
@@ -57,6 +66,7 @@ export function AppNavLink({
     <Link href={href} prefetch aria-label={ariaLabel} title={title} className={cx(focusRing, linkClassName)}>
       <NavPendingMark
         href={href}
+        alsoMatch={alsoMatch}
         className={className}
         activeClassName={activeClassName}
         idleClassName={idleClassName}

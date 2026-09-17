@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -12,7 +12,6 @@ import { SidebarProvider, SidebarTrigger } from "@/components/planner/Sidebar";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { NAV_MOBILE, type NavItem } from "@/lib/app-nav";
 import { APP_NAME, CONTACT_EMAIL } from "@/lib/app-branding";
-import { filterNavByPlan } from "@/lib/plans/features";
 import { useScrollHideHeader } from "@/lib/use-scroll-hide-header";
 import { useIsMobile } from "@/lib/useMobile";
 import { cx, focusRing } from "@/lib/utils";
@@ -23,19 +22,103 @@ import { AppBreadcrumbs } from "./AppBreadcrumbs";
 import { LoggedInAnalytics } from "@/components/legal/LoggedInAnalytics";
 import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 
-function MobileNavLink({ href, label, title, Icon }: { href: string; label: string; title?: string; Icon: NavItem["Icon"] }) {
+function MobileNavLink({
+  href,
+  label,
+  title,
+  Icon,
+  alsoMatch,
+}: {
+  href: string;
+  label: string;
+  title?: string;
+  Icon: NavItem["Icon"];
+  alsoMatch?: string[];
+}) {
+  return (
+    <AppNavLink
+      href={href}
+      alsoMatch={alsoMatch}
+      ariaLabel={title ?? label}
+      title={title ?? label}
+      linkClassName="flex min-w-0 flex-1 items-end justify-center"
+      className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 px-0.5 py-1 text-[10px] font-medium leading-none tracking-tight [&[data-active=true]_svg]:fill-current"
+      activeClassName="text-[color:var(--primary)]"
+      idleClassName="text-slate-500"
+    >
+      <Icon className="size-6 shrink-0" strokeWidth={1.75} aria-hidden />
+      <span className="max-w-[3.25rem] truncate text-center">{label}</span>
+    </AppNavLink>
+  );
+}
+
+function MobileCreateNavLink({
+  href,
+  label,
+  title,
+  alsoMatch,
+}: {
+  href: string;
+  label: string;
+  title?: string;
+  alsoMatch?: string[];
+}) {
+  return (
+    <AppNavLink
+      href={href}
+      alsoMatch={alsoMatch}
+      ariaLabel={title ?? label}
+      title={title ?? label}
+      linkClassName="relative flex min-w-0 flex-1 items-end justify-center"
+      className="flex flex-col items-center justify-end gap-0.5 px-0.5 pt-0 text-[10px] font-medium leading-none tracking-tight"
+      activeClassName="text-[color:var(--primary)]"
+      idleClassName="text-slate-500"
+    >
+      <span className="-mt-5 mb-0.5 flex size-14 items-center justify-center rounded-full bg-[color:var(--primary)] text-white shadow-[0_6px_16px_rgba(37,99,235,0.35)] ring-4 ring-white">
+        <Plus className="size-7" strokeWidth={2.5} aria-hidden />
+      </span>
+      <span className="max-w-[3.25rem] truncate text-center">{label}</span>
+    </AppNavLink>
+  );
+}
+
+function MobileProfileNavLink({
+  href,
+  label,
+  title,
+  prenom,
+  nom,
+  email,
+  avatarUrl,
+}: {
+  href: string;
+  label: string;
+  title?: string;
+  prenom?: string | null;
+  nom?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+}) {
   return (
     <AppNavLink
       href={href}
       ariaLabel={title ?? label}
       title={title ?? label}
-      linkClassName="flex min-w-0 flex-1"
-      className="flex min-w-0 flex-1 flex-col items-center justify-center gap-px px-0.5 py-0.5 text-[8px] font-medium leading-none tracking-tight"
-      activeClassName="text-white"
-      idleClassName="text-white/65"
+      linkClassName="flex min-w-0 flex-1 items-end justify-center"
+      className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 px-0.5 py-1 text-[10px] font-medium leading-none tracking-tight [&[data-active=true]_span]:ring-2 [&[data-active=true]_span]:ring-[color:var(--primary)]"
+      activeClassName="text-[color:var(--primary)]"
+      idleClassName="text-slate-500"
     >
-      <Icon className="size-[18px] shrink-0" aria-hidden />
-      <span className="max-w-[2.75rem] truncate text-center">{label}</span>
+      <UserAvatar
+        avatarUrl={avatarUrl}
+        prenom={prenom}
+        nom={nom}
+        email={email}
+        size="sm"
+        initialsMax={1}
+        className="size-6 text-[10px]"
+      />
+      <span className="max-w-[3.25rem] truncate text-center">{label}</span>
     </AppNavLink>
   );
 }
@@ -98,7 +181,7 @@ function MobileChrome({
   const pathname = usePathname();
   const mainRef = useRef<HTMLElement>(null);
   const headerVisible = useScrollHideHeader({ scrollRoot: mainRef });
-  const navItems = filterNavByPlan(NAV_MOBILE, profile);
+  const navItems = NAV_MOBILE;
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -168,14 +251,51 @@ function MobileChrome({
       </div>
       <main
         ref={mainRef}
-        className="relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 [-webkit-overflow-scrolling:touch]"
+        className="relative z-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 pb-8 [-webkit-overflow-scrolling:touch]"
       >
         {children}
       </main>
-      <nav className="z-10 flex shrink-0 border-t border-white/15 bg-[color:var(--primary)] px-0.5 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-        {navItems.map((item) => (
-          <MobileNavLink key={item.href} href={item.href} label={item.short ?? item.label} title={item.label} Icon={item.Icon} />
-        ))}
+      <nav
+        className="relative z-10 flex shrink-0 items-end overflow-visible border-t border-slate-200/80 bg-white px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-4px_16px_rgba(15,23,42,0.06)]"
+        aria-label="Navigation principale"
+      >
+        {navItems.map((item) => {
+          if (item.emphasis === "create") {
+            return (
+              <MobileCreateNavLink
+                key={item.href}
+                href={item.href}
+                label={item.short ?? item.label}
+                title={item.label}
+                alsoMatch={item.alsoMatch}
+              />
+            );
+          }
+          if (item.href === "/compte") {
+            return (
+              <MobileProfileNavLink
+                key={item.href}
+                href={item.href}
+                label={item.short ?? item.label}
+                title={item.label}
+                prenom={prenom}
+                nom={nom}
+                email={email}
+                avatarUrl={profile?.avatar_url}
+              />
+            );
+          }
+          return (
+            <MobileNavLink
+              key={item.href}
+              href={item.href}
+              label={item.short ?? item.label}
+              title={item.label}
+              Icon={item.Icon}
+              alsoMatch={item.alsoMatch}
+            />
+          );
+        })}
       </nav>
     </div>
   );
