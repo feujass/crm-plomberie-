@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { AppNavLink } from "@/components/layout/AppNavLink";
 
 import { Logo } from "@/components/planner/Logo";
 import {
@@ -17,30 +16,22 @@ import {
 import { APP_NAME } from "@/lib/app-branding";
 import { NAV_DESKTOP } from "@/lib/app-nav";
 import { filterNavByPlan } from "@/lib/plans/features";
-import { cx, focusRing } from "@/lib/utils";
 import type { BackendProfile } from "@/types/backend";
 
 import { PlombiUserProfile } from "./PlombiUserProfile";
 import type { NavItem } from "@/lib/app-nav";
 
 function NavLink({ href, label, Icon }: { href: string; label: string; Icon: NavItem["Icon"] }) {
-  const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <Link
+    <AppNavLink
       href={href}
-      aria-current={active ? "page" : undefined}
-      data-active={active}
-      className={cx(
-        "flex items-center gap-x-2.5 rounded-lg px-2.5 py-2 text-base transition sm:text-sm",
-        "text-slate-700 hover:bg-slate-100/80 dark:text-gray-400 dark:hover:bg-gray-900",
-        "data-[active=true]:bg-[color:var(--primary)]/10 data-[active=true]:font-semibold data-[active=true]:text-[var(--primary)] data-[active=true]:shadow-[inset_3px_0_0_0_var(--primary)]",
-        focusRing,
-      )}
+      className="flex items-center gap-x-2.5 rounded-lg px-2.5 py-2 text-base transition sm:text-sm"
+      activeClassName="bg-[color:var(--primary)]/10 font-semibold text-[var(--primary)] shadow-[inset_3px_0_0_0_var(--primary)]"
+      idleClassName="text-slate-700 hover:bg-slate-100/80 dark:text-gray-400 dark:hover:bg-gray-900"
     >
       <Icon className="size-[18px] shrink-0" aria-hidden />
       {label}
-    </Link>
+    </AppNavLink>
   );
 }
 

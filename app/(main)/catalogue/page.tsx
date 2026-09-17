@@ -23,12 +23,14 @@ export default async function CataloguePage({ searchParams }: { searchParams: Pr
   const qs = new URLSearchParams();
   if (sp.type?.trim()) qs.set("type", sp.type.trim());
   if (sp.q?.trim()) qs.set("search", sp.q.trim());
-  const rows = (await backendFetch(`/api/ouvrages?${qs.toString()}`).catch(() => [])) as BackendOuvrage[];
+  const [rows, devisList] = await Promise.all([
+    backendFetch(`/api/ouvrages?${qs.toString()}`).catch(() => []) as Promise<BackendOuvrage[]>,
+    backendFetch("/api/devis").catch(() => []) as Promise<BackendDevis[]>,
+  ]);
   const sorted = [...(rows ?? [])].sort((a, b) =>
     (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }),
   );
 
-  const devisList = (await backendFetch("/api/devis").catch(() => [])) as BackendDevis[];
   const devisSelect = (devisList ?? []).slice(0, 80);
 
   const q = sp.q?.trim() ?? "";

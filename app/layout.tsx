@@ -30,9 +30,6 @@ export const viewport: Viewport = {
   ],
 };
 
-/** Debug session : exécuter le root layout à chaque requête HTTP (pas de cache shell) pour `server-root-layout-hit` NDJSON. */
-export const dynamic = "force-dynamic";
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="light" suppressHydrationWarning style={{ colorScheme: "light only" }}>

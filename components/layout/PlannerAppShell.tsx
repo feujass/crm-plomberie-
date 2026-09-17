@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
+import { AppNavLink } from "@/components/layout/AppNavLink";
 import { PlombiAppSidebar } from "@/components/layout/PlombiAppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/planner/Sidebar";
 import { UserAvatar } from "@/components/ui/UserAvatar";
@@ -23,22 +24,19 @@ import { LoggedInAnalytics } from "@/components/legal/LoggedInAnalytics";
 import { LegalFooterLinks } from "@/components/legal/LegalFooterLinks";
 
 function MobileNavLink({ href, label, title, Icon }: { href: string; label: string; title?: string; Icon: NavItem["Icon"] }) {
-  const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
-    <Link
+    <AppNavLink
       href={href}
-      aria-label={title ?? label}
+      ariaLabel={title ?? label}
       title={title ?? label}
-      className={cx(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-px px-0.5 py-0.5 text-[8px] font-medium leading-none tracking-tight",
-        active ? "text-white" : "text-white/65",
-        focusRing,
-      )}
+      linkClassName="flex min-w-0 flex-1"
+      className="flex min-w-0 flex-1 flex-col items-center justify-center gap-px px-0.5 py-0.5 text-[8px] font-medium leading-none tracking-tight"
+      activeClassName="text-white"
+      idleClassName="text-white/65"
     >
       <Icon className="size-[18px] shrink-0" aria-hidden />
       <span className="max-w-[2.75rem] truncate text-center">{label}</span>
-    </Link>
+    </AppNavLink>
   );
 }
 

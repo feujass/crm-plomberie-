@@ -6,6 +6,7 @@ import {
   profileHasCrmAccess,
   shouldForceOnboarding,
 } from "@/lib/auth/crm-access";
+import { CRM_GATE_COOKIE, crmGateCookieOptions } from "@/lib/auth/crm-gate-cookie";
 import { resolvePartnerForUser } from "@/lib/affiliate/server";
 import {
   internalAnalyticsCookieOptions,
@@ -210,6 +211,18 @@ async function middlewareSupabase(request: NextRequest) {
   if (isProtectedPath(pathname) && user) {
     applyInternalAnalyticsCookie(supabaseResponse, user.email);
     if (isCrmPath(pathname) && !pathname.startsWith("/admin")) {
+      const skipOnboardingPath =
+        pathname === "/onboarding" ||
+        pathname.startsWith("/onboarding/") ||
+        pathname.startsWith("/compte/") ||
+        pathname === "/devis" ||
+        pathname.startsWith("/devis/");
+
+      if (!skipOnboardingPath && request.cookies.get(CRM_GATE_COOKIE)?.value === "1") {
+        supabaseResponse.cookies.set(CRM_GATE_COOKIE, "1", crmGateCookieOptions());
+        return withSecurityHeaders(supabaseResponse);
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select(CRM_PROFILE_GATE_SELECT)
@@ -224,17 +237,16 @@ async function middlewareSupabase(request: NextRequest) {
       }
 
       const skipOnboardingRedirect =
-        pathname === "/onboarding" ||
-        pathname.startsWith("/onboarding/") ||
-        pathname.startsWith("/compte/") ||
-        pathname === "/devis" ||
-        pathname.startsWith("/devis/") ||
+        skipOnboardingPath ||
         (() => {
           const demoDevisId = request.cookies.get(DEMO_DEVIS_COOKIE)?.value;
           return Boolean(demoDevisId && pathname === `/devis/${demoDevisId}`);
         })();
       if (!skipOnboardingRedirect && shouldForceOnboarding(profile)) {
         return withSecurityHeaders(NextResponse.redirect(new URL("/onboarding/step-1", request.url)));
+      }
+      if (!shouldForceOnboarding(profile)) {
+        supabaseResponse.cookies.set(CRM_GATE_COOKIE, "1", crmGateCookieOptions());
       }
     }
   }

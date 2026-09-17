@@ -21,16 +21,14 @@ export default async function AccueilPage({
   const sp = await searchParams;
   const highlightDevisId = sp.devis_demo?.trim() || undefined;
 
-  const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
-  const stats = (await backendFetch("/api/dashboard/stats")) as BackendDashboardStats;
-
-  let monthly: { mois: string; ca: number }[] = [];
-  try {
-    const rentabilite = (await backendFetch("/api/dashboard/rentabilite")) as RentabiliteKpis;
-    monthly = rentabilite.monthly ?? [];
-  } catch {
-    monthly = [];
-  }
+  const [me, stats, rentabilite] = await Promise.all([
+    backendFetch("/api/auth/me") as Promise<BackendMeResponse>,
+    backendFetch("/api/dashboard/stats") as Promise<BackendDashboardStats>,
+    backendFetch("/api/dashboard/rentabilite")
+      .then((r) => r as RentabiliteKpis)
+      .catch(() => ({ monthly: [] as { mois: string; ca: number }[] })),
+  ]);
+  const monthly = rentabilite.monthly ?? [];
 
   const displayName = greetingDisplayName(me);
   const completion = computeProfileCompletion(me);

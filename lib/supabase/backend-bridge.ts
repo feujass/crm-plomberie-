@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { getRequestAuthUser, getRequestProfileRow } from "@/lib/supabase/request-auth";
 import { buildMeResponse } from "@/lib/supabase/profile-map";
 import { handleSupabaseDataRoute } from "@/lib/supabase/data-routes";
+import { createClient } from "@/lib/supabase/server";
 import type { BackendFetchOptions } from "@/lib/backend/server";
 import type { BackendDashboardStats, BackendDevis } from "@/types/backend";
 
@@ -74,10 +75,7 @@ export async function supabaseBackendFetch(path: string, opts: BackendFetchOptio
     return handleSupabaseDataRoute(path, opts, null);
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestAuthUser();
 
   if (normalized === "/api/dashboard/stats") {
     if (!user) throw new Error("Non authentifié");
@@ -88,7 +86,7 @@ export async function supabaseBackendFetch(path: string, opts: BackendFetchOptio
     if (!user) throw new Error("Non authentifié");
     const method = (opts.method ?? "GET").toUpperCase();
     if (method === "GET") {
-      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+      const profile = await getRequestProfileRow(user.id);
       return buildMeResponse(user, profile);
     }
     return handleSupabaseDataRoute(path, opts, user);

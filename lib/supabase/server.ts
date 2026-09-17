@@ -1,9 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { supabaseAnonKey, supabasePublicUrl } from "@/lib/supabase/env";
 
-export async function createClient() {
+/** Un client Supabase par requête RSC (layout + pages + backendFetch). */
+export const createClient = cache(async () => {
   const url = supabasePublicUrl();
   const key = supabaseAnonKey();
   if (!url || !key) {
@@ -26,4 +28,4 @@ export async function createClient() {
       },
     },
   });
-}
+});

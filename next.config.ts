@@ -143,6 +143,10 @@ const nextConfig: NextConfig = {
     return config;
   },
   experimental: {
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
     serverActions: {
       bodySizeLimit: "12mb",
       allowedOrigins: serverActionsAllowedOrigins(),

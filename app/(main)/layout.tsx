@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import type { BackendMeResponse } from "@/types/backend";
 
 import { logCrmAccessDenied, profileHasCrmAccess } from "@/lib/auth/crm-access";
-import { buildMeResponse } from "@/lib/supabase/profile-map";
-import { createClient } from "@/lib/supabase/server";
 import { isSupabaseDataMode } from "@/lib/supabase/env";
+import { buildMeResponse } from "@/lib/supabase/profile-map";
+import { getRequestAuthUser, getRequestProfileRow } from "@/lib/supabase/request-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +16,9 @@ export default async function MainAppLayout({ children }: { children: React.Reac
   let me: BackendMeResponse | null = null;
 
   if (isSupabaseDataMode()) {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getRequestAuthUser();
     if (!user) redirect("/login");
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    const profile = await getRequestProfileRow(user.id);
     if (!profileHasCrmAccess(profile)) {
       logCrmAccessDenied("(main)/layout", user.id, user.email, profile);
       redirect("/login?error=no_crm");

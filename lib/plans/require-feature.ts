@@ -1,10 +1,19 @@
 import { backendFetch } from "@/lib/backend/server";
 import { canAccessFeature, type GatedFeature } from "@/lib/plans/features";
+import { getRequestAuthUser, getRequestProfileRow } from "@/lib/supabase/request-auth";
+import { isSupabaseDataMode } from "@/lib/supabase/env";
+import { mapProfileRow } from "@/lib/supabase/row-maps";
 import type { BackendMeResponse, BackendProfile } from "@/types/backend";
 import { redirect } from "next/navigation";
 
 export async function loadProfileForGating(): Promise<BackendProfile | undefined> {
   try {
+    if (isSupabaseDataMode()) {
+      const user = await getRequestAuthUser();
+      if (!user) return undefined;
+      const row = await getRequestProfileRow(user.id);
+      return mapProfileRow(row as Record<string, unknown> | null);
+    }
     const me = (await backendFetch("/api/auth/me")) as BackendMeResponse;
     return me.profile;
   } catch {
