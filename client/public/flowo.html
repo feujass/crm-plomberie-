@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f766e" />
+    <title>Flowo — UGC · L’outil des plombiers qui veulent du flow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --teal: #0f766e;
+        --teal-bright: #14b8a6;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --bg: #062824;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        min-height: 100%;
+        font-family: Inter, system-ui, sans-serif;
+        background: radial-gradient(ellipse 80% 50% at 50% -10%, #0f766e 0%, #062824 55%, #031614 100%);
+        color: #ecfdf5;
+      }
+      .wrap {
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 28px 20px 64px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: #fff;
+        color: var(--teal);
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 22px;
+        line-height: 1;
+      }
+      .brand h1 {
+        font-size: 22px;
+        letter-spacing: -0.04em;
+      }
+      .brand p {
+        font-size: 12px;
+        color: #99f6e4;
+        opacity: 0.85;
+      }
+      h2 {
+        font-size: 28px;
+        letter-spacing: -0.04em;
+        line-height: 1.2;
+        margin: 8px 0 10px;
+      }
+      .lede {
+        color: #ccfbf1;
+        font-size: 15px;
+        line-height: 1.5;
+        margin-bottom: 22px;
+      }
+      .phone {
+        width: min(360px, 100%);
+        margin: 0 auto 22px;
+        background: #020617;
+        border-radius: 36px;
+        padding: 10px;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 9 / 16;
+        border-radius: 26px;
+        background: #000;
+        object-fit: cover;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+        color: #99f6e4;
+        margin-top: 10px;
+        padding: 0 8px 4px;
+      }
+      .cta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 14px 18px;
+        border-radius: 999px;
+        font-weight: 700;
+        text-decoration: none;
+        font-size: 15px;
+      }
+      .btn-primary {
+        background: #fff;
+        color: var(--teal);
+        flex: 1;
+      }
+      .btn-ghost {
+        background: transparent;
+        color: #ecfdf5;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+      }
+      ul {
+        margin: 22px 0 0;
+        padding-left: 18px;
+        color: #ccfbf1;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">≈</div>
+        <div>
+          <h1>Flowo</h1>
+          <p>UGC · 9:16 · 21s</p>
+        </div>
+      </div>
+      <h2>Les devis, c’était son cauchemar.</h2>
+      <p class="lede">
+        Vidéo UGC tournée dans le van d’un plombier. Hook, preuve produit, CTA. Prête pour TikTok,
+        Reels et Shorts.
+      </p>
+      <div class="phone">
+        <video
+          controls
+          autoplay
+          muted
+          loop
+          playsinline
+          poster="/marketing/flowo-ugc-poster.jpg"
+          src="/marketing/flowo-ugc.mp4"
+        >
+          Votre navigateur ne lit pas la vidéo.
+        </video>
+        <div class="meta">
+          <span>Format 1080×1920</span>
+          <span>Voix FR · sous-titres brûlés</span>
+        </div>
+      </div>
+      <div class="cta">
+        <a class="btn btn-primary" href="/marketing/flowo-ugc.mp4" download>Télécharger le MP4</a>
+        <a class="btn btn-ghost" href="/">Ouvrir l’app</a>
+      </div>
+      <ul>
+        <li>Hook : « Les devis, c’était mon cauchemar. »</li>
+        <li>Produit : devis en 30 s, chantiers, relances auto</li>
+        <li>Preuve : « J’ai récupéré 8 h par semaine. »</li>
+        <li>CTA : « Si t’es plombier, teste Flowo. »</li>
+      </ul>
+    </div>
+  </body>
+</html>
