@@ -174,8 +174,14 @@ export function profileUpdateFromBody(body: Record<string, unknown>): Record<str
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue;
     if (key === "onboarding_complete") continue;
+    // Colonnes générées (regime_tva) — Postgres refuse tout UPDATE sauf DEFAULT.
+    if (key === "tva_sur_encaissements" || key === "tva_sur_debits_opt_in") continue;
     const col = map[key] ?? key;
     out[col] = value;
+  }
+  if (body.regime_tva == null) {
+    if (body.tva_sur_debits_opt_in === true) out.regime_tva = "debits";
+    else if (body.tva_sur_encaissements === true) out.regime_tva = "encaissements";
   }
   if (body.onboarding_complete === true && out.onboarding_steps_completed == null) {
     out.onboarding_steps_completed = 3;

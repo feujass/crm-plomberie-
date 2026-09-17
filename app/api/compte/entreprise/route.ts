@@ -64,10 +64,12 @@ export async function POST(req: Request) {
         capital_social: String(raw.capital_social ?? "").trim() || null,
         rcs_ville: String(raw.rcs_ville ?? "").trim() || null,
         numero_tva_intracom: String(raw.numero_tva_intracom ?? "").trim() || null,
-        tva_sur_encaissements:
-          typeof raw.tva_sur_encaissements === "boolean" ? raw.tva_sur_encaissements : undefined,
-        tva_sur_debits_opt_in:
-          typeof raw.tva_sur_debits_opt_in === "boolean" ? raw.tva_sur_debits_opt_in : undefined,
+        regime_tva:
+          raw.tva_sur_debits_opt_in === true
+            ? "debits"
+            : raw.tva_sur_encaissements === true
+              ? "encaissements"
+              : undefined,
         decennale_mention: String(raw.decennale_mention ?? "").trim() || null,
         iban: String(raw.iban ?? "").trim() || null,
         bic: String(raw.bic ?? "").trim() || null,
