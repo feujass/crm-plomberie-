@@ -4,18 +4,32 @@ import { useEffect } from "react";
 
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 
-/** CTA clicks + pricing section visibility. */
+function isRegisterHref(href: string | null): boolean {
+  if (!href) return false;
+  try {
+    const path = href.startsWith("http") ? new URL(href).pathname : href.split("?")[0];
+    return path === "/register";
+  } catch {
+    return href.startsWith("/register");
+  }
+}
+
+/** CTA clicks (hero, header, tarifs, sticky, inscription) + visibilité des tarifs. */
 export function MarketingFunnelTracker() {
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
-      const link = target?.closest("a[href='/register'], a[href^='/register?']") as HTMLElement | null;
-      if (!link) return;
-      const location = link.getAttribute("data-cta-location") ?? "unknown";
+      if (!target) return;
+      const marked = target.closest("[data-cta-location]") as HTMLElement | null;
+      const registerLink = target.closest("a[href]") as HTMLAnchorElement | null;
+      const el =
+        marked ?? (registerLink && isRegisterHref(registerLink.getAttribute("href")) ? registerLink : null);
+      if (!el) return;
+      const location = el.getAttribute("data-cta-location") ?? "unknown";
       trackFunnelEvent("cta_click", { properties: { location } });
     };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
   }, []);
 
   useEffect(() => {

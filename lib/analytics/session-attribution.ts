@@ -250,6 +250,8 @@ export function eventTypesWithAttribution(): Set<string> {
     "google_oauth_success",
     "inapp_browser_detected",
     "cta_click",
+    "cta_to_demo_click",
+    "demo_cta_signup_click",
     "pricing_view",
   ]);
 }

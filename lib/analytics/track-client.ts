@@ -4,6 +4,13 @@ import { readSessionAttribution, shouldAttachAttribution } from "@/lib/analytics
 
 const TRACK_ENDPOINT = "/api/track";
 
+/** Clics de conversion : beacon + keepalive pour survivre à la navigation Next. */
+const CLICK_EVENTS = new Set<AnalyticsEventPayload["event_type"]>([
+  "cta_click",
+  "cta_to_demo_click",
+  "demo_cta_signup_click",
+]);
+
 function withInternalFlag(payload: AnalyticsEventPayload): AnalyticsEventPayload {
   if (payload.is_internal === true || !hasInternalAnalyticsCookie()) return payload;
   return { ...payload, is_internal: true };
@@ -27,7 +34,8 @@ export function buildAnalyticsRequestBody(payload: AnalyticsEventPayload): Analy
 export async function sendAnalyticsEvent(payload: AnalyticsEventPayload): Promise<boolean> {
   const bodyPayload = buildAnalyticsRequestBody(payload);
   const body = JSON.stringify(bodyPayload);
-  const needsAck = payload.attach_session === true || payload.event_type === "page_view";
+  const clickEvent = CLICK_EVENTS.has(payload.event_type);
+  const needsAck = !clickEvent && (payload.attach_session === true || payload.event_type === "page_view");
 
   if (!needsAck && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     const blob = new Blob([body], { type: "application/json" });

@@ -285,6 +285,7 @@ export function MarketingHeroVoiceDemo() {
           />
           <Link
             href="/register?from=demo"
+            data-cta-location="demo_preview"
             onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
             className={cx(
               focusRing,
@@ -300,6 +301,7 @@ export function MarketingHeroVoiceDemo() {
           <p className="text-sm text-slate-600 dark:text-slate-300">{rateLimitMessage}</p>
           <Link
             href="/register?from=demo"
+            data-cta-location="demo_rate_limited"
             onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "rate_limited" } })}
             className={cx(focusRing, "inline-flex min-h-11 items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 text-sm font-semibold text-white")}
           >
