@@ -21,6 +21,8 @@ export type AnalyticsEventType =
   | "google_oauth_error"
   | "google_oauth_success"
   | "inapp_browser_detected"
+  | "inapp_open_external_click"
+  | "inapp_copy_link_click"
   | "onboarding_profile_complete"
   | "first_devis_created"
   | "first_devis_sent"

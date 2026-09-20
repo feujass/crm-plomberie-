@@ -1,27 +1,69 @@
+export type InAppOs = "ios" | "android" | "other";
+
+export type InAppAppSlug =
+  | "tiktok"
+  | "instagram"
+  | "facebook"
+  | "messenger"
+  | "snapchat"
+  | "linkedin";
+
 export type InAppBrowserResult =
-  | { isInApp: true; app: "tiktok" | "instagram" | "facebook" | "snapchat" | "linkedin" | "messenger" }
+  | { isInApp: true; app: InAppAppSlug }
   | { isInApp: false };
 
-type InAppApp = Extract<InAppBrowserResult, { isInApp: true }>["app"];
+export type InAppBrowserDetection = {
+  isInApp: boolean;
+  app: InAppAppSlug | null;
+  appName: string | null;
+  os: InAppOs;
+};
 
-const IN_APP_PATTERNS: { app: InAppApp; regex: RegExp }[] = [
-  { app: "tiktok", regex: /tiktok|musical_ly|bytedancewebview|trill_/i },
+export const IN_APP_DISPLAY_NAMES: Record<InAppAppSlug, string> = {
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  messenger: "Messenger",
+  snapchat: "Snapchat",
+  linkedin: "LinkedIn",
+};
+
+/** Ordre : Messenger avant Facebook (UA Messenger contient souvent FBAN). */
+const IN_APP_PATTERNS: { app: InAppAppSlug; regex: RegExp }[] = [
+  { app: "tiktok", regex: /tiktok|musical_ly|bytedancewebview|trill/i },
   { app: "instagram", regex: /instagram/i },
-  { app: "facebook", regex: /fbav|fb_iab|fbios|fb4a|fban|facebook/i },
-  { app: "messenger", regex: /messenger|messengerlite/i },
+  { app: "messenger", regex: /messenger/i },
+  { app: "facebook", regex: /fban|fbav|fb_iab/i },
   { app: "snapchat", regex: /snapchat/i },
-  { app: "linkedin", regex: /linkedin/i },
+  { app: "linkedin", regex: /linkedinapp/i },
 ];
+
+export function detectOs(userAgent: string): InAppOs {
+  if (/iphone|ipad|ipod/i.test(userAgent)) return "ios";
+  if (/android/i.test(userAgent)) return "android";
+  return "other";
+}
+
+/** Détecte les webviews in-app (TikTok, Instagram, etc.) — pur, testable. */
+export function detectInAppBrowser(userAgent?: string | null): InAppBrowserDetection {
+  const ua = userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  const os = detectOs(ua);
+  const empty: InAppBrowserDetection = { isInApp: false, app: null, appName: null, os };
+  if (!ua.trim()) return empty;
+
+  for (const { app, regex } of IN_APP_PATTERNS) {
+    if (regex.test(ua)) {
+      return { isInApp: true, app, appName: IN_APP_DISPLAY_NAMES[app], os };
+    }
+  }
+
+  return empty;
+}
 
 /** Détecte les webviews in-app (TikTok, Instagram, etc.). */
 export function isInAppBrowser(userAgent?: string | null): InAppBrowserResult {
-  const ua = userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "");
-  if (!ua.trim()) return { isInApp: false };
-
-  for (const { app, regex } of IN_APP_PATTERNS) {
-    if (regex.test(ua)) return { isInApp: true, app };
-  }
-
+  const detected = detectInAppBrowser(userAgent);
+  if (detected.isInApp && detected.app) return { isInApp: true, app: detected.app };
   return { isInApp: false };
 }
 

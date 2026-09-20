@@ -9,6 +9,8 @@ const CLICK_EVENTS = new Set<AnalyticsEventPayload["event_type"]>([
   "cta_click",
   "cta_to_demo_click",
   "demo_cta_signup_click",
+  "inapp_open_external_click",
+  "inapp_copy_link_click",
 ]);
 
 function withInternalFlag(payload: AnalyticsEventPayload): AnalyticsEventPayload {

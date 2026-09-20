@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { trackFunnelEvent } from "@/lib/analytics/funnel";
+import { useInAppBrowser } from "@/lib/use-in-app-browser";
 
 /** Bannière webview in-app — invite à ouvrir dans Safari/Chrome. */
 export function InAppBrowserBanner() {
@@ -42,17 +42,6 @@ export function InAppBrowserBanner() {
 
 /** Détecte la webview in-app et envoie inapp_browser_detected. */
 export function useInAppBrowserDetection(): boolean {
-  const [inApp, setInApp] = useState(false);
-
-  useEffect(() => {
-    void import("@/lib/analytics/in-app-browser").then(({ isInAppBrowser }) => {
-      const result = isInAppBrowser();
-      if (result.isInApp) {
-        setInApp(true);
-        trackFunnelEvent("inapp_browser_detected", { properties: { app: result.app } });
-      }
-    });
-  }, []);
-
-  return inApp;
+  const { isInApp, ready } = useInAppBrowser();
+  return ready && isInApp;
 }

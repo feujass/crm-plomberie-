@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DemoQuotePreview } from "@/components/marketing/DemoQuotePreview";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
+import { useInAppBrowser } from "@/lib/use-in-app-browser";
 import { listenForSpeech, isBrowserSpeechRecognitionSupported } from "@/lib/voice/browserSpeechRecognition";
 import { DemoAudioRecorder, DEMO_MAX_RECORDING_MS } from "@/lib/voice/demo-recorder";
 import { cx, focusRing } from "@/lib/utils";
@@ -23,6 +24,8 @@ function formatSeconds(ms: number): string {
 }
 
 export function MarketingHeroVoiceDemo() {
+  const { isInApp, ready } = useInAppBrowser();
+  const inApp = ready && isInApp;
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [wave, setWave] = useState(0);
@@ -57,6 +60,10 @@ export function MarketingHeroVoiceDemo() {
       recorderRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (inApp) setShowText(true);
+  }, [inApp]);
 
   const stopTimers = () => {
     if (timerRef.current) {
@@ -344,50 +351,95 @@ export function MarketingHeroVoiceDemo() {
                     Terminer
                   </button>
                 </>
-              ) : (
-                <button
-                  id="hero-demo-mic"
-                  type="button"
-                  onClick={() => void startRecording()}
-                  className={cx(
-                    focusRing,
-                    "inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-white shadow-md sm:min-h-14 sm:gap-3 sm:px-6 sm:text-base",
-                  )}
-                >
-                  <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
-                  Appuie et décris ton chantier
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setShowText((v) => !v)}
-                className="inline-flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-700"
-              >
-                <Type className="h-3.5 w-3.5" />
-                {showText ? "Masquer le texte" : "Ou écris ton chantier"}
-              </button>
-
-              {showText && phase !== "recording" && (
-                <div className="space-y-2">
-                  <textarea
-                    value={textFallback}
-                    onChange={(e) => setTextFallback(e.target.value)}
-                    rows={3}
-                    placeholder="Ex. : remplacement chauffe-eau 200L, 4h MO, déplacement…"
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-                  />
+              ) : !ready ? (
+                <div className="min-h-12 sm:min-h-14" aria-hidden />
+              ) : inApp ? (
+                <>
+                  <div className="space-y-2">
+                    <label htmlFor="hero-demo-text" className="sr-only">
+                      Décris ton chantier
+                    </label>
+                    <textarea
+                      id="hero-demo-text"
+                      value={textFallback}
+                      onChange={(e) => setTextFallback(e.target.value)}
+                      rows={3}
+                      placeholder="Décris ton chantier — ex. : remplacement chauffe-eau 200L, 4h MO…"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void onTextSubmit()}
+                      className={cx(
+                        focusRing,
+                        "inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-white shadow-md sm:min-h-14 sm:text-base",
+                      )}
+                    >
+                      Générer mon aperçu
+                    </button>
+                  </div>
                   <button
+                    id="hero-demo-mic"
                     type="button"
-                    onClick={() => void onTextSubmit()}
+                    onClick={() => void startRecording()}
                     className={cx(
                       focusRing,
-                      "inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold dark:border-slate-700 dark:bg-slate-800",
+                      "inline-flex min-h-11 w-full flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
                     )}
                   >
-                    Générer mon aperçu
+                    <span className="inline-flex items-center gap-2">
+                      <Mic className="h-4 w-4" />
+                      Dicter à la voix
+                    </span>
+                    <span className="text-[11px] font-normal text-slate-500">(nécessite Safari ou Chrome)</span>
                   </button>
-                </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    id="hero-demo-mic"
+                    type="button"
+                    onClick={() => void startRecording()}
+                    className={cx(
+                      focusRing,
+                      "inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[color:var(--primary)] px-4 text-[15px] font-semibold text-white shadow-md sm:min-h-14 sm:gap-3 sm:px-6 sm:text-base",
+                    )}
+                  >
+                    <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
+                    Appuie et décris ton chantier
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowText((v) => !v)}
+                    className="inline-flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-700"
+                  >
+                    <Type className="h-3.5 w-3.5" />
+                    {showText ? "Masquer le texte" : "Ou écris ton chantier"}
+                  </button>
+
+                  {showText ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={textFallback}
+                        onChange={(e) => setTextFallback(e.target.value)}
+                        rows={3}
+                        placeholder="Ex. : remplacement chauffe-eau 200L, 4h MO, déplacement…"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void onTextSubmit()}
+                        className={cx(
+                          focusRing,
+                          "inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold dark:border-slate-700 dark:bg-slate-800",
+                        )}
+                      >
+                        Générer mon aperçu
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           )}

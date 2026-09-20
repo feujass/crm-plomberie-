@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { FAQ } from "@/components/marketing/FAQ";
+import { InAppBrowserBanner } from "@/components/marketing/InAppBrowserBanner";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingFunnelTracker } from "@/components/marketing/MarketingFunnelTracker";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
@@ -40,6 +41,7 @@ export function MarketingLanding() {
     <div className="min-h-dvh bg-[var(--background)] text-[var(--foreground)]">
       <MarketingFunnelTracker />
       <MarketingHeader />
+      <InAppBrowserBanner />
       <MarketingStickyCta />
 
       {/* Hero */}
