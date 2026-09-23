@@ -1,5 +1,12 @@
 import { extractAdresseChantierFromTranscript } from "@/lib/devis/adresse-chantier";
 import {
+  extractExplicitTvaRate,
+  reviewQuoteLines,
+  type ExplicitTvaRate,
+  type QuoteDraftLine,
+  type QuoteReview,
+} from "@/lib/devis/quote-faithfulness";
+import {
   alertPrixHorsTranscript,
   correctUnitPricesFromTranscript,
   enforceDictatedPricesFromSource,
@@ -52,11 +59,11 @@ RÈGLES ADRESSE
 - client.adresse = adresse postale du client si distincte du chantier, sinon null.
 
 RÈGLES PRIX ET QUANTITÉS
-- Ne remplis prix_unitaire_ht que si un montant est explicitement dicté.
+- Ne remplis prixUnitaireHT que si un montant est explicitement dicté. Sinon null, jamais 0.
 - Un prix dicté explicitement ne doit jamais être arrondi ni modifié.
-- prix_unitaire_ht = toujours le prix PAR unité, jamais le total (voir règle ci-dessus).
+- prixUnitaireHT = toujours le prix PAR unité, jamais le total (voir règle ci-dessus).
 - Préfère l'unité dictée (jour, h, ml…) plutôt que de convertir silencieusement.
-- Pas de champ tva dans les lignes : l'application appliquera la TVA par ligne.`;
+- Pas de champ tva : l'artisan choisit le taux. N'en suppose aucun.`;
 
 /** Prompt système CRM (dictée / texte). */
 export function buildDevisGeneratePrompt(profile: BackendProfile): string {
@@ -121,7 +128,21 @@ export type ProcessedIaDevis = {
   tvaAlerts: TvaAlert[];
   prixAlerts: PrixAlert[];
   adresse_chantier: string | null;
+  /** Lignes LLM avant catalogue / TVA profil — base de l'écran de confirmation. */
+  drafts: QuoteDraftLine[];
+  review: QuoteReview;
+  tvaExplicite: ExplicitTvaRate | null;
 };
+
+function draftsFromIa(lignes: DevisIaResponse["lignes"]): QuoteDraftLine[] {
+  return lignes.map((ligne) => ({
+    designation: ligne.designation.trim(),
+    quantite: Number(ligne.quantite) > 0 ? Number(ligne.quantite) : 1,
+    unite: (ligne.unite ?? "").trim() || "forfait",
+    prixUnitaireHT: prixFromIaLigne(ligne),
+    extraitSource: (ligne.source ?? "").trim(),
+  }));
+}
 
 export function processIaDevisResponse(
   data: DevisIaResponse,
@@ -129,6 +150,12 @@ export function processIaDevisResponse(
   ouvrages: BackendOuvrage[],
   transcriptCorrige: string,
 ): ProcessedIaDevis {
+  const drafts = draftsFromIa(data.lignes);
+  const review = transcriptCorrige.trim()
+    ? reviewQuoteLines(transcriptCorrige, drafts)
+    : { ok: true, needsConfirmation: false, failures: [], citedAmounts: [] };
+  const tvaExplicite = transcriptCorrige.trim() ? extractExplicitTvaRate(transcriptCorrige) : null;
+
   let rawLignes = iaLignesToRaw(data.lignes);
   const prixAlerts: PrixAlert[] = [];
 
@@ -153,12 +180,13 @@ export function processIaDevisResponse(
 
   const tvaAlerts: TvaAlert[] = [];
   const lignes = lignesBase.map((l, i) => {
-    const alert = alertTvaForLigne(l.designation, l.tva, i, tvaCtx, transcriptCorrige);
+    const tva = tvaExplicite ?? l.tva;
+    const alert = alertTvaForLigne(l.designation, tva, i, tvaCtx, transcriptCorrige);
     if (alert) {
       tvaAlerts.push(alert);
-      return { ...l, tva_alerte: alert.message };
+      return { ...l, tva, tva_alerte: alert.message };
     }
-    return l;
+    return tvaExplicite != null ? { ...l, tva } : l;
   });
 
   const questions = [...(data.questions ?? [])];
@@ -184,5 +212,8 @@ export function processIaDevisResponse(
     tvaAlerts,
     prixAlerts,
     adresse_chantier,
+    drafts,
+    review,
+    tvaExplicite,
   };
 }

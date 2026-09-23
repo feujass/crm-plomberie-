@@ -53,15 +53,16 @@ function normalizeLigne(raw: unknown): Record<string, unknown> | null {
     pickString(raw, "designation", "description", "libelle", "label", "name", "nom") ?? "";
   const quantite = parseLlmNumber(raw.quantite ?? raw.quantity ?? raw.qte ?? raw.qty);
   const unite = pickString(raw, "unite", "unit", "u") ?? "u";
-  const prixRaw = raw.prix_unitaire_ht ?? raw.prix_ht ?? raw.prixHT ?? raw.price ?? raw.pu_ht ?? raw.pu;
+  const prixRaw =
+    raw.prixUnitaireHT ?? raw.prix_unitaire_ht ?? raw.prix_ht ?? raw.prixHT ?? raw.price ?? raw.pu_ht ?? raw.pu;
   const prixParsed = parseLlmNumber(prixRaw);
-  const prix_ht = prixParsed !== undefined ? prixParsed : null;
+  const prix_ht = prixParsed !== undefined && prixParsed !== 0 ? prixParsed : null;
   const prix_unitaire_ht =
     parseLlmNumber(raw.prix_unitaire_ht) ?? (prix_ht != null ? prix_ht : null);
   const tva = parseLlmTva(raw.tva ?? raw.TVA ?? raw.vat ?? raw.taxe);
   const section = pickString(raw, "section", "piece", "groupe");
   const ligne_type = normalizeLigneType(raw.ligne_type ?? raw.type ?? raw.ligneType);
-  const source = pickString(raw, "source", "extrait", "justification");
+  const source = pickString(raw, "extraitSource", "extrait_source", "source", "extrait", "justification");
 
   if (!designation || quantite === undefined) {
     return null;

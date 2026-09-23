@@ -21,6 +21,12 @@ import { createClientFromIa } from "@/lib/devis/resolve-ia-client";
 import type { DevisIaClient } from "@/lib/schemas/devis-ia";
 import { listenForSpeech } from "@/lib/voice/browserSpeechRecognition";
 import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
+import {
+  DevisQuoteConfirm,
+  quoteConfirmReady,
+  type QuoteConfirmLine,
+  type TvaRateChoice,
+} from "@/components/devis/DevisQuoteConfirm";
 
 const ASSISTANT_NAME = "Zeus";
 const ZEUS_AVATAR_SRC = "/zeus-avatar.png";
@@ -51,7 +57,38 @@ async function parseJsonSafely<T>(res: Response): Promise<T> {
   }
 }
 
+type GeneratePayload = {
+  lignes?: DevisLigneInput[];
+  needs_confirmation?: boolean;
+  failures?: { code?: string; message?: string }[];
+  adresse_chantier?: string | null;
+  client?: DevisIaClient;
+  notes?: string | null;
+  date_expiration?: string | null;
+  questions?: string[];
+  tva_explicite?: TvaRateChoice | null;
+  transcription_brute?: string;
+  transcription_corrigee?: string;
+  message?: string;
+  code?: string;
+};
+
 type InputTab = "write" | "voice";
+
+type ConfirmDraft = {
+  lines: QuoteConfirmLine[];
+  tva: TvaRateChoice | null;
+  tvaMentioned: boolean;
+  uncertain: boolean;
+  messages: string[];
+  adresse_chantier: string | null;
+  client?: DevisIaClient;
+  notes: string | null;
+  date_expiration: string | null;
+  questions: string[];
+  transcription_brute: string | null;
+  transcription_corrigee: string | null;
+};
 
 const TAB_LABEL: Record<InputTab, string> = {
   voice: "Voix",
@@ -82,6 +119,7 @@ export function DevisNouveauClient({
   const [text, setText] = useState("");
   const [busy, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmDraft | null>(null);
   const [recState, setRecState] = useState<"idle" | "recording">("idle");
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -138,26 +176,51 @@ export function DevisNouveauClient({
     });
   }, [selectedClient?.email, lastAutoEmail]);
 
+  async function persistDevis(json: GeneratePayload, lignes: DevisLigneInput[]) {
+    const resolvedClientId = await createClientFromIa({
+      existingClientId: clientId || null,
+      manualNom: clientNom,
+      manualPrenom: clientPrenom,
+      manualEmail: clientEmail,
+      iaClient: json.client,
+    });
+    if (resolvedClientId) setClientId(resolvedClientId);
+
+    const cre = await fetch("/api/devis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        mode: "from_ia",
+        client_id: resolvedClientId,
+        adresse_chantier: json.adresse_chantier?.trim() || null,
+        notes: json.notes?.trim() || null,
+        date_expiration: json.date_expiration || null,
+        ia_questions: json.questions ?? [],
+        transcription_brute: json.transcription_brute ?? null,
+        transcription_corrigee: json.transcription_corrigee ?? null,
+        lignes,
+      }),
+    });
+    const created = await parseJsonSafely<{ id?: string; message?: string; code?: string }>(cre);
+    if (!cre.ok) {
+      if (handleTrialExpiredPaywallResponse(cre.status, created)) return;
+      throw new Error(created.message || "Création du devis");
+    }
+    if (!created.id) throw new Error("Réponse serveur invalide");
+    window.location.assign(`/devis/${encodeURIComponent(created.id)}?view=preview`);
+  }
+
   async function runGenerate(body: { text: string }) {
     setErr(null);
+    setConfirm(null);
     try {
       const res = await fetch("/api/devis/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: body.text }),
       });
-      const json = await parseJsonSafely<{
-        message?: string;
-        code?: string;
-        lignes?: DevisLigneInput[];
-        adresse_chantier?: string | null;
-        client?: DevisIaClient;
-        notes?: string | null;
-        date_expiration?: string | null;
-        questions?: string[];
-        transcription_brute?: string;
-        transcription_corrigee?: string;
-      }>(res);
+      const json = await parseJsonSafely<GeneratePayload>(res);
       if (!res.ok) {
         if (handleTrialExpiredPaywallResponse(res.status, json)) return;
         const msg = json.message || "Génération impossible";
@@ -180,41 +243,72 @@ export function DevisNouveauClient({
         throw new Error(msg);
       }
 
-      const resolvedClientId = await createClientFromIa({
-        existingClientId: clientId || null,
-        manualNom: clientNom,
-        manualPrenom: clientPrenom,
-        manualEmail: clientEmail,
-        iaClient: json.client,
-      });
-      if (resolvedClientId) setClientId(resolvedClientId);
-
-      const cre = await fetch("/api/devis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          mode: "from_ia",
-          client_id: resolvedClientId,
-          adresse_chantier: json.adresse_chantier?.trim() || null,
-          notes: json.notes?.trim() || null,
-          date_expiration: json.date_expiration || null,
-          ia_questions: json.questions ?? [],
+      if (json.needs_confirmation) {
+        const failures = json.failures ?? [];
+        setConfirm({
+          lines: (json.lignes ?? []).map((ligne) => ({
+            designation: ligne.designation,
+            quantite: ligne.quantite || 1,
+            unite: ligne.unite || "forfait",
+            prix: ligne.prix_ht > 0 ? String(ligne.prix_ht) : "",
+            source: ligne.source ?? "",
+          })),
+          tva: json.tva_explicite ?? null,
+          tvaMentioned: json.tva_explicite != null,
+          uncertain: failures.some((failure) => failure.code && failure.code !== "incomplete_price"),
+          messages: failures
+            .filter((failure) => failure.code !== "incomplete_price" && failure.message)
+            .map((failure) => failure.message as string),
+          adresse_chantier: json.adresse_chantier ?? null,
+          client: json.client,
+          notes: json.notes ?? null,
+          date_expiration: json.date_expiration ?? null,
+          questions: json.questions ?? [],
           transcription_brute: json.transcription_brute ?? null,
           transcription_corrigee: json.transcription_corrigee ?? null,
-          lignes: json.lignes ?? [],
-        }),
-      });
-      const created = await parseJsonSafely<{ id?: string; message?: string; code?: string }>(cre);
-      if (!cre.ok) {
-        if (handleTrialExpiredPaywallResponse(cre.status, created)) return;
-        throw new Error(created.message || "Création du devis");
+        });
+        return;
       }
-      if (!created.id) throw new Error("Réponse serveur invalide");
-      window.location.assign(`/devis/${encodeURIComponent(created.id)}?view=preview`);
+
+      await persistDevis(json, json.lignes ?? []);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Erreur");
     }
+  }
+
+  function submitConfirm() {
+    if (!confirm || !quoteConfirmReady(confirm.lines, confirm.tva) || confirm.tva == null) return;
+    const tva = confirm.tva;
+    start(async () => {
+      setErr(null);
+      try {
+        await persistDevis(
+          {
+            adresse_chantier: confirm.adresse_chantier,
+            client: confirm.client,
+            notes: confirm.notes,
+            date_expiration: confirm.date_expiration,
+            questions: confirm.questions,
+            transcription_brute: confirm.transcription_brute ?? undefined,
+            transcription_corrigee: confirm.transcription_corrigee ?? undefined,
+          },
+          confirm.lines.map((ligne, index) => ({
+            section: null,
+            designation: ligne.designation.trim(),
+            quantite: ligne.quantite || 1,
+            unite: ligne.unite || "forfait",
+            prix_ht: Number(ligne.prix.replace(/\s/g, "").replace(",", ".")),
+            tva,
+            ordre: index,
+            ligne_type: "prestation",
+            source: ligne.source || null,
+            origine_prix: "dicte",
+          })),
+        );
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Erreur");
+      }
+    });
   }
 
   async function onVoice() {
@@ -290,6 +384,20 @@ export function DevisNouveauClient({
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
               {err}
             </p>
+          ) : null}
+
+          {confirm ? (
+            <DevisQuoteConfirm
+              lines={confirm.lines}
+              onChange={(lines) => setConfirm({ ...confirm, lines })}
+              tva={confirm.tva}
+              onTva={(tva) => setConfirm({ ...confirm, tva })}
+              tvaMentioned={confirm.tvaMentioned}
+              uncertain={confirm.uncertain}
+              messages={confirm.messages}
+              busy={busy}
+              onSubmit={submitConfirm}
+            />
           ) : null}
 
           <div className="mt-5">

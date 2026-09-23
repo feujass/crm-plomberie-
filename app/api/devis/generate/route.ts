@@ -1,4 +1,5 @@
 import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
+import { logQuoteValidationIncident } from "@/lib/devis/quote-faithfulness";
 import {
   buildDevisGeneratePrompt,
   prepareTranscriptionForLlm,
@@ -87,6 +88,8 @@ export async function POST(req: Request) {
 
   const processed = processIaDevisResponse(z.data, profile, ouvrages ?? [], corrige);
   const meta = buildDevisMetaFromIa(z.data);
+  const mustConfirm =
+    !processed.review.ok || processed.review.needsConfirmation || processed.tvaExplicite == null;
 
   try {
     await recordIaDevisUsage(profile);
@@ -94,7 +97,37 @@ export async function POST(req: Request) {
     // compteur best-effort — devis déjà généré
   }
 
+  if (mustConfirm) {
+    if (!processed.review.ok) {
+      logQuoteValidationIncident({
+        input: corrige,
+        llm: z.data.lignes,
+        failures: processed.review.failures,
+      });
+    }
+    return NextResponse.json({
+      needs_confirmation: true,
+      failures: processed.review.failures,
+      lignes: processed.drafts.map((ligne) => ({
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        unite: ligne.unite,
+        prix_ht: ligne.prixUnitaireHT,
+        source: ligne.extraitSource,
+      })),
+      adresse_chantier: processed.adresse_chantier,
+      client: z.data.client ?? null,
+      notes: meta.notes || null,
+      date_expiration: meta.date_expiration,
+      questions: processed.questions,
+      tva_explicite: processed.tvaExplicite,
+      transcription_brute: brut,
+      transcription_corrigee: corrige,
+    });
+  }
+
   return NextResponse.json({
+    needs_confirmation: false,
     lignes: processed.lignes,
     adresse_chantier: processed.adresse_chantier,
     client: z.data.client ?? null,
@@ -103,6 +136,7 @@ export async function POST(req: Request) {
     questions: processed.questions,
     tva_alerts: processed.tvaAlerts,
     prix_alerts: processed.prixAlerts,
+    tva_explicite: processed.tvaExplicite,
     transcription_brute: brut,
     transcription_corrigee: corrige,
   });

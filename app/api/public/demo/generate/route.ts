@@ -16,6 +16,7 @@ import {
   fetchDemoQuoteForSession,
 } from "@/lib/demo/session-preview";
 import { prepareTranscriptionForLlm, processIaDevisResponse } from "@/lib/devis/voice-pipeline";
+import { logQuoteValidationIncident } from "@/lib/devis/quote-faithfulness";
 import { anthropicDemoMaxTokens, anthropicDemoModel } from "@/lib/llm/anthropicConfig";
 import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
@@ -92,6 +93,23 @@ export async function POST(req: Request) {
   }
 
   const processed = processIaDevisResponse(parsed.data, {}, [], corrige);
+  if (!processed.review.ok || processed.review.needsConfirmation) {
+    if (!processed.review.ok) {
+      logQuoteValidationIncident({
+        input: corrige,
+        llm: parsed.data.lignes,
+        failures: processed.review.failures,
+      });
+    }
+    return NextResponse.json(
+      {
+        message:
+          "Je n'ai pas pu associer les prix avec certitude. Reformule en citant chaque prestation avec son montant, par exemple « déplacement 70, recherche de fuite 410 ».",
+        code: "needs_confirmation",
+      },
+      { status: 422 },
+    );
+  }
   const quote = { ...parsed.data, lignes: processed.lignes.map((l) => ({
     designation: l.designation,
     quantite: l.quantite,
