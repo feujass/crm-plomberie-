@@ -17,6 +17,7 @@ import {
 } from "@/lib/demo/session-preview";
 import { prepareTranscriptionForLlm, processIaDevisResponse } from "@/lib/devis/voice-pipeline";
 import { logQuoteValidationIncident } from "@/lib/devis/quote-faithfulness";
+import { assessQuote } from "@/lib/devis/validate-quote";
 import { anthropicDemoMaxTokens, anthropicDemoModel } from "@/lib/llm/anthropicConfig";
 import { completeDevisGenerateLlm } from "@/lib/llm/devisGenerateCompletion";
 import { devisIaResponseSchema } from "@/lib/schemas/devis-ia";
@@ -93,41 +94,67 @@ export async function POST(req: Request) {
   }
 
   const processed = processIaDevisResponse(parsed.data, {}, [], corrige);
-  if (!processed.review.ok || processed.review.needsConfirmation) {
+  const decision = assessQuote({
+    audience: "public",
+    review: processed.review,
+    explicitRate: processed.tvaExplicite,
+  });
+
+  if (decision.needsConfirmation) {
     if (!processed.review.ok) {
       logQuoteValidationIncident({
         input: corrige,
         llm: parsed.data.lignes,
-        failures: processed.review.failures,
+        failures: decision.failures,
       });
     }
-    return NextResponse.json(
-      {
-        message:
-          "Je n'ai pas pu associer les prix avec certitude. Reformule en citant chaque prestation avec son montant, par exemple « déplacement 70, recherche de fuite 410 ».",
-        code: "needs_confirmation",
-      },
-      { status: 422 },
-    );
+    await recordDemoUsage(req);
+    const res = NextResponse.json({
+      needs_confirmation: true,
+      reason: decision.reason,
+      failures: decision.failures,
+      lignes: processed.drafts.map((ligne) => ({
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        unite: ligne.unite,
+        prix_ht: ligne.prixUnitaireHT,
+        source: ligne.extraitSource,
+      })),
+      tva_rate: decision.tva.rate,
+      transcription_brute: brut,
+    });
+    if (setCookie) res.cookies.set("flowo_demo_id", demoSessionId, demoSessionCookieOptions());
+    return res;
   }
-  const quote = { ...parsed.data, lignes: processed.lignes.map((l) => ({
-    designation: l.designation,
-    quantite: l.quantite,
-    unite: l.unite,
-    prix_ht: l.prix_ht,
-    tva: l.tva,
-    section: l.section,
-    ligne_type: l.ligne_type,
-    source: l.source ?? undefined,
-  })), questions: processed.questions };
 
-  const previewLines = previewLinesFromQuote(quote.lignes);
+  const quote = {
+    ...parsed.data,
+    lignes: processed.lignes.map((l) => ({
+      designation: l.designation,
+      quantite: l.quantite,
+      unite: l.unite,
+      prix_ht: l.prix_ht,
+      tva: decision.tva.showTva ? decision.tva.rate ?? undefined : undefined,
+      section: l.section,
+      ligne_type: l.ligne_type,
+      source: l.source ?? undefined,
+    })),
+    questions: processed.questions,
+  };
+
+  const previewLines = previewLinesFromQuote(quote.lignes).map((line) =>
+    decision.tva.showTva ? { ...line, tva: decision.tva.rate ?? line.tva } : { ...line, tva: undefined },
+  );
   const lineCount = quote.lignes.length;
-  const totalTtc = computeDemoTotalTtc(quote.lignes);
+  const totalHt = previewLines.reduce(
+    (sum, line) => sum + Math.round((Number(line.quantite) || 0) * (Number(line.prix_ht) || 0) * 100) / 100,
+    0,
+  );
+  const totalTtc = decision.tva.showTva ? computeDemoTotalTtc(quote.lignes.map((line) => ({ ...line, tva: decision.tva.rate ?? 0 }))) : totalHt;
 
   let previewImageBase64 = "";
   try {
-    previewImageBase64 = await renderBlurredPreviewPngBase64(quote.lignes);
+    previewImageBase64 = await renderBlurredPreviewPngBase64(quote.lignes, { showTva: decision.tva.showTva });
   } catch (e) {
     console.error("[demo/generate] preview png", e);
   }
@@ -155,10 +182,12 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({
     demo_quote_id: inserted.id,
+    total_ttc: totalTtc,
     preview_image_base64: previewImageBase64,
     preview_lines: previewLines,
     line_count: lineCount,
-    total_ttc: totalTtc,
+    total_ht: Math.round(totalHt * 100) / 100,
+    tva_rate: decision.tva.rate,
     transcription_brute: brut,
   });
 

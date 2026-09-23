@@ -38,6 +38,8 @@ export type AnalyticsEventType =
   | "demo_generation_success"
   | "demo_generation_error"
   | "demo_preview_shown"
+  | "demo_confirmation_shown"
+  | "demo_line_edited"
   | "demo_cta_signup_click"
   | "demo_rate_limited"
   | "demo_text_fallback_used";

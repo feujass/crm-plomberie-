@@ -33,6 +33,9 @@ export type DemoPreviewPayload = {
   }>;
   line_count: number;
   total_ttc: number;
+  total_ht?: number;
+  /** null : aucun taux dicté. Absent : ancien aperçu. */
+  tva_rate?: number | null;
 };
 
 export type DemoGenerateErrorCode =

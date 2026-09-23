@@ -64,6 +64,8 @@ export function extractCitedAmounts(text: string): number[] {
     const index = match.index ?? 0;
     const after = text.slice(index + match[0].length);
     if (UNIT_AFTER_RE.test(after)) continue;
+    const before = text.slice(Math.max(0, index - 20), index);
+    if (/tva[^0-9]{0,16}$/i.test(before)) continue;
     const amount = parseAmountToken(match[1] ?? "", match[2]);
     if (amount != null) out.push(amount);
   }
@@ -109,9 +111,11 @@ export function reviewQuoteLines(input: string, lines: QuoteDraftLine[]): QuoteR
   });
 
   if (pricedCount !== citedAmounts.length) {
+    const amountsLabel = citedAmounts.length > 1 ? "montants" : "montant";
+    const linesLabel = pricedCount > 1 ? "lignes chiffrées" : "ligne chiffrée";
     failures.push({
       code: "amount_count_mismatch",
-      message: `${citedAmounts.length} montant(s) dans le texte, ${pricedCount} ligne(s) chiffrée(s).`,
+      message: `${citedAmounts.length} ${amountsLabel} dans le texte, ${pricedCount} ${linesLabel}`,
     });
   }
 

@@ -6,6 +6,7 @@ import { Loader2, Mic, Square, Type } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DemoQuotePreview } from "@/components/marketing/DemoQuotePreview";
+import { DevisQuoteConfirm, quoteConfirmReady, type QuoteConfirmLine } from "@/components/devis/DevisQuoteConfirm";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
 import { useInAppBrowser } from "@/lib/use-in-app-browser";
@@ -16,7 +17,7 @@ import { cx, focusRing } from "@/lib/utils";
 const ZEUS_AVATAR = "/zeus-avatar.png";
 const GENERATE_TIMEOUT_MS = 30_000;
 
-type Phase = "idle" | "recording" | "processing" | "preview" | "rate_limited" | "error";
+type Phase = "idle" | "recording" | "processing" | "preview" | "confirm" | "rate_limited" | "error";
 
 function formatSeconds(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -33,7 +34,11 @@ export function MarketingHeroVoiceDemo() {
   const [showText, setShowText] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<DemoPreviewPayload | null>(null);
+  const [confirmLines, setConfirmLines] = useState<QuoteConfirmLine[]>([]);
+  const [confirmReason, setConfirmReason] = useState<string | null>(null);
+  const [confirmTva, setConfirmTva] = useState<number | null>(null);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
+  const editedLinesRef = useRef<Set<number>>(new Set());
 
   const recorderRef = useRef<DemoAudioRecorder | null>(null);
   const speechRef = useRef<{ stop: () => void; promise: Promise<string> } | null>(null);
@@ -89,6 +94,11 @@ export function MarketingHeroVoiceDemo() {
         message?: string;
         code?: string;
         reason?: string;
+        needs_confirmation?: boolean;
+        failures?: { code?: string; message?: string }[];
+        lignes?: { designation: string; quantite?: number; unite?: string; prix_ht?: number | null; source?: string | null }[];
+        tva_rate?: number | null;
+        total_ht?: number;
       };
 
       if (res.status === 429 || json.code === "rate_limited") {
@@ -116,6 +126,30 @@ export function MarketingHeroVoiceDemo() {
         });
         setError(json.message ?? "Génération impossible. Réessaie.");
         setPhase("error");
+        return;
+      }
+
+      if (json.needs_confirmation) {
+        const reason =
+          json.reason ??
+          json.failures?.find((failure) => failure.code && failure.code !== "incomplete_price")?.message ??
+          null;
+        editedLinesRef.current = new Set();
+        setConfirmLines(
+          (json.lignes ?? []).map((ligne) => ({
+            designation: ligne.designation,
+            quantite: ligne.quantite || 1,
+            unite: ligne.unite || "forfait",
+            prix: typeof ligne.prix_ht === "number" && ligne.prix_ht > 0 ? String(ligne.prix_ht) : "",
+            source: ligne.source ?? "",
+          })),
+        );
+        setConfirmReason(reason);
+        setConfirmTva(json.tva_rate ?? null);
+        setPhase("confirm");
+        trackFunnelEvent("demo_confirmation_shown", {
+          properties: { reason: reason ?? json.failures?.[0]?.code ?? "incomplete", source },
+        });
         return;
       }
 
@@ -289,6 +323,8 @@ export function MarketingHeroVoiceDemo() {
             lines={preview.preview_lines}
             lineCount={preview.line_count}
             totalTtc={preview.total_ttc}
+            totalHt={preview.total_ht}
+            tvaRate={preview.tva_rate}
           />
           <Link
             href="/register?from=demo"
@@ -303,6 +339,45 @@ export function MarketingHeroVoiceDemo() {
             <span className="text-xs font-medium text-white/85">Créer un compte</span>
           </Link>
         </div>
+      ) : phase === "confirm" ? (
+        <DevisQuoteConfirm
+          title="J'ai compris ça, corrige si besoin"
+          showTvaSelector={false}
+          requireTva={false}
+          tva={confirmTva === 20 || confirmTva === 10 || confirmTva === 5.5 ? confirmTva : null}
+          lines={confirmLines}
+          uncertain={Boolean(confirmReason)}
+          messages={confirmReason ? [confirmReason] : []}
+          onChange={setConfirmLines}
+          onLineEdit={(index) => {
+            if (editedLinesRef.current.has(index)) return;
+            editedLinesRef.current.add(index);
+            trackFunnelEvent("demo_line_edited", { properties: { line_index: index, source: "demo" } });
+          }}
+          footer={
+            <Link
+              href="/register?from=demo"
+              data-cta-location="demo_confirmation"
+              aria-disabled={!quoteConfirmReady(confirmLines, null, { requireTva: false })}
+              tabIndex={quoteConfirmReady(confirmLines, null, { requireTva: false }) ? 0 : -1}
+              onClick={(event) => {
+                if (!quoteConfirmReady(confirmLines, null, { requireTva: false })) {
+                  event.preventDefault();
+                  return;
+                }
+                trackFunnelEvent("demo_cta_signup_click", { properties: { from: "demo_confirmation" } });
+              }}
+              className={cx(
+                focusRing,
+                "inline-flex min-h-12 w-full flex-col items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 py-2.5 text-white",
+                !quoteConfirmReady(confirmLines, null, { requireTva: false }) && "pointer-events-none opacity-40",
+              )}
+            >
+              <span className="text-sm font-semibold">Envoyer le devis au client</span>
+              <span className="text-xs font-medium text-white/85">Créer un compte</span>
+            </Link>
+          }
+        />
       ) : phase === "rate_limited" ? (
         <div className="space-y-3 text-center">
           <p className="text-sm text-slate-600 dark:text-slate-300">{rateLimitMessage}</p>

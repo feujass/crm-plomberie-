@@ -13,6 +13,9 @@ type Props = {
   lines: PreviewLineInput[];
   lineCount: number;
   totalTtc: number;
+  /** null : aucun taux dicté, on n'affiche que le HT. undefined : ancien aperçu avec la TVA des lignes. */
+  tvaRate?: number | null;
+  totalHt?: number;
 };
 
 function asPreviewLine(raw: PreviewLineInput): DemoPreviewLine {
@@ -25,9 +28,11 @@ function asPreviewLine(raw: PreviewLineInput): DemoPreviewLine {
   };
 }
 
-export function DemoQuotePreview({ lines, lineCount, totalTtc }: Props) {
-  const normalized = lines.map(asPreviewLine);
+export function DemoQuotePreview({ lines, lineCount, totalTtc, tvaRate, totalHt }: Props) {
+  const showTva = tvaRate == null ? tvaRate === undefined : true;
+  const normalized = lines.map((line) => asPreviewLine(tvaRate != null ? { ...line, tva: tvaRate } : line));
   const totals = computeDemoTotals(normalized);
+  const ht = totalHt ?? totals.total_ht;
   const ttc = totals.total_ttc || totalTtc;
 
   return (
@@ -52,7 +57,7 @@ export function DemoQuotePreview({ lines, lineCount, totalTtc }: Props) {
             </p>
             <div className="mt-1 flex items-baseline justify-end gap-2">
               <span className="text-sm font-semibold tabular-nums">{formatCurrencyEUR(demoLineTotalHt(l))}</span>
-              <span className="text-[11px] tabular-nums text-slate-500">{l.tva} %</span>
+              {showTva ? <span className="text-[11px] tabular-nums text-slate-500">{l.tva} %</span> : null}
             </div>
           </div>
         ))}
@@ -66,7 +71,7 @@ export function DemoQuotePreview({ lines, lineCount, totalTtc }: Props) {
               <th className="py-2 px-1 text-right font-semibold">Qté</th>
               <th className="py-2 px-1 font-semibold">Unité</th>
               <th className="py-2 px-1 text-right font-semibold">PU HT</th>
-              <th className="py-2 px-1 text-right font-semibold">TVA</th>
+              {showTva ? <th className="py-2 px-1 text-right font-semibold">TVA</th> : null}
               <th className="py-2 pl-1 text-right font-semibold">Total HT</th>
             </tr>
           </thead>
@@ -77,7 +82,7 @@ export function DemoQuotePreview({ lines, lineCount, totalTtc }: Props) {
                 <td className="py-2 px-1 text-right tabular-nums">{l.quantite}</td>
                 <td className="py-2 px-1">{l.unite}</td>
                 <td className="py-2 px-1 text-right tabular-nums">{formatCurrencyEUR(l.prix_ht)}</td>
-                <td className="py-2 px-1 text-right tabular-nums">{l.tva} %</td>
+                {showTva ? <td className="py-2 px-1 text-right tabular-nums">{l.tva} %</td> : null}
                 <td className="py-2 pl-1 text-right tabular-nums font-medium">
                   {formatCurrencyEUR(demoLineTotalHt(l))}
                 </td>
@@ -88,9 +93,20 @@ export function DemoQuotePreview({ lines, lineCount, totalTtc }: Props) {
       </div>
 
       <div className="space-y-0.5 px-4 py-3 text-right text-xs text-slate-600 dark:text-slate-400">
-        <p>Total HT : {formatCurrencyEUR(totals.total_ht)}</p>
-        <p>Total TVA : {formatCurrencyEUR(totals.total_tva)}</p>
-        <p className="text-base font-bold text-slate-900 dark:text-slate-50">Total TTC : {formatCurrencyEUR(ttc)}</p>
+        <p className="text-base font-bold text-slate-900 dark:text-slate-50">Total HT : {formatCurrencyEUR(ht)}</p>
+        {showTva ? (
+          <>
+            <p>Total TVA : {formatCurrencyEUR(totals.total_tva)}</p>
+            <p className="text-base font-bold text-slate-900 dark:text-slate-50">Total TTC : {formatCurrencyEUR(ttc)}</p>
+            {typeof tvaRate === "number" ? (
+              <p className="text-[11px] font-normal text-slate-500">
+                Taux compris dans ta description : {String(tvaRate).replace(".", ",")} %
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-[11px] font-normal text-slate-400">TVA à choisir à la création du devis (20 %, 10 % ou 5,5 %)</p>
+        )}
         <p className="text-[11px] font-normal text-slate-400">{lineCount} ligne{lineCount > 1 ? "s" : ""}</p>
       </div>
     </div>

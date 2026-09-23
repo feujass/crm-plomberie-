@@ -1,4 +1,5 @@
 import { buildDevisMetaFromIa } from "@/lib/devis/ia-metadata";
+import { assessQuote } from "@/lib/devis/validate-quote";
 import { logQuoteValidationIncident } from "@/lib/devis/quote-faithfulness";
 import {
   buildDevisGeneratePrompt,
@@ -88,8 +89,11 @@ export async function POST(req: Request) {
 
   const processed = processIaDevisResponse(z.data, profile, ouvrages ?? [], corrige);
   const meta = buildDevisMetaFromIa(z.data);
-  const mustConfirm =
-    !processed.review.ok || processed.review.needsConfirmation || processed.tvaExplicite == null;
+  const decision = assessQuote({
+    audience: "connected",
+    review: processed.review,
+    explicitRate: processed.tvaExplicite,
+  });
 
   try {
     await recordIaDevisUsage(profile);
@@ -97,17 +101,18 @@ export async function POST(req: Request) {
     // compteur best-effort — devis déjà généré
   }
 
-  if (mustConfirm) {
+  if (decision.needsConfirmation) {
     if (!processed.review.ok) {
       logQuoteValidationIncident({
         input: corrige,
         llm: z.data.lignes,
-        failures: processed.review.failures,
+        failures: decision.failures,
       });
     }
     return NextResponse.json({
       needs_confirmation: true,
-      failures: processed.review.failures,
+      failures: decision.failures,
+      reason: decision.reason,
       lignes: processed.drafts.map((ligne) => ({
         designation: ligne.designation,
         quantite: ligne.quantite,
@@ -120,7 +125,7 @@ export async function POST(req: Request) {
       notes: meta.notes || null,
       date_expiration: meta.date_expiration,
       questions: processed.questions,
-      tva_explicite: processed.tvaExplicite,
+      tva_explicite: decision.tva.rate,
       transcription_brute: brut,
       transcription_corrigee: corrige,
     });
@@ -136,7 +141,7 @@ export async function POST(req: Request) {
     questions: processed.questions,
     tva_alerts: processed.tvaAlerts,
     prix_alerts: processed.prixAlerts,
-    tva_explicite: processed.tvaExplicite,
+    tva_explicite: decision.tva.rate,
     transcription_brute: brut,
     transcription_corrigee: corrige,
   });

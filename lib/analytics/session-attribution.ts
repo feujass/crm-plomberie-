@@ -254,6 +254,8 @@ export function eventTypesWithAttribution(): Set<string> {
     "cta_click",
     "cta_to_demo_click",
     "demo_cta_signup_click",
+    "demo_confirmation_shown",
+    "demo_line_edited",
     "pricing_view",
   ]);
 }
