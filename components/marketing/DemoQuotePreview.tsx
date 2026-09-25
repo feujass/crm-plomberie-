@@ -69,11 +69,10 @@ function TranscriptBlock({ text }: { text: string }) {
 
 export function DemoQuotePreview({ lines, onChange, onLineCommit, transcript, tvaRate }: Props) {
   const focusRef = useRef<{ index: number; field: "designation" | "prix"; value: string } | null>(null);
-  const showTva = tvaRate == null ? tvaRate === undefined : true;
   const totalHt = demoTotalHt(lines);
   const rate = typeof tvaRate === "number" ? tvaRate : null;
-  const totalTva =
-    totalHt != null && showTva && rate != null ? Math.round(totalHt * (rate / 100) * 100) / 100 : null;
+  const showTva = rate != null;
+  const totalTva = totalHt != null && rate != null ? Math.round(totalHt * (rate / 100) * 100) / 100 : null;
   const totalTtc = totalHt != null && totalTva != null ? Math.round((totalHt + totalTva) * 100) / 100 : null;
 
   function patch(index: number, partial: Partial<DemoEditableLine>) {
@@ -222,21 +221,18 @@ export function DemoQuotePreview({ lines, onChange, onLineCommit, transcript, tv
         <p className="text-base font-bold text-slate-900 dark:text-slate-50">
           Total HT : {totalHt == null ? "—" : formatCurrencyEUR(totalHt)}
         </p>
-        {showTva ? (
-          <>
-            <p>Total TVA : {totalTva == null ? "—" : formatCurrencyEUR(totalTva)}</p>
-            <p className="text-base font-bold text-slate-900 dark:text-slate-50">
-              Total TTC : {totalTtc == null ? "—" : formatCurrencyEUR(totalTtc)}
-            </p>
-            {rate != null ? (
-              <p className="text-[11px] font-normal text-slate-500">
-                Taux compris dans ta description : {String(rate).replace(".", ",")} %
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-[11px] font-normal text-slate-400">TVA à choisir à la création du devis (20 %, 10 % ou 5,5 %)</p>
-        )}
+        <p className={totalTva == null ? "text-slate-400" : undefined}>
+          Total TVA : {totalTva == null ? "—" : formatCurrencyEUR(totalTva)}
+        </p>
+        <p
+          className={
+            totalTtc == null
+              ? "text-base font-bold text-slate-400"
+              : "text-base font-bold text-slate-900 dark:text-slate-50"
+          }
+        >
+          Total TTC : {totalTtc == null ? "—" : formatCurrencyEUR(totalTtc)}
+        </p>
         <p className="text-[11px] font-normal text-slate-400">
           {lines.length} ligne{lines.length > 1 ? "s" : ""}
         </p>

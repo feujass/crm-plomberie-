@@ -10,6 +10,7 @@ import {
   demoPricesComplete,
   type DemoEditableLine,
 } from "@/components/marketing/DemoQuotePreview";
+import { QuoteTvaSelector, type TvaRateChoice } from "@/components/devis/DevisQuoteConfirm";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
 import { useInAppBrowser } from "@/lib/use-in-app-browser";
@@ -27,9 +28,15 @@ type DemoResult = {
   transcriptBrut: string | null;
   transcriptCorrige: string | null;
   reason: string | null;
-  tvaRate: number | null | undefined;
+  tvaRate: TvaRateChoice | null;
+  tvaMentioned: boolean;
   validationPassed: boolean;
 };
+
+function dictatedTva(rate: number | null | undefined): TvaRateChoice | null {
+  if (rate === 20 || rate === 10 || rate === 5.5) return rate;
+  return null;
+}
 
 function prixToInput(value: number | null | undefined): string {
   return typeof value === "number" && value > 0 ? String(value) : "";
@@ -80,7 +87,8 @@ export function MarketingHeroVoiceDemo() {
           transcriptBrut: json.preview.transcription_brute ?? null,
           transcriptCorrige: json.preview.transcription_corrigee ?? null,
           reason: null,
-          tvaRate: json.preview.tva_rate,
+          tvaRate: dictatedTva(json.preview.tva_rate),
+          tvaMentioned: dictatedTva(json.preview.tva_rate) != null,
           validationPassed: true,
         });
         setPhase("preview");
@@ -156,7 +164,8 @@ export function MarketingHeroVoiceDemo() {
           transcriptBrut: json.transcription_brute ?? null,
           transcriptCorrige: json.transcription_corrigee ?? null,
           reason: null,
-          tvaRate: json.tva_rate,
+          tvaRate: dictatedTva(json.tva_rate),
+          tvaMentioned: dictatedTva(json.tva_rate) != null,
           validationPassed: true,
         });
         setPhase("preview");
@@ -197,7 +206,8 @@ export function MarketingHeroVoiceDemo() {
           transcriptBrut: json.transcription_brute ?? null,
           transcriptCorrige: json.transcription_corrigee ?? null,
           reason,
-          tvaRate: json.tva_rate,
+          tvaRate: dictatedTva(json.tva_rate),
+          tvaMentioned: dictatedTva(json.tva_rate) != null,
           validationPassed: false,
         });
         setPhase("preview");
@@ -224,7 +234,8 @@ export function MarketingHeroVoiceDemo() {
         transcriptBrut: json.transcription_brute ?? null,
         transcriptCorrige: json.transcription_corrigee ?? null,
         reason: null,
-        tvaRate: json.tva_rate,
+        tvaRate: dictatedTva(json.tva_rate),
+        tvaMentioned: dictatedTva(json.tva_rate) != null,
         validationPassed: true,
       });
       setPhase("preview");
@@ -418,6 +429,14 @@ export function MarketingHeroVoiceDemo() {
               if (editedLinesRef.current.has(index)) return;
               editedLinesRef.current.add(index);
               trackFunnelEvent("demo_line_edited", { properties: { line_index: index, field, source: "demo" } });
+            }}
+          />
+          <QuoteTvaSelector
+            tva={result.tvaRate}
+            tvaMentioned={result.tvaMentioned}
+            onTva={(rate) => {
+              setResult((current) => (current ? { ...current, tvaRate: rate } : current));
+              trackFunnelEvent("demo_tva_selected", { properties: { tva_rate: rate, source: "demo" } });
             }}
           />
           <Link

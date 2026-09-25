@@ -258,6 +258,7 @@ export function eventTypesWithAttribution(): Set<string> {
     "demo_line_edited",
     "demo_transcript_shown",
     "demo_line_edited_after_success",
+    "demo_tva_selected",
     "pricing_view",
   ]);
 }

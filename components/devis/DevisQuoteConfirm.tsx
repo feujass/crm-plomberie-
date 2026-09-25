@@ -25,6 +25,50 @@ function parsePrix(raw: string): number | null {
   return n;
 }
 
+export function QuoteTvaSelector({
+  tva,
+  onTva,
+  tvaMentioned = false,
+}: {
+  tva: TvaRateChoice | null;
+  onTva?: (tva: TvaRateChoice) => void;
+  tvaMentioned?: boolean;
+}) {
+  return (
+    <fieldset>
+      <legend className="text-sm font-semibold text-slate-900 dark:text-slate-100">Choisis ton taux de TVA</legend>
+      <p className="mt-1 text-xs leading-snug text-slate-600 dark:text-slate-300">
+        {tvaMentioned && tva != null
+          ? `Tu as indiqué ${String(tva).replace(".", ",")} %. Tu peux changer avant de générer.`
+          : "Aucun taux n'a été compris dans ta description. 20 %, 10 % ou 5,5 % selon le chantier."}
+      </p>
+      <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Taux de TVA">
+        {TVA_RATES.map((rate) => {
+          const selected = tva === rate;
+          return (
+            <button
+              key={rate}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onTva?.(rate)}
+              className={cx(
+                focusRing,
+                "min-h-11 rounded-xl border text-sm font-semibold",
+                selected
+                  ? "border-[#2563EB] bg-[#2563EB] text-white"
+                  : "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100",
+              )}
+            >
+              {String(rate).replace(".", ",")} %
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 export function quoteConfirmReady(
   lines: QuoteConfirmLine[],
   tva: TvaRateChoice | null,
@@ -133,39 +177,7 @@ export function DevisQuoteConfirm({
         ))}
       </div>
 
-      {showTvaSelector ? (
-      <fieldset>
-        <legend className="text-sm font-semibold text-slate-900 dark:text-slate-100">Choisis ton taux de TVA</legend>
-        <p className="mt-1 text-xs leading-snug text-slate-600 dark:text-slate-300">
-          {tvaMentioned && tva != null
-            ? `Tu as indiqué ${tva} %. Tu peux changer avant de générer.`
-            : "Aucun taux n'a été compris dans ta description. 20 %, 10 % ou 5,5 % selon le chantier."}
-        </p>
-        <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Taux de TVA">
-          {TVA_RATES.map((rate) => {
-            const selected = tva === rate;
-            return (
-              <button
-                key={rate}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => onTva?.(rate)}
-                className={cx(
-                  focusRing,
-                  "min-h-11 rounded-xl border text-sm font-semibold",
-                  selected
-                    ? "border-[#2563EB] bg-[#2563EB] text-white"
-                    : "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100",
-                )}
-              >
-                {String(rate).replace(".", ",")} %
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-      ) : null}
+      {showTvaSelector ? <QuoteTvaSelector tva={tva} onTva={onTva} tvaMentioned={tvaMentioned} /> : null}
 
       <div className="text-sm">
         <p className="font-medium text-slate-800 dark:text-slate-100">
