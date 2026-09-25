@@ -1,5 +1,7 @@
 import { Document, Page, StyleSheet, Text, View, Image } from "@react-pdf/renderer";
 
+import { asTvaRate, summarizeTva } from "@/lib/devis/tva-breakdown";
+
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 9, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
@@ -60,6 +62,7 @@ export function DevisPdfDocument({
   notes: string | null;
 }) {
   const clientName = client ? [client.prenom, client.nom].filter(Boolean).join(" ") || client.nom : "—";
+  const summary = summarizeTva(lignes.map((ligne) => ({ ht: ligne.total_ht, rate: asTvaRate(ligne.tva) })));
 
   return (
     <Document>
@@ -106,8 +109,17 @@ export function DevisPdfDocument({
 
         <View style={styles.totals}>
           <Text>Total HT : {total_ht.toFixed(2)} €</Text>
-          <Text>Total TVA : {total_tva.toFixed(2)} €</Text>
-          <Text style={{ marginTop: 4, fontSize: 11 }}>Total TTC : {total_ttc.toFixed(2)} €</Text>
+          {summary.kind === "mixed"
+            ? summary.rows.map((row) => (
+                <Text key={row.rate}>
+                  Base {String(row.rate).replace(".", ",")} % {row.base.toFixed(2)} €    TVA {row.tva.toFixed(2)} €
+                </Text>
+              ))
+            : null}
+          <Text>Total TVA : {(summary.kind === "incomplete" ? total_tva : summary.totalTva).toFixed(2)} €</Text>
+          <Text style={{ marginTop: 4, fontSize: 11 }}>
+            Total TTC : {(summary.kind === "incomplete" ? total_ttc : summary.totalTtc).toFixed(2)} €
+          </Text>
         </View>
 
         {notes ? (

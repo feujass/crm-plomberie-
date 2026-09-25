@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClientFromIa } from "@/lib/devis/resolve-ia-client";
 import type { DevisIaClient } from "@/lib/schemas/devis-ia";
 import { listenForSpeech } from "@/lib/voice/browserSpeechRecognition";
+import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import { handleTrialExpiredPaywallResponse } from "@/lib/plans/paywall";
 import {
   DevisQuoteConfirm,
@@ -252,6 +253,7 @@ export function DevisNouveauClient({
             unite: ligne.unite || "forfait",
             prix: ligne.prix_ht > 0 ? String(ligne.prix_ht) : "",
             source: ligne.source ?? "",
+            tva: json.tva_explicite === 20 || json.tva_explicite === 10 || json.tva_explicite === 5.5 ? json.tva_explicite : null,
           })),
           tva: json.tva_explicite ?? null,
           tvaMentioned: json.tva_explicite != null,
@@ -277,8 +279,11 @@ export function DevisNouveauClient({
   }
 
   function submitConfirm() {
-    if (!confirm || !quoteConfirmReady(confirm.lines, confirm.tva) || confirm.tva == null) return;
-    const tva = confirm.tva;
+    if (!confirm || !quoteConfirmReady(confirm.lines, confirm.tva)) return;
+    const rates = [...new Set(confirm.lines.map((ligne) => ligne.tva).filter((rate) => rate != null))];
+    if (rates.length > 1) {
+      trackFunnelEvent("quote_multi_tva_used", { properties: { rates, line_count: confirm.lines.length } });
+    }
     start(async () => {
       setErr(null);
       try {
@@ -298,7 +303,8 @@ export function DevisNouveauClient({
             quantite: ligne.quantite || 1,
             unite: ligne.unite || "forfait",
             prix_ht: Number(ligne.prix.replace(/\s/g, "").replace(",", ".")),
-            tva,
+            tva: ligne.tva as number,
+            tva_rate: ligne.tva,
             ordre: index,
             ligne_type: "prestation",
             source: ligne.source || null,

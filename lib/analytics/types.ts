@@ -43,6 +43,8 @@ export type AnalyticsEventType =
   | "demo_transcript_shown"
   | "demo_line_edited_after_success"
   | "demo_tva_selected"
+  | "quote_line_tva_changed"
+  | "quote_multi_tva_used"
   | "demo_cta_signup_click"
   | "demo_rate_limited"
   | "demo_text_fallback_used";

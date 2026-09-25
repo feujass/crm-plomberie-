@@ -42,7 +42,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     quantite: Number(l.quantite ?? 1),
     unite: l.unite ?? "u",
     prix_ht: Number(l.prix_ht ?? 0),
-    tva: Number(l.tva ?? 10),
+    tva: Number(l.tva_rate ?? l.tva ?? 10),
     total_ht: Number(l.total_ht ?? (Number(l.quantite ?? 1) * Number(l.prix_ht ?? 0))),
   }));
 

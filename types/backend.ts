@@ -185,6 +185,7 @@ export type BackendDevisLine = {
   unite?: string;
   prix_ht?: number;
   tva?: number;
+  tva_rate?: number | null;
   total_ht?: number;
   ligne_type?: "prestation" | "fourniture" | "pose" | string;
   source?: string | null;

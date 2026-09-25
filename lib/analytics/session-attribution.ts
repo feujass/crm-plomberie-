@@ -259,6 +259,8 @@ export function eventTypesWithAttribution(): Set<string> {
     "demo_transcript_shown",
     "demo_line_edited_after_success",
     "demo_tva_selected",
+    "quote_line_tva_changed",
+    "quote_multi_tva_used",
     "pricing_view",
   ]);
 }

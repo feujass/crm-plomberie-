@@ -9,6 +9,8 @@ export type DevisLigneInput = {
   unite: string;
   prix_ht: number;
   tva: number;
+  /** Taux choisi pour cette ligne. Null si l'artisan n'a pas encore choisi. */
+  tva_rate?: number | null;
   ordre: number;
   ligne_type: "prestation" | "fourniture" | "pose";
   /** Extrait de la dictée justifiant la ligne */
