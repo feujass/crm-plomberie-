@@ -155,6 +155,10 @@ export function extractExplicitTvaRate(text: string): ExplicitTvaRate | null {
 
 export function logQuoteValidationIncident(payload: {
   input: string;
+  /** Texte reçu avant correction de vocabulaire. */
+  transcription_brute?: string;
+  /** Texte réellement envoyé au moteur. */
+  transcription_corrigee?: string;
   llm: unknown;
   failures: QuoteFailure[];
 }): void {

@@ -36,6 +36,10 @@ export type DemoPreviewPayload = {
   total_ht?: number;
   /** null : aucun taux dicté. Absent : ancien aperçu. */
   tva_rate?: number | null;
+  /** Dictée ou saisie avant correction de vocabulaire. */
+  transcription_brute?: string | null;
+  /** Texte envoyé au moteur, affiché dans « Tu as dit ». */
+  transcription_corrigee?: string | null;
 };
 
 export type DemoGenerateErrorCode =

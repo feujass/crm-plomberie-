@@ -105,6 +105,8 @@ export async function POST(req: Request) {
     if (!processed.review.ok) {
       logQuoteValidationIncident({
         input: corrige,
+        transcription_brute: brut,
+        transcription_corrigee: corrige,
         llm: z.data.lignes,
         failures: decision.failures,
       });

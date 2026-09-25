@@ -5,8 +5,11 @@ import Link from "next/link";
 import { Loader2, Mic, Square, Type } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { DemoQuotePreview } from "@/components/marketing/DemoQuotePreview";
-import { DevisQuoteConfirm, quoteConfirmReady, type QuoteConfirmLine } from "@/components/devis/DevisQuoteConfirm";
+import {
+  DemoQuotePreview,
+  demoPricesComplete,
+  type DemoEditableLine,
+} from "@/components/marketing/DemoQuotePreview";
 import { trackFunnelEvent } from "@/lib/analytics/funnel";
 import type { DemoPreviewPayload } from "@/lib/demo/types";
 import { useInAppBrowser } from "@/lib/use-in-app-browser";
@@ -17,7 +20,30 @@ import { cx, focusRing } from "@/lib/utils";
 const ZEUS_AVATAR = "/zeus-avatar.png";
 const GENERATE_TIMEOUT_MS = 30_000;
 
-type Phase = "idle" | "recording" | "processing" | "preview" | "confirm" | "rate_limited" | "error";
+type Phase = "idle" | "recording" | "processing" | "preview" | "rate_limited" | "error";
+
+type DemoResult = {
+  lines: DemoEditableLine[];
+  transcriptBrut: string | null;
+  transcriptCorrige: string | null;
+  reason: string | null;
+  tvaRate: number | null | undefined;
+  validationPassed: boolean;
+};
+
+function prixToInput(value: number | null | undefined): string {
+  return typeof value === "number" && value > 0 ? String(value) : "";
+}
+
+function linesFromPreview(lines: DemoPreviewPayload["preview_lines"]): DemoEditableLine[] {
+  return lines.map((line) => ({
+    designation: line.designation,
+    quantite: line.quantite || 1,
+    unite: line.unite || "forfait",
+    prix: prixToInput(line.prix_ht),
+    tva: line.tva,
+  }));
+}
 
 function formatSeconds(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -33,10 +59,7 @@ export function MarketingHeroVoiceDemo() {
   const [textFallback, setTextFallback] = useState("");
   const [showText, setShowText] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<DemoPreviewPayload | null>(null);
-  const [confirmLines, setConfirmLines] = useState<QuoteConfirmLine[]>([]);
-  const [confirmReason, setConfirmReason] = useState<string | null>(null);
-  const [confirmTva, setConfirmTva] = useState<number | null>(null);
+  const [result, setResult] = useState<DemoResult | null>(null);
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
   const editedLinesRef = useRef<Set<number>>(new Set());
 
@@ -52,8 +75,25 @@ export function MarketingHeroVoiceDemo() {
         const res = await fetch("/api/public/demo/status");
         const json = (await res.json()) as { used?: boolean; preview?: DemoPreviewPayload };
         if (cancelled || !json.used || !json.preview) return;
-        setPreview(json.preview);
+        setResult({
+          lines: linesFromPreview(json.preview.preview_lines),
+          transcriptBrut: json.preview.transcription_brute ?? null,
+          transcriptCorrige: json.preview.transcription_corrigee ?? null,
+          reason: null,
+          tvaRate: json.preview.tva_rate,
+          validationPassed: true,
+        });
         setPhase("preview");
+        if (json.preview.transcription_corrigee || json.preview.transcription_brute) {
+          trackFunnelEvent("demo_transcript_shown", {
+            properties: {
+              transcription_brute: json.preview.transcription_brute ?? null,
+              transcription_corrigee: json.preview.transcription_corrigee ?? null,
+              validation_passed: true,
+              source: "replay",
+            },
+          });
+        }
       } catch {
         /* première visite */
       }
@@ -99,6 +139,8 @@ export function MarketingHeroVoiceDemo() {
         lignes?: { designation: string; quantite?: number; unite?: string; prix_ht?: number | null; source?: string | null }[];
         tva_rate?: number | null;
         total_ht?: number;
+        transcription_brute?: string | null;
+        transcription_corrigee?: string | null;
       };
 
       if (res.status === 429 || json.code === "rate_limited") {
@@ -109,14 +151,23 @@ export function MarketingHeroVoiceDemo() {
       }
 
       if (res.status === 409 || json.code === "demo_already_used") {
-        setPreview({
-          demo_quote_id: json.demo_quote_id,
-          preview_image_base64: json.preview_image_base64,
-          preview_lines: json.preview_lines,
-          line_count: json.line_count,
-          total_ttc: json.total_ttc,
+        setResult({
+          lines: linesFromPreview(json.preview_lines ?? []),
+          transcriptBrut: json.transcription_brute ?? null,
+          transcriptCorrige: json.transcription_corrigee ?? null,
+          reason: null,
+          tvaRate: json.tva_rate,
+          validationPassed: true,
         });
         setPhase("preview");
+        trackFunnelEvent("demo_transcript_shown", {
+          properties: {
+            transcription_brute: json.transcription_brute ?? null,
+            transcription_corrigee: json.transcription_corrigee ?? null,
+            validation_passed: true,
+            source: "replay",
+          },
+        });
         return;
       }
 
@@ -135,20 +186,31 @@ export function MarketingHeroVoiceDemo() {
           json.failures?.find((failure) => failure.code && failure.code !== "incomplete_price")?.message ??
           null;
         editedLinesRef.current = new Set();
-        setConfirmLines(
-          (json.lignes ?? []).map((ligne) => ({
+        setResult({
+          lines: (json.lignes ?? []).map((ligne) => ({
             designation: ligne.designation,
             quantite: ligne.quantite || 1,
             unite: ligne.unite || "forfait",
-            prix: typeof ligne.prix_ht === "number" && ligne.prix_ht > 0 ? String(ligne.prix_ht) : "",
-            source: ligne.source ?? "",
+            prix: prixToInput(ligne.prix_ht),
+            tva: json.tva_rate ?? undefined,
           })),
-        );
-        setConfirmReason(reason);
-        setConfirmTva(json.tva_rate ?? null);
-        setPhase("confirm");
+          transcriptBrut: json.transcription_brute ?? null,
+          transcriptCorrige: json.transcription_corrigee ?? null,
+          reason,
+          tvaRate: json.tva_rate,
+          validationPassed: false,
+        });
+        setPhase("preview");
         trackFunnelEvent("demo_confirmation_shown", {
           properties: { reason: reason ?? json.failures?.[0]?.code ?? "incomplete", source },
+        });
+        trackFunnelEvent("demo_transcript_shown", {
+          properties: {
+            transcription_brute: json.transcription_brute ?? null,
+            transcription_corrigee: json.transcription_corrigee ?? null,
+            validation_passed: false,
+            source,
+          },
         });
         return;
       }
@@ -156,9 +218,25 @@ export function MarketingHeroVoiceDemo() {
       trackFunnelEvent("demo_generation_success", {
         properties: { source, line_count: json.line_count, total_ttc: json.total_ttc },
       });
-      setPreview(json);
+      editedLinesRef.current = new Set();
+      setResult({
+        lines: linesFromPreview(json.preview_lines ?? []),
+        transcriptBrut: json.transcription_brute ?? null,
+        transcriptCorrige: json.transcription_corrigee ?? null,
+        reason: null,
+        tvaRate: json.tva_rate,
+        validationPassed: true,
+      });
       setPhase("preview");
       trackFunnelEvent("demo_preview_shown", { properties: { demo_quote_id: json.demo_quote_id } });
+      trackFunnelEvent("demo_transcript_shown", {
+        properties: {
+          transcription_brute: json.transcription_brute ?? null,
+          transcription_corrigee: json.transcription_corrigee ?? null,
+          validation_passed: true,
+          source,
+        },
+      });
     } catch (e) {
       const aborted = e instanceof DOMException && e.name === "AbortError";
       trackFunnelEvent("demo_generation_error", {
@@ -244,7 +322,7 @@ export function MarketingHeroVoiceDemo() {
 
   const startRecording = async () => {
     setError(null);
-    setPreview(null);
+    setResult(null);
     setRateLimitMessage(null);
     speechTranscriptRef.current = "";
     trackFunnelEvent("demo_start", { properties: { source: "hero" } });
@@ -314,70 +392,58 @@ export function MarketingHeroVoiceDemo() {
         </div>
       </div>
 
-      {phase === "preview" && preview ? (
+      {phase === "preview" && result ? (
         <div className="space-y-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-            Ton devis est prêt ({preview.line_count} ligne{preview.line_count > 1 ? "s" : ""}).
-          </p>
+          <div>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Voilà ton devis. Vérifie les prix avant d&apos;envoyer.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Clique sur une ligne pour la corriger.</p>
+            {result.reason ? (
+              <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">{result.reason}</p>
+            ) : null}
+          </div>
           <DemoQuotePreview
-            lines={preview.preview_lines}
-            lineCount={preview.line_count}
-            totalTtc={preview.total_ttc}
-            totalHt={preview.total_ht}
-            tvaRate={preview.tva_rate}
+            lines={result.lines}
+            transcript={result.transcriptCorrige}
+            tvaRate={result.tvaRate}
+            onChange={(lines) => setResult((current) => (current ? { ...current, lines } : current))}
+            onLineCommit={(index, field, previous, next) => {
+              if (result.validationPassed) {
+                trackFunnelEvent("demo_line_edited_after_success", {
+                  properties: { line_index: index, field, old_value: previous, new_value: next, source: "demo" },
+                });
+                return;
+              }
+              if (editedLinesRef.current.has(index)) return;
+              editedLinesRef.current.add(index);
+              trackFunnelEvent("demo_line_edited", { properties: { line_index: index, field, source: "demo" } });
+            }}
           />
           <Link
             href="/register?from=demo"
-            data-cta-location="demo_preview"
-            onClick={() => trackFunnelEvent("demo_cta_signup_click", { properties: { from: "hero_preview" } })}
+            data-cta-location={result.validationPassed ? "demo_preview" : "demo_confirmation"}
+            aria-disabled={!demoPricesComplete(result.lines)}
+            tabIndex={demoPricesComplete(result.lines) ? 0 : -1}
+            onClick={(event) => {
+              if (!demoPricesComplete(result.lines)) {
+                event.preventDefault();
+                return;
+              }
+              trackFunnelEvent("demo_cta_signup_click", {
+                properties: { from: result.validationPassed ? "hero_preview" : "demo_confirmation" },
+              });
+            }}
             className={cx(
               focusRing,
               "inline-flex min-h-12 w-full flex-col items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 py-2.5 text-white sm:min-h-11",
+              !demoPricesComplete(result.lines) && "pointer-events-none opacity-40",
             )}
           >
             <span className="text-sm font-semibold">Envoyer le devis au client</span>
             <span className="text-xs font-medium text-white/85">Créer un compte</span>
           </Link>
         </div>
-      ) : phase === "confirm" ? (
-        <DevisQuoteConfirm
-          title="J'ai compris ça, corrige si besoin"
-          showTvaSelector={false}
-          requireTva={false}
-          tva={confirmTva === 20 || confirmTva === 10 || confirmTva === 5.5 ? confirmTva : null}
-          lines={confirmLines}
-          uncertain={Boolean(confirmReason)}
-          messages={confirmReason ? [confirmReason] : []}
-          onChange={setConfirmLines}
-          onLineEdit={(index) => {
-            if (editedLinesRef.current.has(index)) return;
-            editedLinesRef.current.add(index);
-            trackFunnelEvent("demo_line_edited", { properties: { line_index: index, source: "demo" } });
-          }}
-          footer={
-            <Link
-              href="/register?from=demo"
-              data-cta-location="demo_confirmation"
-              aria-disabled={!quoteConfirmReady(confirmLines, null, { requireTva: false })}
-              tabIndex={quoteConfirmReady(confirmLines, null, { requireTva: false }) ? 0 : -1}
-              onClick={(event) => {
-                if (!quoteConfirmReady(confirmLines, null, { requireTva: false })) {
-                  event.preventDefault();
-                  return;
-                }
-                trackFunnelEvent("demo_cta_signup_click", { properties: { from: "demo_confirmation" } });
-              }}
-              className={cx(
-                focusRing,
-                "inline-flex min-h-12 w-full flex-col items-center justify-center rounded-xl bg-[color:var(--primary)] px-6 py-2.5 text-white",
-                !quoteConfirmReady(confirmLines, null, { requireTva: false }) && "pointer-events-none opacity-40",
-              )}
-            >
-              <span className="text-sm font-semibold">Envoyer le devis au client</span>
-              <span className="text-xs font-medium text-white/85">Créer un compte</span>
-            </Link>
-          }
-        />
       ) : phase === "rate_limited" ? (
         <div className="space-y-3 text-center">
           <p className="text-sm text-slate-600 dark:text-slate-300">{rateLimitMessage}</p>

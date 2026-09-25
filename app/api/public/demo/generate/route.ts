@@ -104,6 +104,8 @@ export async function POST(req: Request) {
     if (!processed.review.ok) {
       logQuoteValidationIncident({
         input: corrige,
+        transcription_brute: brut,
+        transcription_corrigee: corrige,
         llm: parsed.data.lignes,
         failures: decision.failures,
       });
@@ -122,6 +124,7 @@ export async function POST(req: Request) {
       })),
       tva_rate: decision.tva.rate,
       transcription_brute: brut,
+      transcription_corrigee: corrige,
     });
     if (setCookie) res.cookies.set("flowo_demo_id", demoSessionId, demoSessionCookieOptions());
     return res;
@@ -160,12 +163,18 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+  const storedQuote = {
+    ...quote,
+    transcription_brute: brut,
+    transcription_corrigee: corrige,
+    tva_rate: decision.tva.rate,
+  };
   const { data: inserted, error } = await admin
     .from("demo_quotes")
     .insert({
       demo_session_id: demoSessionId,
       transcript: corrige,
-      quote_json: quote,
+      quote_json: storedQuote,
       preview_lines: previewLines,
       line_count: lineCount,
       total_ttc: totalTtc,
@@ -189,6 +198,7 @@ export async function POST(req: Request) {
     total_ht: Math.round(totalHt * 100) / 100,
     tva_rate: decision.tva.rate,
     transcription_brute: brut,
+    transcription_corrigee: corrige,
   });
 
   if (setCookie) {

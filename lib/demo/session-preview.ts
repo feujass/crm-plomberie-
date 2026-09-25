@@ -6,7 +6,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type DemoQuoteRow = {
   id: string;
-  quote_json: DevisIaResponse;
+  transcript: string | null;
+  quote_json: DevisIaResponse & {
+    transcription_brute?: string | null;
+    transcription_corrigee?: string | null;
+    tva_rate?: number | null;
+  };
   preview_lines: DemoPreviewPayload["preview_lines"];
   line_count: number;
   total_ttc: number;
@@ -16,7 +21,7 @@ export async function fetchDemoQuoteForSession(demoSessionId: string): Promise<D
   const admin = createAdminClient();
   const { data } = await admin
     .from("demo_quotes")
-    .select("id, quote_json, preview_lines, line_count, total_ttc")
+    .select("id, transcript, quote_json, preview_lines, line_count, total_ttc")
     .eq("demo_session_id", demoSessionId)
     .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
@@ -41,6 +46,9 @@ export async function demoPreviewPayloadFromRow(row: DemoQuoteRow): Promise<Demo
     preview_lines: quote.lignes?.length ? previewLinesFromQuote(quote.lignes) : row.preview_lines,
     line_count: row.line_count,
     total_ttc: Number(row.total_ttc),
+    transcription_brute: quote.transcription_brute ?? null,
+    transcription_corrigee: quote.transcription_corrigee ?? row.transcript ?? null,
+    tva_rate: "tva_rate" in quote ? quote.tva_rate : undefined,
   };
 }
 
