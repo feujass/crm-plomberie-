@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title">
+  <title id="title">Ouvrir dans Safari depuis le menu de lapp</title>
+  <rect width="720" height="420" rx="24" fill="#eff6ff"/>
+  <rect x="180" y="28" width="360" height="364" rx="36" fill="#0f172a"/>
+  <rect x="196" y="56" width="328" height="308" rx="16" fill="#ffffff"/>
+  <circle cx="492" cy="78" r="10" fill="#94a3b8"/>
+  <circle cx="466" cy="78" r="4" fill="#ffffff"/>
+  <circle cx="492" cy="78" r="4" fill="#ffffff"/>
+  <circle cx="518" cy="78" r="4" fill="#ffffff"/>
+  <rect x="220" y="118" width="280" height="200" rx="16" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="236" y="138" width="248" height="36" rx="8" fill="#e2e8f0"/>
+  <rect x="236" y="186" width="248" height="44" rx="10" fill="#2563eb"/>
+  <text x="360" y="214" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#ffffff">Ouvrir dans Safari</text>
+  <text x="360" y="252" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#64748b">Menu """ en haut à droite</text>
+</svg>

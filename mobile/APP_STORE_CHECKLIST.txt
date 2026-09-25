@@ -1,0 +1,26 @@
+Checklist publication App Store (PlombiCRM mobile — phase 1)
+
+Compte et identifiants
+- Compte Apple Developer actif (99 USD/an).
+- Identifiant d’app iOS : com.plombicrm.mobile (aligné sur app.json si modifié).
+- Certificats et profils : gérés via EAS Build (recommandé) ou manuellement dans le portail Apple.
+
+Expo / EAS
+- npm i -g eas-cli && eas login
+- eas init (crée projectId dans app.json si absent)
+- eas build --platform ios --profile production
+- eas submit --platform ios (ou téléversement manuel Transporter)
+
+Métadonnées App Store Connect
+- Nom affiché, sous-titre, description, mots-clés, URL support, URL marketing.
+- Politique de confidentialité (URL HTTPS obligatoire).
+- Captures d’écran aux tailles requises (iPhone 6,7" et 6,9" au minimum selon règles en vigueur).
+
+Conformité
+- Si suivi publicitaire / SDK analytics : ATT (App Tracking Transparency) et déclaration Privacy Nutrition Labels.
+- Compte développeur : signer les accords Paid Apps si app payante ou achats intégrés.
+
+Technique avant soumission
+- Variables EXPO_PUBLIC_* correctes sur le build EAS (secrets EAS ou fichiers .env pour le profil de build).
+- Migrations Supabase appliquées (colonnes pays, use_personal_library, etc.).
+- Tester le flux : connexion, liste devis/ouvrages, assistant (JWT Bearer vers l’API Next déployée).
